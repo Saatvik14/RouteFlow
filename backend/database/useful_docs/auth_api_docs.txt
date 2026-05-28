@@ -1,0 +1,95 @@
+ROUTEFLOW AUTHENTICATION API DOCUMENTATION
+==========================================
+
+OVERVIEW:
+This API implements a dual-token authentication system (Access + Refresh) 
+designed for seamless mobile application usage.
+
+TOKEN EXPIRATION SETTINGS:
+- Access Token: 15 minutes (Used for API calls)
+- Refresh Token: 7 days (Used to get new access tokens)
+
+-------------------------------------------------------------------------------
+0. HEALTH CHECK / PING API
+-------------------------------------------------------------------------------
+Endpoint: GET /users/health
+Access: Public
+Description: Verifies connection to Supabase and accessibility of the users table.
+
+CURL command:
+curl -X GET http://localhost:5000/users/health
+
+-------------------------------------------------------------------------------
+1. SIGNUP API
+-------------------------------------------------------------------------------
+Endpoint: POST /users/signup
+Access: Public
+Description: Registers a new user account.
+
+Request Body (JSON):
+{
+  "name": "Full Name",
+  "phone_no": "Mobile Number (Unique)",
+  "email": "Email Address (Optional/Unique)",
+  "password": "Min 6 characters",
+  "role": "Optional (defaults to 'user')"
+}
+
+CURL command:
+curl -X POST http://localhost:5000/users/signup \
+     -H "Content-Type: application/json" \
+     -d "{\"name\": \"John Doe\", \"phone_no\": \"1234567890\", \"password\": \"securePassword123\"}"
+
+-------------------------------------------------------------------------------
+2. LOGIN API
+-------------------------------------------------------------------------------
+Endpoint: POST /users/login
+Access: Public
+Description: Logs in via phone_no OR email. Returns user object and both tokens.
+
+Request Body (JSON):
+{
+  "identifier": "phone_number_or_email",
+  "password": "user_password"
+}
+
+CURL command:
+curl -X POST http://localhost:5000/users/login \
+     -H "Content-Type: application/json" \
+     -d "{\"identifier\": \"1234567890\", \"password\": \"securePassword123\"}"
+
+-------------------------------------------------------------------------------
+3. REFRESH TOKEN API
+-------------------------------------------------------------------------------
+Endpoint: POST /users/refresh
+Access: Public (requires valid refreshToken)
+Description: Exchanges an expired access token for a new one using the refresh token.
+
+Request Body (JSON):
+{
+  "refreshToken": "YOUR_REFRESH_TOKEN"
+}
+
+CURL command:
+curl -X POST http://localhost:5000/users/refresh \
+     -H "Content-Type: application/json" \
+     -d "{\"refreshToken\": \"INSERT_REFRESH_TOKEN_HERE\"}"
+
+-------------------------------------------------------------------------------
+4. PROFILE API (PROTECTED ROUTE)
+-------------------------------------------------------------------------------
+Endpoint: GET /users/profile
+Access: Private (requires valid accessToken)
+Description: Returns data for the currently authenticated user.
+
+CURL command:
+curl -X GET http://localhost:5000/users/profile \
+     -H "Authorization: Bearer INSERT_ACCESS_TOKEN_HERE"
+
+-------------------------------------------------------------------------------
+HTTP STATUS CODES:
+200/201: Success
+400: Bad Request (Validation failure)
+401: Unauthorized (Invalid credentials or missing/expired access token)
+403: Forbidden (Invalid/Expired refresh token)
+500: Server Error

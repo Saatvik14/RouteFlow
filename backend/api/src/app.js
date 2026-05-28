@@ -1,15 +1,22 @@
-const express = require('express');
-const cors = require('cors');
+const path = require('path');
+// Load environment variables from .env file
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
-const { PROJECT_NAME } = require('./config/env');
+const express = require('express');
+const { PORT } = require('./config/env');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
-app.use(cors());
+// Middleware to parse JSON bodies
 app.use(express.json());
 
+// Basic route
 app.get('/', (req, res) => {
-    res.send(`${PROJECT_NAME} Backend Running`);
+  res.send('API is running...');
 });
+
+// Auth routes
+app.use('/users', authRoutes);
 
 module.exports = app;
