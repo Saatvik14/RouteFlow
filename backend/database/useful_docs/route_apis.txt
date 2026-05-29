@@ -1,0 +1,96 @@
+ROUTE FLOW - ROUTE API DOCUMENTATION
+====================================
+
+Base URL: /route
+
+SECURITY:
+All endpoints listed below are PROTECTED. 
+You must include a valid JWT Access Token in the Authorization header.
+Example: Authorization: Bearer <your_access_token>
+
+---------------------------------------------------------------------------
+1. CREATE ROUTE
+---------------------------------------------------------------------------
+URL: /create
+Method: POST
+
+Request Body (JSON):
+  - name (String): Name of the route.
+  - start_location (String): Starting address or coordinates.
+  - end_location (String): Destination address or coordinates.
+  - start_datetime (String): ISO 8601 format timestamp.
+  - end_datetime (String): ISO 8601 format timestamp.
+
+Response:
+  - 201 Created: Returns the created route object.
+  - 400 Bad Request: Missing required fields.
+
+cURL Example:
+curl -X POST http://localhost:5000/route/create \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_token>" \
+  -d '{
+    "name": "Morning Commute",
+    "start_location": "123 Home St",
+    "end_location": "456 Office Blvd",
+    "start_datetime": "2023-11-01T08:00:00Z",
+    "end_datetime": "2023-11-01T09:00:00Z"
+  }'
+
+---------------------------------------------------------------------------
+2. FETCH ALL ROUTES
+---------------------------------------------------------------------------
+URL: /fetch/all
+Method: GET
+
+Response:
+  - 200 OK: Returns an array of route objects belonging to the logged-in user.
+
+cURL Example:
+curl -X GET http://localhost:5000/route/fetch/all \
+  -H "Authorization: Bearer <your_token>"
+
+---------------------------------------------------------------------------
+3. FETCH SPECIFIC ROUTE
+---------------------------------------------------------------------------
+URL: /fetch
+Method: GET
+
+Query Parameters:
+  - id (Integer): The route_id of the route you want to fetch.
+
+Response:
+  - 200 OK: Returns the requested route object.
+  - 404 Not Found: Route doesn't exist or doesn't belong to the user.
+
+cURL Example:
+curl -X GET "http://localhost:5000/route/fetch?id=1" \
+  -H "Authorization: Bearer <your_token>"
+
+---------------------------------------------------------------------------
+4. EDIT ROUTE
+---------------------------------------------------------------------------
+URL: /edit
+Method: PUT
+
+Request Body (JSON):
+  - route_id (Integer): Required.
+  - name (String): Optional.
+  - start_location (String): Optional.
+  - end_location (String): Optional.
+  - start_datetime (String): Optional.
+  - end_datetime (String): Optional.
+  - status (String): Optional (e.g., 'active', 'completed').
+
+Response:
+  - 200 OK: Returns the updated route object.
+  - 404 Not Found: Route doesn't exist or doesn't belong to the user.
+
+cURL Example:
+curl -X PUT http://localhost:5000/route/edit \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_token>" \
+  -d '{
+    "route_id": 1,
+    "status": "completed"
+  }'

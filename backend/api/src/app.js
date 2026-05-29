@@ -5,6 +5,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const express = require('express');
 const { PORT } = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
+const routeRoutes = require('./routes/routeRoutes');
 
 const app = express();
 
@@ -18,5 +19,6 @@ app.get('/', (req, res) => {
 
 // Auth routes
 app.use('/users', authRoutes);
+app.use('/route', routeRoutes);
 
 module.exports = app;
