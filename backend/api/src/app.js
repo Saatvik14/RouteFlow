@@ -6,6 +6,7 @@ const express = require('express');
 const { PORT } = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
 const routeRoutes = require('./routes/routeRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 const app = express();
 
@@ -20,5 +21,6 @@ app.get('/', (req, res) => {
 // Auth routes
 app.use('/users', authRoutes);
 app.use('/route', routeRoutes);
+app.use('/order', orderRoutes);
 
 module.exports = app;

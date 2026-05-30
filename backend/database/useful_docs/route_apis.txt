@@ -94,3 +94,34 @@ curl -X PUT http://localhost:5000/route/edit \
     "route_id": 1,
     "status": "completed"
   }'
+
+---------------------------------------------------------------------------
+5. GEOCODE ADDRESS
+---------------------------------------------------------------------------
+URL: /geocode
+Method: POST
+
+Request Body (JSON):
+  - name (String): Building or place name (Optional).
+  - street (String): Street name.
+  - housenumber (String): House number.
+  - postcode (String): Postal code.
+  - city (String): City name.
+  - country (String): Country name.
+
+Response:
+  - 200 OK: Returns the geocoding result with the highest confidence score.
+  - 404 Not Found: No results found for the provided address components.
+
+cURL Example:
+curl -X POST http://localhost:5000/route/geocode \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your_token>" \
+  -d '{
+    "name": "Milford Hall",
+    "street": "Wyndham Road",
+    "housenumber": "10",
+    "postcode": "SP1 3AA",
+    "city": "Salisbury",
+    "country": "United Kingdom"
+  }'

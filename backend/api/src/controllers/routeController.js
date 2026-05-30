@@ -1,5 +1,44 @@
 const { runQuery } = require('../config/db');
 
+// Dynamic import for node-fetch as it is an ESM-only package (v3+)
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
+/**
+ * Shared helper to fetch geocoding data from Geoapify.
+ * Used by both Route and Order controllers.
+ */
+const getGeocodingData = async (address) => {
+  const { name, street, housenumber, postcode, city, country } = address;
+  const apiKey = process.env.GEOAPIFY_API_KEY;
+
+  if (!apiKey) return null;
+
+  const url = new URL('https://api.geoapify.com/v1/geocode/search');
+  url.searchParams.append('housenumber', housenumber || '');
+  url.searchParams.append('street', street || '');
+  url.searchParams.append('name', name || '');
+  url.searchParams.append('postcode', postcode || '');
+  url.searchParams.append('city', city || '');
+  url.searchParams.append('country', country || '');
+  url.searchParams.append('format', 'json');
+  url.searchParams.append('apiKey', apiKey);
+
+  try {
+    // console.log('Geocoding Request URL:', url.toString());
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (!data.results || data.results.length === 0) return null;
+
+    return data.results.reduce((prev, current) => {
+      return (current.rank?.confidence || 0) > (prev.rank?.confidence || 0) ? current : prev;
+    }, data.results[0]);
+  } catch (error) {
+    console.error('Shared Geocoding Helper Error:', error);
+    return null;
+  }
+};
+
 // @desc    Create new route
 // @route   POST /route/create
 // @access  Private
@@ -112,4 +151,24 @@ const editRoute = async (req, res) => {
   }
 };
 
-module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute };
+// @desc    Geocode address components
+// @route   POST /route/geocode
+// @access  Private
+const geocodeAddress = async (req, res) => {
+  try {
+    const { street, housenumber, postcode, city, country } = req.body;
+    if (!street || !housenumber || !postcode || !city || !country) {
+      return res.status(400).json({ message: 'Missing required fields: street, housenumber, postcode, city, and country are required.' });
+    }
+
+    const bestMatch = await getGeocodingData(req.body);
+    if (!bestMatch) {
+      return res.status(404).json({ message: 'No geocoding results found' });
+    }
+    res.status(200).json(bestMatch);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error during geocoding process' });
+  }
+};
+
+module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData };
