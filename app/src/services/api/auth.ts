@@ -10,7 +10,7 @@ import { apiPost } from './client';
  * Login credentials
  */
 export interface LoginRequest {
-  phone_no: string;
+  identifier: string;
   password: string;
 }
 
@@ -18,7 +18,7 @@ export interface LoginRequest {
  * Login response with auth token
  */
 export interface LoginResponse {
-  token: string;
+  accessToken: string;
   refreshToken: string;
   user: {
     id: string;

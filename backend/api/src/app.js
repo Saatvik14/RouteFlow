@@ -3,6 +3,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const express = require('express');
+const cors = require('cors');
 const { PORT } = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
 const routeRoutes = require('./routes/routeRoutes');
@@ -10,8 +11,33 @@ const orderRoutes = require('./routes/orderRoutes');
 
 const app = express();
 
+// CORS middleware
+app.use(cors({
+  origin: [
+    'http://localhost:8081',
+    'http://127.0.0.1:8081',
+    'http://localhost:19006',
+    'http://localhost:3000',
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'apikey',
+    'x-client-info',
+    'x-retry-count',
+  ],
+  optionsSuccessStatus: 200,
+}));
+
 // Middleware to parse JSON bodies
 app.use(express.json());
+
+// Middleware to parse URL-encoded bodies
+app.use(express.urlencoded({ extended: true }));
 
 // Basic route
 app.get('/', (req, res) => {

@@ -1,4 +1,5 @@
-import { Link } from 'expo-router';
+import { authService, setAuthToken } from '@/services/api';
+import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -18,18 +19,50 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
+  const router = useRouter();
 
-  const handleLogin = () => {
-    if (!phone || !password) {
-      setError('Please fill in all fields');
-      return;
-    }
 
-    setError('');
-    login();
-  };
+    const handleLogin = async () => {
+      if (!phone || !password) {
+        setError('Please fill in all fields');
+        return;
+      }
+  
+      setError('');
+      setLoading(true);
+  
+      try {
+        // Call signup API
+        const response = await authService.login({
+          identifier: phone,
+          password
+        });
+  
+        setLoading(false);
+        console.log('Login response:', response);
+  
+        if (response.success && response.data?.accessToken) {
+          // Save token for future requests
+          await setAuthToken(response.data.accessToken);
+          console.log(1)
+          // Update auth context first
+          login();
+          // Route to Home screen
+          router.replace('/(tabs)/explore');
+        } else {
+          // Show error message from API
+          setError(response.error || 'Login failed. Please try again.');
+        }
+      } catch (err: any) {
+        setLoading(false);
+        setError('An unexpected error occurred. Please try again.');
+        console.error('Login error:', err);
+      }
+    };
+  
 
   return (
     <KeyboardAvoidingView

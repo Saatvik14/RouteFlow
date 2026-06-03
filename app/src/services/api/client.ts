@@ -3,6 +3,7 @@
  * Common HTTP request handler with error handling, interceptors, and common functions
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL, API_CONFIG, ERROR_MESSAGES, HTTP_STATUS } from '../../constants/api';
 
 /**
@@ -41,16 +42,36 @@ export class APIError extends Error {
 }
 
 /**
- * Storage for auth token (can be replaced with AsyncStorage or similar)
+ * Storage for auth token (persisted with AsyncStorage)
  */
 let authToken: string | null = null;
 
-export const setAuthToken = (token: string | null) => {
+const TOKEN_STORAGE_KEY = 'authToken';
+
+export const setAuthToken = async (token: string | null) => {
   authToken = token;
+  if (token) {
+    await AsyncStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } else {
+    await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
+  }
 };
 
 export const getAuthToken = (): string | null => {
   return authToken;
+};
+
+export const restoreAuthToken = async (): Promise<string | null> => {
+  try {
+    const token = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
+    if (token) {
+      authToken = token;
+      return token;
+    }
+  } catch (error) {
+    console.error('Failed to restore auth token:', error);
+  }
+  return null;
 };
 
 /**
@@ -101,6 +122,7 @@ export const makeRequest = async <T = any>(
       headers: finalHeaders,
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
+      credentials: 'include', // Include cookies for CORS
     });
 
     clearTimeout(timeoutId);
@@ -114,7 +136,7 @@ export const makeRequest = async <T = any>(
       // Handle specific status codes
       if (response.status === HTTP_STATUS.UNAUTHORIZED) {
         // Token expired or invalid - can trigger logout here
-        setAuthToken(null);
+        await setAuthToken(null);
       }
 
       console.error(`[API] Error: ${response.status} - ${errorMessage}`);

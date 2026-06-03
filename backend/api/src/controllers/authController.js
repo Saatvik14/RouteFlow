@@ -24,8 +24,8 @@ const generateRefreshToken = (id) => {
 // @access  Public
 const signup = async (req, res) => {
   const { name, phone_no, email, password, role } = req.body;
-
-  // Basic validation
+  console.log('Signup request body:', req.body); // Debug log
+  // Basic validation 
   if (!name || !phone_no || !password) {
     return res.status(400).json({ message: 'Please enter all required fields: name, phone_no, password' });
   }
@@ -72,7 +72,6 @@ const signup = async (req, res) => {
     const newUser = newUserResult.rows[0];
 
     res.status(201).json({
-      user: newUser,
       accessToken: generateAccessToken(newUser.user_id),
       refreshToken: generateRefreshToken(newUser.user_id),
     });
@@ -111,11 +110,7 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Remove password from response
-    delete user.password;
-
     res.status(200).json({
-      user,
       accessToken: generateAccessToken(user.user_id),
       refreshToken: generateRefreshToken(user.user_id),
     });

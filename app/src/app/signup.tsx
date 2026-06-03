@@ -1,15 +1,15 @@
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 
 import { authService, setAuthToken } from '@/services/api';
@@ -54,11 +54,12 @@ export default function SignupScreen() {
       });
 
       setLoading(false);
+      console.log('Signup response:', response);
 
-      if (response.success && response.data?.token) {
+      if (response.success && response.data?.accessToken) {
         // Save token for future requests
-        setAuthToken(response.data.token);
-        
+        await setAuthToken(response.data.accessToken);
+        login();
         // Route to Home screen
         router.replace('/(tabs)/explore');
       } else {

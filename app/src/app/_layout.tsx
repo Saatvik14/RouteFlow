@@ -4,12 +4,14 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
+import { restoreAuthToken, setAuthToken } from '@/services/api';
 
 // Simple Auth Context for demonstration
 const AuthContext = createContext({
   isLoggedIn: false,
   login: () => {},
   logout: () => {},
+  isLoading: true,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -17,15 +19,38 @@ export const useAuth = () => useContext(AuthContext);
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const router = useRouter();
   const segments = useSegments();
 
+  // Restore auth state on app load
+  useEffect(() => {
+    const bootstrapAsync = async () => {
+      try {
+        const token = await restoreAuthToken();
+        if (token) {
+          setIsLoggedIn(true);
+        }
+      } catch (err) {
+        console.error('Failed to restore session', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    bootstrapAsync();
+  }, []);
+
   const authContext = useMemo(() => ({
     isLoggedIn,
+    isLoading,
     login: () => setIsLoggedIn(true),
-    logout: () => setIsLoggedIn(false),
-  }), [isLoggedIn]);
+    logout: async () => {
+      await setAuthToken(null);
+      setIsLoggedIn(false);
+    },
+  }), [isLoggedIn, isLoading]);
 
   useEffect(() => {
     // Check if the current route is an auth screen
@@ -44,15 +69,15 @@ export default function TabLayout() {
     <AuthContext.Provider value={authContext}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <AnimatedSplashOverlay />
-        {isLoggedIn ? (
+        {!isLoading && isLoggedIn ? (
           <AppTabs />
-        ) : (
+        ) : !isLoading ? (
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="login" />
             <Stack.Screen name="signup" />
             <Stack.Screen name="forgot-password" />
           </Stack>
-        )}
+        ) : null}
       </ThemeProvider>
     </AuthContext.Provider>
   );

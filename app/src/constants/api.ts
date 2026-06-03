@@ -15,7 +15,7 @@ export const API_CONFIG = {
 };
 
 // Construct full API base URL with version
-export const API_BASE_URL = `${API_CONFIG.BASE_URL}/api/${API_CONFIG.API_VERSION}`;
+export const API_BASE_URL = `${API_CONFIG.BASE_URL}`;
 
 /**
  * API Endpoints categorized by resource
@@ -23,8 +23,8 @@ export const API_BASE_URL = `${API_CONFIG.BASE_URL}/api/${API_CONFIG.API_VERSION
 export const API_ENDPOINTS = {
   // Authentication endpoints
   AUTH: {
-    LOGIN: '/login',
-    SIGNUP: '/signup',
+    LOGIN: '/users/login',
+    SIGNUP: '/users/signup',
     LOGOUT: '/auth/logout',
     REFRESH_TOKEN: '/refresh',
     FORGOT_PASSWORD: '/auth/forgot-password',
