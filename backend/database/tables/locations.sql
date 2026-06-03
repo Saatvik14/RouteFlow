@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS locations (
     country VARCHAR(100),
     latitude DECIMAL(10, 8),
     longitude DECIMAL(11, 8),
+    full_address TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -16,3 +17,6 @@ CREATE TABLE IF NOT EXISTS locations (
 CREATE INDEX IF NOT EXISTS idx_locations_city ON locations(city);
 CREATE INDEX IF NOT EXISTS idx_locations_postcode ON locations(postcode);
 CREATE INDEX IF NOT EXISTS idx_locations_coords ON locations(latitude, longitude);
+
+-- Ensure full_address column exists for existing tables
+ALTER TABLE locations ADD COLUMN IF NOT EXISTS full_address TEXT;

@@ -16,10 +16,25 @@ Method: POST
 
 Request Body (JSON):
   - name (String): Name of the route.
-  - start_location (String): Starting address or coordinates.
-  - end_location (String): Destination address or coordinates.
+  - start_location (Object): JSON object with details for the starting location. Must include `full_address`.
+    - name (String): Building or place name (Optional).
+    - street (String): Street name.
+    - housenumber (String): House number.
+    - postcode (String): Postal code.
+    - city (String): City name.
+    - country (String): Country name.
+    - full_address (String): The full, human-readable address.
+  - end_location (Object): JSON object with details for the destination location. Must include `full_address`.
+    - name (String): Building or place name (Optional).
+    - street (String): Street name.
+    - housenumber (String): House number.
+    - postcode (String): Postal code.
+    - city (String): City name.
+    - country (String): Country name.
+    - full_address (String): The full, human-readable address.
   - start_datetime (String): ISO 8601 format timestamp.
   - end_datetime (String): ISO 8601 format timestamp.
+  - status (String): Optional. Current status of the route (e.g., 'pending', 'active', 'completed').
 
 Response:
   - 201 Created: Returns the created route object.
@@ -30,9 +45,25 @@ curl -X POST http://localhost:5000/route/create \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <your_token>" \
   -d '{
-    "name": "Morning Commute",
-    "start_location": "123 Home St",
-    "end_location": "456 Office Blvd",
+    "name": "Daily Commute",
+    "start_location": {
+      "name": "Home",
+      "housenumber": "123",
+      "street": "Main St",
+      "city": "Anytown",
+      "postcode": "12345",
+      "country": "USA",
+      "full_address": "123 Main St, Anytown, USA"
+    },
+    "end_location": {
+      "name": "Office",
+      "housenumber": "456",
+      "street": "Business Ave",
+      "city": "Anytown",
+      "postcode": "12345",
+      "country": "USA",
+      "full_address": "456 Business Ave, Anytown, USA"
+    },
     "start_datetime": "2023-11-01T08:00:00Z",
     "end_datetime": "2023-11-01T09:00:00Z"
   }'
@@ -76,8 +107,6 @@ Method: PUT
 Request Body (JSON):
   - route_id (Integer): Required.
   - name (String): Optional.
-  - start_location (String): Optional.
-  - end_location (String): Optional.
   - start_datetime (String): Optional.
   - end_datetime (String): Optional.
   - status (String): Optional (e.g., 'active', 'completed').
