@@ -28,7 +28,7 @@ export default function SignupScreen() {
   const router = useRouter();
 
   const handleSignup = async () => {
-    if (!name || !email || !phone || !password) {
+    if (!name  || !phone || !password) {
       setError('Please fill in all fields');
       return;
     }
