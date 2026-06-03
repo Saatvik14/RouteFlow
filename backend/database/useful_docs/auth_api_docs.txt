@@ -45,7 +45,7 @@ curl -X POST http://localhost:5000/users/signup \
 -------------------------------------------------------------------------------
 Endpoint: POST /users/login
 Access: Public
-Description: Logs in via phone_no OR email. Returns user object and both tokens.
+Description: Logs in via phone_no OR email. Returns both access and refresh tokens.
 
 Request Body (JSON):
 {

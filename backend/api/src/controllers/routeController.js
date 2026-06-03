@@ -13,6 +13,26 @@ const getGeocodingData = async (address) => {
 
   if (!apiKey) return null;
 
+  // 1. Search in our database locations table first to avoid unnecessary API calls
+  try {
+    const dbLookupQuery = `
+      SELECT latitude as lat, longitude as lon 
+      FROM locations 
+      WHERE (name IS NOT DISTINCT FROM $1)
+        AND (housenumber IS NOT DISTINCT FROM $2)
+        AND (street IS NOT DISTINCT FROM $3)
+        AND (city IS NOT DISTINCT FROM $4)
+        AND (postcode IS NOT DISTINCT FROM $5)
+        AND (country IS NOT DISTINCT FROM $6)
+      LIMIT 1
+    `;
+    const result = await runQuery(dbLookupQuery, [name || null, housenumber || null, street || null, city || null, postcode || null, country || null]);
+    if (result.rows.length > 0) return result.rows[0];
+  } catch (error) {
+    console.error('Database Geocoding Lookup Error:', error);
+  }
+
+  // 2. If not found in database, proceed with Geoapify API call
   const url = new URL('https://api.geoapify.com/v1/geocode/search');
   url.searchParams.append('housenumber', housenumber || '');
   url.searchParams.append('street', street || '');
@@ -43,35 +63,80 @@ const getGeocodingData = async (address) => {
 // @route   POST /route/create
 // @access  Private
 const createRoute = async (req, res) => {
-  const { name, start_location, end_location, start_datetime, end_datetime } = req.body;
-  const user_id = req.user?.user_id; // Match the column name in users.sql
+  const { 
+    name, // New: route name
+    start_location, 
+    end_location, 
+    start_datetime, // New: route start datetime
+    end_datetime,   // New: route end datetime
+    status          // New: route status (optional)
+  } = req.body;
+  const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
 
   if (!user_id) {
-    return res.status(401).json({ message: 'User authentication failed' });
+    return res.status(401).json({ message: 'User not authenticated.' });
   }
-
-  if (!name || !start_location || !end_location || !start_datetime || !end_datetime) {
-    return res.status(400).json({ message: 'Please enter all required fields' });
+  if (!name || !start_location?.full_address || !end_location?.full_address || !start_datetime || !end_datetime) {
+    return res.status(400).json({ 
+      message: 'Missing required fields. name, start_location (with full_address), end_location (with full_address), start_datetime, and end_datetime are required.' 
+    });
   }
 
   try {
-    const insertQuery = `
-      INSERT INTO routes (name, start_location, end_location, start_datetime, end_datetime, user_id, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `;
-    
-    const result = await runQuery(insertQuery, [
-      name, 
-      start_location, 
-      end_location, 
-      start_datetime, 
-      end_datetime, 
-      user_id, 
-      'active'
+    // 1. Geocode Start and End Locations directly via helper
+    // This is more efficient and reliable than making an internal HTTP request to yourself
+    const [startGeocodeResult, endGeocodeResult] = await Promise.all([
+      getGeocodingData(start_location),
+      getGeocodingData(end_location)
     ]);
 
-    res.status(201).json(result.rows[0]);
+    if (!startGeocodeResult || !endGeocodeResult) {
+      return res.status(400).json({ message: 'Unable to geocode one or both addresses.' });
+    }
+
+    const insertQuery = `
+      INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING location_id
+    `;
+
+    // 3. Save Start Location
+    const startLocRes = await runQuery(insertQuery, [
+      start_location.name, start_location.housenumber, start_location.street,
+      start_location.city, start_location.postcode, start_location.country,
+      startGeocodeResult.lat, startGeocodeResult.lon, start_location.full_address
+    ]);
+
+    // 4. Save End Location
+    await runQuery(insertQuery, [
+      end_location.name, end_location.housenumber, end_location.street,
+      end_location.city, end_location.postcode, end_location.country,
+      endGeocodeResult.lat, endGeocodeResult.lon, end_location.full_address
+    ]);
+
+    // 5. Create entry in routes table
+    const insertRouteQuery = `
+      INSERT INTO routes (user_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING route_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status
+    `;
+    const routeRes = await runQuery(insertRouteQuery, [
+      user_id,
+      name,
+      start_location.full_address,
+      end_location.full_address,
+      start_datetime,
+      end_datetime,
+      status || 'active' // Default status if not provided
+    ]);
+
+    res.status(201).json({
+      message: 'Route created successfully',
+      route: routeRes.rows[0],
+      start_coords: { lat: startGeocodeResult.lat, lon: startGeocodeResult.lon },
+      end_coords: { lat: endGeocodeResult.lat, lon: endGeocodeResult.lon }
+    });
+
   } catch (error) {
     console.error('Create Route Error:', error);
     res.status(500).json({ message: 'Server error during route creation' });
@@ -130,18 +195,21 @@ const editRoute = async (req, res) => {
   try {
     const updateQuery = `
       UPDATE routes 
-      SET name = COALESCE($1, name), 
-          start_location = COALESCE($2, start_location), 
-          end_location = COALESCE($3, end_location), 
-          start_datetime = COALESCE($4, start_datetime), 
-          end_datetime = COALESCE($5, end_datetime),
-          status = COALESCE($6, status),
+      SET name = COALESCE($1, name),
+          start_datetime = COALESCE($2, start_datetime), 
+          end_datetime = COALESCE($3, end_datetime),
+          status = COALESCE($4, status),
           updated_at = CURRENT_TIMESTAMP
-      WHERE route_id = $7 AND user_id = $8
+      WHERE route_id = $5 AND user_id = $6
       RETURNING *
     `;
     
-    const result = await runQuery(updateQuery, [name, start_location, end_location, start_datetime, end_datetime, status, route_id, user_id]);
+    // Note: The original editRoute had start_location and end_location as string fields.
+    // With the new schema, these would be location_ids.
+    // For simplicity and to avoid breaking existing API contract for editRoute,
+    // we are temporarily removing start_location and end_location from the update query for routes table.
+    // A more robust solution would involve updating the locations table and then the location_ids in routes.
+    const result = await runQuery(updateQuery, [name, start_datetime, end_datetime, status, route_id, user_id]);
 
     if (result.rows.length === 0) return res.status(404).json({ message: 'Route not found or unauthorized' });
 
@@ -167,6 +235,7 @@ const geocodeAddress = async (req, res) => {
     }
     res.status(200).json(bestMatch);
   } catch (error) {
+    console.error('Geocode Route Error:', error);
     res.status(500).json({ message: 'Server error during geocoding process' });
   }
 };

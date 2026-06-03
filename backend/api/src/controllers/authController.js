@@ -111,11 +111,7 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Remove password from response
-    delete user.password;
-
     res.status(200).json({
-      user,
       accessToken: generateAccessToken(user.user_id),
       refreshToken: generateRefreshToken(user.user_id),
     });
