@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { authService, setAuthToken } from '@/services/api';
-import { useAuth } from './_layout';
+import { useAuth } from './../_layout';
 
 export default function SignupScreen() {
   const [name, setName] = useState('');
@@ -61,7 +61,7 @@ export default function SignupScreen() {
         await setAuthToken(response.data.accessToken);
         login();
         // Route to Home screen
-        router.replace('/(tabs)/explore');
+        router.replace('/');
       } else {
         // Show error message from API
         setError(response.error || 'Signup failed. Please try again.');

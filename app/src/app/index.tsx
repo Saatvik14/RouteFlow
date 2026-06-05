@@ -1,47 +1,87 @@
-import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View, useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
-import MapScreen from '../MapScreen';
+import { RoutePanel } from '@/components/route-panel';
+import { Sidebar } from '@/components/sidebar';
+import MapScreen from './(MapScreen)/MapScreen';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
-  const theme = useTheme();
+  const colorScheme = useColorScheme();
+  // const isDark = colorScheme === 'dark';
+  const isDark = false
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const colors = {
+    buttonBg: isDark ? '#151A21' : '#FFFFFF',
+    buttonBorder: isDark ? '#2A3340' : '#E5EAF2',
+    icon: isDark ? '#FFFFFF' : '#111827',
+    shadow: isDark ? '#000000' : '#8BADEB',
+  };
 
   return (
-    <ThemedView style={styles.container}>
+    <GestureHandlerRootView style={styles.root}>
       <MapScreen />
-      
-      {/* Sidebar Toggle Button */}
-      <Pressable 
-        style={[styles.menuButton, { top: insets.top + Spacing.three, left: Spacing.three }]}
-        onPress={() => alert('Open Sidebar')}>
-        <ThemedView type="backgroundElement" style={styles.iconWrapper}>
-          <SymbolView name="line.3.horizontal" size={24} tintColor={theme.text} />
-        </ThemedView>
+
+      <Pressable
+        style={[
+          styles.menuButton,
+          {
+            top: insets.top + 16,
+            left: 20,
+            backgroundColor: colors.buttonBg,
+            borderColor: colors.buttonBorder,
+            shadowColor: colors.shadow,
+          },
+        ]}
+        onPress={() => setIsSidebarOpen(true)}>
+        <View style={styles.hamburger}>
+          <View style={[styles.bar, { backgroundColor: colors.icon }]} />
+          <View style={[styles.bar, { backgroundColor: colors.icon }]} />
+          <View style={[styles.bar, { backgroundColor: colors.icon }]} />
+        </View>
       </Pressable>
-    </ThemedView>
+
+      <RoutePanel />
+
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
   },
+
   menuButton: {
     position: 'absolute',
-    zIndex: 10,
-  },
-  iconWrapper: {
-    padding: Spacing.two,
-    borderRadius: Spacing.two,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    zIndex: 80,
+    elevation: 12,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 14,
+  },
+
+  hamburger: {
+    width: 24,
+    gap: 5,
+  },
+
+  bar: {
+    width: 24,
+    height: 3,
+    borderRadius: 999,
   },
 });

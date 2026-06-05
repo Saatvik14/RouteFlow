@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 
-import { useAuth } from './_layout';
+import { useAuth } from '../_layout';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -51,7 +51,7 @@ export default function LoginScreen() {
           // Update auth context first
           login();
           // Route to Home screen
-          router.replace('/(tabs)/explore');
+          router.replace('/');
         } else {
           // Show error message from API
           setError(response.error || 'Login failed. Please try again.');

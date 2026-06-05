@@ -3,20 +3,19 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
 import { restoreAuthToken, setAuthToken } from '@/services/api';
 
 // Simple Auth Context for demonstration
 const AuthContext = createContext({
   isLoggedIn: false,
-  login: () => {},
-  logout: () => {},
+  login: () => { },
+  logout: () => { },
   isLoading: true,
 });
 
 export const useAuth = () => useContext(AuthContext);
 
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,28 +55,40 @@ export default function TabLayout() {
     // Check if the current route is an auth screen
     const inAuthGroup = segments[0] === 'login' || segments[0] === 'signup' || segments[0] === 'forgot-password';
 
-    if (!isLoggedIn && !inAuthGroup) {
+    if (!isLoading && !isLoggedIn && !inAuthGroup) {
       // If not logged in and not on an auth screen, redirect to login
       router.replace('/login');
-    } else if (isLoggedIn && inAuthGroup) {
+    } else if (!isLoading && isLoggedIn && inAuthGroup) {
       // If logged in and on an auth screen, redirect to home
       router.replace('/');
     }
-  }, [isLoggedIn, segments]);
+  }, [isLoggedIn, isLoading, segments, router]);
+
+  if (isLoading) {
+    return (
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AnimatedSplashOverlay />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <AuthContext.Provider value={authContext}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AnimatedSplashOverlay />
-        {!isLoading && isLoggedIn ? (
-          <AppTabs />
-        ) : !isLoading ? (
+        {isLoggedIn ? (
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(MapScreen)/MapScreen" />
+            <Stack.Screen name="route-points" />
+            <Stack.Screen name="route-preview" />
+          </Stack>
+        ) : (
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="login" />
             <Stack.Screen name="signup" />
             <Stack.Screen name="forgot-password" />
           </Stack>
-        ) : null}
+        )}
       </ThemeProvider>
     </AuthContext.Provider>
   );
