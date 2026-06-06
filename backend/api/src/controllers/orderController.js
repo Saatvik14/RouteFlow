@@ -177,9 +177,11 @@ const deleteOrderById = async (req, res) => {
 const fetchOrders = async (req, res) => {
   try {
     const query = `
-      SELECT o.*, l.name, l.housenumber, l.street, l.city, l.postcode, l.country, l.latitude, l.longitude
+      SELECT o.*, l.name, l.housenumber, l.street, l.city, l.postcode, l.country, l.latitude, l.longitude,
+             op.longitudinal, op.side, op.vertical
       FROM orders o
       JOIN locations l ON o.location_id = l.location_id
+      LEFT JOIN order_placements op ON o.order_id = op.order_id
       ORDER BY o.created_at DESC
     `;
     const result = await runQuery(query);
@@ -189,4 +191,74 @@ const fetchOrders = async (req, res) => {
   }
 };
 
-module.exports = { addOrder, editOrder, deleteAllOrders, deleteOrderById, fetchOrders };
+// @desc    Get vehicle placement for a specific order
+// @route   GET /order/vehicleplace?order_id=...
+// @access  Private
+const getVehiclePlacementByOrderId = async (req, res) => {
+  const { order_id } = req.query;
+
+  if (!order_id) {
+    return res.status(400).json({ message: 'order_id is required as a query parameter' });
+  }
+
+  try {
+    const result = await runQuery('SELECT * FROM order_placements WHERE order_id = $1', [order_id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Vehicle placement not found for this order' });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error('Fetch Vehicle Placement Error:', error);
+    res.status(500).json({ message: 'Server error while fetching vehicle placement' });
+  }
+};
+
+// @desc    Set or update the vehicle placement for an order
+// @route   POST /order/vehicleplace
+// @access  Private
+const setVehiclePlacement = async (req, res) => {
+  const { order_id, longitudinal, side, vertical } = req.body;
+
+  if (!order_id) {
+    return res.status(400).json({ message: 'order_id is required' });
+  }
+
+  try {
+    // Verify if the order exists before attempting to set placement
+    const orderCheck = await runQuery('SELECT order_id FROM orders WHERE order_id = $1', [order_id]);
+    if (orderCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Upsert logic: Update if order_id already exists, otherwise Insert
+    const upsertQuery = `
+      INSERT INTO order_placements (order_id, longitudinal, side, vertical)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (order_id) 
+      DO UPDATE SET 
+        longitudinal = EXCLUDED.longitudinal,
+        side = EXCLUDED.side,
+        vertical = EXCLUDED.vertical,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    const result = await runQuery(upsertQuery, [order_id, longitudinal, side, vertical]);
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error('Set Vehicle Placement Error:', error);
+    res.status(500).json({ message: 'Server error while setting vehicle placement' });
+  }
+};
+
+module.exports = { 
+  addOrder, 
+  editOrder, 
+  deleteAllOrders, 
+  deleteOrderById, 
+  fetchOrders, 
+  setVehiclePlacement,
+  getVehiclePlacementByOrderId 
+};

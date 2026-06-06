@@ -154,3 +154,21 @@ curl -X POST http://localhost:5000/route/geocode \
     "city": "Salisbury",
     "country": "United Kingdom"
   }'
+
+---------------------------------------------------------------------------
+6. AUTOCOMPLETE ADDRESS
+---------------------------------------------------------------------------
+URL: /autocomplete
+Method: GET
+
+Query Parameters:
+  - text (String): Search text.
+  - limit (Integer): Optional. Number of results (default 3).
+  - lang (String): Optional. Language code (default 'en').
+
+Response:
+  - 200 OK: Returns an array of suggested addresses.
+
+cURL Example:
+curl -X GET "http://localhost:5000/route/autocomplete?text=India+gate&limit=3&lang=en" \
+  -H "Authorization: Bearer <your_token>"

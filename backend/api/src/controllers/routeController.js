@@ -240,4 +240,37 @@ const geocodeAddress = async (req, res) => {
   }
 };
 
-module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData };
+// @desc    Autocomplete address
+// @route   GET /route/autocomplete
+// @access  Private
+const autocompleteAddress = async (req, res) => {
+  const { text, limit, lang } = req.query;
+  const apiKey = process.env.GEOAPIFY_API_KEY;
+
+  if (!text) {
+    return res.status(400).json({ message: 'Text query parameter is required for autocomplete' });
+  }
+
+  if (!apiKey) {
+    return res.status(500).json({ message: 'Geoapify API key is missing' });
+  }
+
+  try {
+    const url = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
+    url.searchParams.append('text', text);
+    url.searchParams.append('limit', limit || '3');
+    url.searchParams.append('lang', lang || 'en');
+    url.searchParams.append('format', 'json');
+    url.searchParams.append('apiKey', apiKey);
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    res.status(200).json(data);
+  } catch (error) {
+    console.error('Autocomplete Error:', error);
+    res.status(500).json({ message: 'Server error during autocomplete' });
+  }
+};
+
+module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress };
