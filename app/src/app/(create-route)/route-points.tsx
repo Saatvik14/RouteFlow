@@ -1,6 +1,10 @@
+import { useAuth } from '@/app/_layout';
+import { restoreAuthToken } from '@/services/api';
+import { routesService } from '@/services/api/routes';
+import { isTokenValid } from '@/services/auth/jwtUtils';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -20,16 +24,42 @@ type PickerTarget = 'start' | 'end';
 
 type LocationMode = 'current_location' | 'manual_address';
 
+type AddressDetails = {
+  housenumber: string;
+  street: string;
+  placeId: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  district: string;
+  state: string;
+  country: string;
+  countryCode: string;
+  postalCode: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 type LocationValue = {
   mode: LocationMode;
   address: string;
-  latitude?: number;
-  longitude?: number;
+  latitude: number | null;
+  longitude: number | null;
+  selectedFromSuggestion: boolean;
+  details: AddressDetails | null;
 };
 
-const CREATE_ROUTE_API_URL =
-  process.env.EXPO_PUBLIC_CREATE_ROUTE_API_URL ||
-  'http://localhost:8080/api/routes';
+type PlaceSuggestion = {
+  id: string;
+  title: string;
+  subtitle: string;
+  fullAddress: string;
+  latitude: number | null;
+  longitude: number | null;
+  details: AddressDetails;
+};
+
+
 
 function getParam(value: string | string[] | undefined, fallback = '') {
   if (Array.isArray(value)) return value[0] || fallback;
@@ -80,6 +110,205 @@ function getReadableAddress(address: Location.LocationGeocodedAddress | undefine
   ]
     .filter(Boolean)
     .join(', ');
+}
+
+function emptyAddressDetails(): AddressDetails {
+  return {
+    housenumber: '',
+    street: '',
+    placeId: '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    district: '',
+    state: '',
+    country: '',
+    countryCode: '',
+    postalCode: '',
+    latitude: null,
+    longitude: null,
+  };
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function parseSuggestion(item: any, index: number, fallbackQuery: string): PlaceSuggestion {
+  const properties = item?.properties || item || {};
+  const geometryCoordinates = item?.geometry?.coordinates || [];
+
+  const latitude = toNumberOrNull(
+    properties.latitude ??
+      properties.lat ??
+      item?.latitude ??
+      item?.lat ??
+      geometryCoordinates?.[1]
+  );
+
+  const longitude = toNumberOrNull(
+    properties.longitude ??
+      properties.lon ??
+      properties.lng ??
+      item?.longitude ??
+      item?.lon ??
+      item?.lng ??
+      geometryCoordinates?.[0]
+  );
+
+  const fullAddress =
+    properties.fullAddress ||
+    properties.formatted ||
+    properties.address ||
+    properties.display_name ||
+    item?.fullAddress ||
+    item?.address ||
+    item?.display_name ||
+    fallbackQuery;
+
+  const title =
+    properties.title ||
+    properties.name ||
+    properties.address_line1 ||
+    item?.title ||
+    item?.name ||
+    item?.text ||
+    String(fullAddress).split(',')[0] ||
+    fallbackQuery;
+
+  const subtitle =
+    properties.subtitle ||
+    properties.address_line2 ||
+    properties.description ||
+    item?.subtitle ||
+    item?.description ||
+    String(fullAddress).replace(String(title), '').trim().replace(/^,/, '').trim() ||
+    'Address suggestion';
+
+  const details: any = {
+    placeId: String(
+      properties.place_id ||
+        properties.placeId ||
+        item?.place_id ||
+        item?.placeId ||
+        item?.id ||
+        index
+    ),
+    addressLine1: String(properties.address_line1 || title || ''),
+    addressLine2: String(properties.address_line2 || subtitle || ''),
+    city: String(properties.city || properties.county || properties.locality || ''),
+    district: String(properties.district || properties.state_district || ''),
+    state: String(properties.state || properties.region || ''),
+    country: String(properties.country || ''),
+    countryCode: String(properties.country_code || properties.countryCode || '').toUpperCase(),
+    postalCode: String(properties.postcode || properties.postalCode || properties.postal_code || ''),
+    latitude,
+    longitude,
+  };
+
+  return {
+    id: details.placeId || `${fallbackQuery}-${index}`,
+    title: String(title),
+    subtitle: String(subtitle),
+    fullAddress: String(fullAddress),
+    latitude,
+    longitude,
+    details,
+  };
+}
+
+function parseDisplayTimeToHours(time: string) {
+  const cleanTime = time.trim().toLowerCase();
+  const match = cleanTime.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+
+  if (!match) {
+    const now = new Date();
+    return {
+      hours: now.getHours(),
+      minutes: now.getMinutes(),
+    };
+  }
+
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] || '0');
+  const meridiem = match[3];
+
+  if (meridiem === 'pm' && hours < 12) hours += 12;
+  if (meridiem === 'am' && hours === 12) hours = 0;
+
+  return {
+    hours,
+    minutes,
+  };
+}
+
+function buildDateTimeISOString(date: Date, time: string) {
+  const { hours, minutes } = parseDisplayTimeToHours(time);
+
+  const value = new Date(date);
+  value.setHours(hours, minutes, 0, 0);
+
+  return value.toISOString();
+}
+
+function buildBackendLocationPayload(
+  location: LocationValue | null,
+  fallbackName: string
+) {
+  const details = location?.details || emptyAddressDetails();
+  const cleanAddress = location?.address?.trim() || '';
+
+  return {
+    housenumber: details.housenumber || '',
+    street: details.street || '',
+    city: details.city || '',
+    postcode: details.postalCode || '',
+    country: details.country || '',
+    full_address: cleanAddress,
+
+    // extra fields
+    latitude:
+      location?.selectedFromSuggestion || location?.mode === 'current_location'
+        ? location.latitude
+        : null,
+    longitude:
+      location?.selectedFromSuggestion || location?.mode === 'current_location'
+        ? location.longitude
+        : null,
+
+    state: details.state || '',
+    district: details.district || '',
+    country_code: details.countryCode || '',
+    place_id: details.placeId || '',
+    selected_from_suggestion: Boolean(location?.selectedFromSuggestion),
+    mode: location?.mode || 'manual_address',
+  };
+}
+
+function buildLocationPayload(location: LocationValue | null) {
+  if (!location) return null;
+
+  const cleanAddress = location.address.trim();
+
+  return {
+    mode: location.mode,
+    address: cleanAddress,
+    selectedFromSuggestion: location.selectedFromSuggestion,
+    latitude:
+      location.selectedFromSuggestion || location.mode === 'current_location'
+        ? location.latitude
+        : null,
+    longitude:
+      location.selectedFromSuggestion || location.mode === 'current_location'
+        ? location.longitude
+        : null,
+    details: location.selectedFromSuggestion
+      ? location.details
+      : emptyAddressDetails(),
+  };
 }
 
 function addDays(date: Date, days: number) {
@@ -135,10 +364,66 @@ function buildDateFromISO(dateISO: string) {
   return date;
 }
 
+async function fetchPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> {
+  const cleanQuery = query.trim();
+
+  if (cleanQuery.length < 2) return [];
+
+  try {
+    const response = await routesService.getAutocompleteAddress(cleanQuery, 7);
+
+    if (response.success && response.data) {
+      const rawList = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.suggestions || response.data.results || response.data.features || []);
+
+      return rawList.map((item: any, index: number) =>
+        parseSuggestion(item, index, cleanQuery)
+      );
+    }
+    
+    throw new Error('No data from backend');
+  } catch {
+    const result = await Location.geocodeAsync(cleanQuery);
+
+    return result.slice(0, 5).map((item, index) => ({
+      id: `${cleanQuery}-${index}`,
+      title: cleanQuery,
+      subtitle: 'Suggested location',
+      fullAddress: cleanQuery,
+      latitude: item.latitude,
+      longitude: item.longitude,
+      details: {
+        ...emptyAddressDetails(),
+        placeId: `${cleanQuery}-${index}`,
+        addressLine1: cleanQuery,
+        latitude: item.latitude,
+        longitude: item.longitude,
+      },
+    }));
+  }
+}
+
 export default function RoutePointsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { isLoggedIn, logout } = useAuth();
+
+  // Check for valid JWT token
+  useEffect(() => {
+    const validateToken = async () => {
+      const token = await restoreAuthToken();
+      if (!isTokenValid(token)) {
+        // Token is invalid or missing, redirect to login
+        console.log('Invalid or missing token, redirecting to login');
+        logout();
+        router.replace('/login');
+      }
+    };
+
+    validateToken();
+  }, [router, logout]);
 
   const routeName = useMemo(
     () => getParam(params.routeName, 'My route'),
@@ -165,6 +450,10 @@ export default function RoutePointsScreen() {
   const [startLocation, setStartLocation] = useState<LocationValue>({
     mode: 'current_location',
     address: 'Use current location',
+    latitude: null,
+    longitude: null,
+    selectedFromSuggestion: false,
+    details: null,
   });
 
   const [startDate, setStartDate] = useState<Date>(initialDate);
@@ -174,6 +463,10 @@ export default function RoutePointsScreen() {
   const [endLocation, setEndLocation] = useState<LocationValue>({
     mode: 'manual_address',
     address: '',
+    latitude: null,
+    longitude: null,
+    selectedFromSuggestion: false,
+    details: null,
   });
 
   const [endDate, setEndDate] = useState<Date>(initialDate);
@@ -188,9 +481,12 @@ export default function RoutePointsScreen() {
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [activeSearch, setActiveSearch] = useState<'start' | 'end' | null>(null);
+
   const isStartValid =
     startLocation.mode === 'current_location'
-      ? Boolean(startLocation.latitude && startLocation.longitude)
+      ? startLocation.latitude !== null && startLocation.longitude !== null
       : Boolean(startLocation.address.trim());
 
   const isEndValid =
@@ -221,6 +517,29 @@ export default function RoutePointsScreen() {
     return endLocation.address.trim() ? 'Custom destination' : 'Enter end address';
   }, [endLocation.address, endMode, startLocation.address]);
 
+  useEffect(() => {
+    let mounted = true;
+    const query = activeSearch === 'start' ? startLocation.address : endLocation.address;
+
+    if (!activeSearch || !query || query.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      const data = await fetchPlaceSuggestions(query);
+
+      if (mounted) {
+        setSuggestions(data);
+      }
+    }, 350);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [startLocation.address, endLocation.address, activeSearch]);
+
   const handleUseCurrentLocation = async () => {
     try {
       setIsFetchingLocation(true);
@@ -231,6 +550,10 @@ export default function RoutePointsScreen() {
         setStartLocation({
           mode: 'manual_address',
           address: '',
+          latitude: null,
+          longitude: null,
+          selectedFromSuggestion: false,
+          details: null,
         });
         return;
       }
@@ -249,6 +572,8 @@ export default function RoutePointsScreen() {
         address: getReadableAddress(reverseAddress[0]),
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
+        selectedFromSuggestion: false,
+        details: null,
       });
     } finally {
       setIsFetchingLocation(false);
@@ -259,7 +584,24 @@ export default function RoutePointsScreen() {
     setStartLocation({
       mode: 'manual_address',
       address: value,
+      latitude: null,
+      longitude: null,
+      selectedFromSuggestion: false,
+      details: null,
     });
+    setActiveSearch('start');
+  };
+
+  const handleManualEndAddress = (value: string) => {
+    setEndLocation({
+      mode: 'manual_address',
+      address: value,
+      latitude: null,
+      longitude: null,
+      selectedFromSuggestion: false,
+      details: null,
+    });
+    setActiveSearch('end');
   };
 
   const handleSelectEndMode = (mode: EndMode) => {
@@ -275,55 +617,65 @@ export default function RoutePointsScreen() {
       setEndLocation({
         mode: 'manual_address',
         address: '',
+        latitude: null,
+        longitude: null,
+        selectedFromSuggestion: false,
+        details: null,
       });
     }
 
     setShowEndSheet(false);
   };
 
+  const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
+    if (activeSearch === 'start') {
+      setStartLocation({
+        mode: 'manual_address',
+        address: suggestion.fullAddress,
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+        selectedFromSuggestion: true,
+        details: suggestion.details,
+      });
+    } else if (activeSearch === 'end') {
+      setEndLocation({
+        mode: 'manual_address',
+        address: suggestion.fullAddress,
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+        selectedFromSuggestion: true,
+        details: suggestion.details,
+      });
+    }
+    setSuggestions([]);
+    setActiveSearch(null);
+  };
+
   const buildPayload = () => {
     const finalEndLocation =
       endMode === 'round_trip'
-        ? {
-            mode: startLocation.mode,
-            address: startLocation.address,
-            latitude: startLocation.latitude,
-            longitude: startLocation.longitude,
-          }
+        ? buildLocationPayload(startLocation)
         : endMode === 'no_end'
           ? null
-          : {
-              mode: endLocation.mode,
-              address: endLocation.address.trim(),
-              latitude: endLocation.latitude,
-              longitude: endLocation.longitude,
-            };
+          : buildLocationPayload(endLocation);
 
-    return {
-      routeName,
-      routeDate,
-      routeDateLabel,
-      carryPastStops,
+   return {
+  // Backend required fields
+  name: routeName,
+  start_location: buildBackendLocationPayload(startLocation, 'Start Location'),
+  end_location: buildBackendLocationPayload(finalEndLocation, 'End Location'),
+  start_datetime: buildDateTimeISOString(startDate, startTime),
+  end_datetime: buildDateTimeISOString(endDate, endTime),
 
-      start: {
-        location: {
-          mode: startLocation.mode,
-          address: startLocation.address.trim(),
-          latitude: startLocation.latitude,
-          longitude: startLocation.longitude,
-        },
-        dateTime: startDateTime,
-      },
-
-      end: {
-        mode: endMode,
-        location: finalEndLocation,
-        dateTime: endMode === 'no_end' ? null : endDateTime,
-      },
-
-      default: saveAsDefault,
-      isDefault: saveAsDefault,
-    };
+  // Extra frontend fields
+  routeName,
+  routeDate,
+  routeDateLabel,
+  carryPastStops,
+  end_mode: endMode,
+  default: saveAsDefault,
+  isDefault: saveAsDefault,
+};
   };
 
   const handleDone = async () => {
@@ -334,30 +686,18 @@ export default function RoutePointsScreen() {
 
       const payload = buildPayload();
 
-      const response = await fetch(CREATE_ROUTE_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await routesService.createRoute(payload);
 
-      let responseData: any = null;
-
-      try {
-        responseData = await response.json();
-      } catch {
-        responseData = null;
+      if (!response.success) {
+        throw new Error(response.error || 'Unable to create route.');
       }
 
-      if (!response.ok) {
-        throw new Error(responseData?.message || 'Unable to create route.');
-      }
+      const responseData = response.data;
 
       router.push({
         pathname: '/route-preview',
         params: {
-          routeId: String(responseData?.id || responseData?._id || ''),
+          routeId: String(responseData?.id || responseData?.id || ''),
           routeName,
           routeDate,
           startLocation: startLocation.address,
@@ -425,7 +765,23 @@ export default function RoutePointsScreen() {
                   : startLocation.address
               }
               onChangeText={handleManualStartAddress}
+              onFocus={() => setActiveSearch('start')}
             />
+
+            {activeSearch === 'start' && suggestions.length > 0 && (
+              <View style={styles.suggestionsList}>
+                {suggestions.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={styles.suggestionItem}
+                    onPress={() => handleSelectSuggestion(item)}
+                  >
+                    <Text style={styles.suggestionTitle}>{item.title}</Text>
+                    <Text style={styles.suggestionSubtitle}>{item.subtitle}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
             <Pressable
               style={[
@@ -465,18 +821,31 @@ export default function RoutePointsScreen() {
             />
 
             {endMode === 'other_address' ? (
-              <TextInput
-                style={styles.addressInput}
-                placeholder="Enter end address"
-                placeholderTextColor="#98A2B3"
-                value={endLocation.address}
-                onChangeText={value =>
-                  setEndLocation({
-                    mode: 'manual_address',
-                    address: value,
-                  })
-                }
-              />
+              <>
+                <TextInput
+                  style={styles.addressInput}
+                  placeholder="Enter end address"
+                  placeholderTextColor="#98A2B3"
+                  value={endLocation.address}
+                  onChangeText={handleManualEndAddress}
+                  onFocus={() => setActiveSearch('end')}
+                />
+
+                {activeSearch === 'end' && suggestions.length > 0 && (
+                  <View style={styles.suggestionsList}>
+                    {suggestions.map((item) => (
+                      <Pressable
+                        key={item.id}
+                        style={styles.suggestionItem}
+                        onPress={() => handleSelectSuggestion(item)}
+                      >
+                        <Text style={styles.suggestionTitle}>{item.title}</Text>
+                        <Text style={styles.suggestionSubtitle}>{item.subtitle}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </>
             ) : null}
 
             {endMode !== 'no_end' ? (
@@ -1291,5 +1660,34 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+
+  suggestionsList: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DCE3EC',
+    borderRadius: 8,
+    marginTop: -8,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+
+  suggestionItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F4F7',
+  },
+
+  suggestionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#101828',
+  },
+
+  suggestionSubtitle: {
+    fontSize: 12,
+    color: '#667085',
+    marginTop: 2,
   },
 });

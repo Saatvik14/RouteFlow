@@ -1,3 +1,4 @@
+import { routesService } from '@/services/api/routes';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -231,34 +232,31 @@ async function fetchPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> 
   if (cleanQuery.length < 2) return [];
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=7&addressdetails=1&q=${encodeURIComponent(
-      cleanQuery
-    )}`;
+    const response = await routesService.getAutocompleteAddress(cleanQuery, 7);
 
-    const response = await fetch(url);
-    const data = await response.json();
+    if (response.success && response.data) {
+      // Handle various potential response structures from the backend
+      const rawList = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data.suggestions || response.data.results || []);
 
-    if (!Array.isArray(data)) return [];
-
-    return data
-      .map((item: any, index: number) => {
-        const displayName = item.display_name || cleanQuery;
-        const parts = displayName.split(',').map((part: string) => part.trim());
+      return rawList.map((item: any, index: number) => {
+        const title = item.title || item.name || item.text || item.display_name?.split(',')[0] || cleanQuery;
+        const fullAddress = item.fullAddress || item.address || item.display_name || cleanQuery;
+        const subtitle = item.subtitle || item.description || fullAddress.replace(title, '').trim().replace(/^,/, '').trim() || 'Address suggestion';
 
         return {
-          id: String(item.place_id || index),
-          title: parts[0] || cleanQuery,
-          subtitle: parts.slice(1, 4).join(', '),
-          fullAddress: displayName,
-          latitude: Number(item.lat),
-          longitude: Number(item.lon),
+          id: String(item.id || item.place_id || index),
+          title,
+          subtitle,
+          fullAddress,
+          latitude: Number(item.latitude || item.lat),
+          longitude: Number(item.longitude || item.lon),
         };
-      })
-      .filter(
-        item =>
-          Number.isFinite(item.latitude) &&
-          Number.isFinite(item.longitude)
-      );
+      });
+    }
+    
+    throw new Error('No data from backend');
   } catch {
     const result = await Location.geocodeAsync(cleanQuery);
 

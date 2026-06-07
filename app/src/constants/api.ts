@@ -45,38 +45,14 @@ export const API_ENDPOINTS = {
 
   // Maps/Routes endpoints (for your RouteFlow app)
   ROUTES: {
-    CREATE_ROUTE: '/routes',
-    GET_ROUTES: '/routes',
-    GET_ROUTE: (id: string) => `/routes/${id}`,
-    UPDATE_ROUTE: (id: string) => `/routes/${id}`,
-    DELETE_ROUTE: (id: string) => `/routes/${id}`,
-    GET_USER_ROUTES: '/routes/user/all',
-    SEARCH_ROUTES: '/routes/search',
-  },
-
-  // Map/Location endpoints
-  MAP: {
-    GET_COORDINATES: '/map/coordinates',
-    GET_LOCATION: '/map/location',
-    GET_DIRECTIONS: '/map/directions',
-    GET_NEARBY_PLACES: '/map/nearby',
-    GEOCODE: '/map/geocode',
-  },
-
-  // Favorites endpoints
-  FAVORITES: {
-    GET_FAVORITES: '/favorites',
-    ADD_FAVORITE: '/favorites',
-    REMOVE_FAVORITE: (id: string) => `/favorites/${id}`,
-    GET_FAVORITE: (id: string) => `/favorites/${id}`,
-  },
-
-  // Comments/Reviews endpoints
-  REVIEWS: {
-    GET_REVIEWS: (routeId: string) => `/reviews/route/${routeId}`,
-    CREATE_REVIEW: '/reviews',
-    UPDATE_REVIEW: (id: string) => `/reviews/${id}`,
-    DELETE_REVIEW: (id: string) => `/reviews/${id}`,
+    CREATE_ROUTE: '/route/create',
+    GET_ROUTES: '/route',
+    GET_ROUTE: (id: string) => `/route/${id}`,
+    UPDATE_ROUTE: (id: string) => `/route/${id}`,
+    DELETE_ROUTE: (id: string) => `/route/${id}`,
+    GET_USER_ROUTES: '/route/user/all',
+    SEARCH_ROUTES: '/route/search',
+    AUTOCOMPLETE_ADDRESS: '/route/autocomplete',
   },
 
   // Search endpoints

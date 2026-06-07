@@ -72,7 +72,7 @@ const createRoute = async (req, res) => {
     status          // New: route status (optional)
   } = req.body;
   const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
-
+  console.log('Create Route Request Body:', req.body);  
   if (!user_id) {
     return res.status(401).json({ message: 'User not authenticated.' });
   }

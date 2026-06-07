@@ -32,17 +32,8 @@ export interface Route {
  * Create route request
  */
 export interface CreateRouteRequest {
-  title: string;
-  description?: string;
-  coordinates: Array<{
-    latitude: number;
-    longitude: number;
-  }>;
-  distance: number;
-  duration: number;
-  difficulty?: 'easy' | 'medium' | 'hard';
-  tags?: string[];
-  isPublic: boolean;
+  name: string;
+
 }
 
 /**
@@ -69,7 +60,7 @@ export const routesService = {
   /**
    * Create a new route
    */
-  createRoute: (data: CreateRouteRequest) =>
+  createRoute: (data: any) =>
     apiPost<Route>(API_ENDPOINTS.ROUTES.CREATE_ROUTE, data),
 
   /**
@@ -113,5 +104,13 @@ export const routesService = {
     apiPost<{ routes: Route[]; total: number }>(
       API_ENDPOINTS.ROUTES.SEARCH_ROUTES,
       query
+    ),
+
+  /**
+   * Get address autocomplete suggestions based on user input
+   */
+  getAutocompleteAddress: (text: string, limit = 10) =>
+    apiGet<any>(
+      `${API_ENDPOINTS.ROUTES.AUTOCOMPLETE_ADDRESS}?text=${encodeURIComponent(text)}&limit=${limit}`
     ),
 };

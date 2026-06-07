@@ -1,4 +1,8 @@
+import { useAuth } from '@/app/_layout';
+import { restoreAuthToken } from '@/services/api';
+import { isTokenValid } from '@/services/auth/jwtUtils';
 import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import MapView, {
@@ -55,6 +59,23 @@ export default function MapScreen({
 }: MapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  // Check for valid JWT token
+  useEffect(() => {
+    const validateToken = async () => {
+      const token = await restoreAuthToken();
+      if (!isTokenValid(token)) {
+        // Token is invalid or missing, redirect to login
+        console.log('Invalid or missing token, redirecting to login');
+        logout();
+        router.replace('/login');
+      }
+    };
+
+    validateToken();
+  }, [router, logout]);
 
   const routePoints = useMemo(() => {
     if (!confirmedRoute) return [];

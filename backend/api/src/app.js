@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const express = require('express');
 const cors = require('cors');
+const bodyParser = require('body-parser');
 const { PORT } = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
 const routeRoutes = require('./routes/routeRoutes');
@@ -34,10 +35,10 @@ app.use(cors({
 }));
 
 // Middleware to parse JSON bodies
-app.use(express.json());
+app.use(bodyParser.json({ limit: '10mb' }));
 
 // Middleware to parse URL-encoded bodies
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 // Basic route
 app.get('/', (req, res) => {
