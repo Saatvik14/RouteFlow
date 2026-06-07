@@ -76,24 +76,18 @@ const createRoute = async (req, res) => {
   if (!user_id) {
     return res.status(401).json({ message: 'User not authenticated.' });
   }
-  if (!name || !start_location?.full_address || !end_location?.full_address || !start_datetime || !end_datetime) {
+  if (
+    !name || 
+    !start_location?.full_address || start_location.latitude === undefined || start_location.longitude === undefined ||
+    !end_location?.full_address || end_location.latitude === undefined || end_location.longitude === undefined ||
+    !start_datetime || !end_datetime
+  ) {
     return res.status(400).json({ 
-      message: 'Missing required fields. name, start_location (with full_address), end_location (with full_address), start_datetime, and end_datetime are required.' 
+      message: 'Missing required fields. name, start_location (with full_address, latitude, longitude), end_location (with full_address, latitude, longitude), start_datetime, and end_datetime are required.' 
     });
   }
 
   try {
-    // 1. Geocode Start and End Locations directly via helper
-    // This is more efficient and reliable than making an internal HTTP request to yourself
-    const [startGeocodeResult, endGeocodeResult] = await Promise.all([
-      getGeocodingData(start_location),
-      getGeocodingData(end_location)
-    ]);
-
-    if (!startGeocodeResult || !endGeocodeResult) {
-      return res.status(400).json({ message: 'Unable to geocode one or both addresses.' });
-    }
-
     const insertQuery = `
       INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -101,17 +95,17 @@ const createRoute = async (req, res) => {
     `;
 
     // 3. Save Start Location
-    const startLocRes = await runQuery(insertQuery, [
+    await runQuery(insertQuery, [
       start_location.name, start_location.housenumber, start_location.street,
       start_location.city, start_location.postcode, start_location.country,
-      startGeocodeResult.lat, startGeocodeResult.lon, start_location.full_address
+      start_location.latitude, start_location.longitude, start_location.full_address
     ]);
 
     // 4. Save End Location
     await runQuery(insertQuery, [
       end_location.name, end_location.housenumber, end_location.street,
       end_location.city, end_location.postcode, end_location.country,
-      endGeocodeResult.lat, endGeocodeResult.lon, end_location.full_address
+      end_location.latitude, end_location.longitude, end_location.full_address
     ]);
 
     // 5. Create entry in routes table
@@ -133,8 +127,8 @@ const createRoute = async (req, res) => {
     res.status(201).json({
       message: 'Route created successfully',
       route: routeRes.rows[0],
-      start_coords: { lat: startGeocodeResult.lat, lon: startGeocodeResult.lon },
-      end_coords: { lat: endGeocodeResult.lat, lon: endGeocodeResult.lon }
+      start_coords: { lat: start_location.latitude, lon: start_location.longitude },
+      end_coords: { lat: end_location.latitude, lon: end_location.longitude }
     });
 
   } catch (error) {
@@ -273,4 +267,108 @@ const autocompleteAddress = async (req, res) => {
   }
 };
 
-module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress };
+// @desc    Optimize route using Pharmdel API
+// @route   POST /route/optimize
+// @access  Private
+const optimizeRoute = async (req, res) => {
+  const { route_id } = req.body;
+
+  if (!route_id) {
+    return res.status(400).json({ message: 'route_id is required' });
+  }
+
+  try {
+    // 1. Fetch Route details
+    const routeRes = await runQuery('SELECT * FROM routes WHERE route_id = $1', [route_id]);
+    if (routeRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Route not found' });
+    }
+    const route = routeRes.rows[0];
+
+    // 2. Fetch coordinates for the route's start and end addresses from locations table
+    const startLocRes = await runQuery('SELECT latitude, longitude FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.start_full_address]);
+    const endLocRes = await runQuery('SELECT latitude, longitude FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.end_full_address]);
+
+    if (startLocRes.rows.length === 0 || endLocRes.rows.length === 0) {
+      return res.status(400).json({ message: 'Start or end location coordinates not found. Please ensure the route was created correctly.' });
+    }
+
+    const startCoords = [parseFloat(startLocRes.rows[0].longitude), parseFloat(startLocRes.rows[0].latitude)];
+    const endCoords = [parseFloat(endLocRes.rows[0].longitude), parseFloat(endLocRes.rows[0].latitude)];
+
+    // 3. Fetch all orders for this route with their coordinates
+    const ordersQuery = `
+      SELECT o.order_id, l.latitude, l.longitude 
+      FROM orders o 
+      JOIN locations l ON o.location_id = l.location_id 
+      WHERE o.route_id = $1
+    `;
+    const ordersRes = await runQuery(ordersQuery, [route_id]);
+    
+    if (ordersRes.rows.length === 0) {
+      return res.status(400).json({ message: 'No orders found for this route to optimize.' });
+    }
+
+    const jobs = ordersRes.rows.map(order => ({
+      id: order.order_id,
+      location: [parseFloat(order.longitude), parseFloat(order.latitude)]
+    }));
+
+    // 4. Construct Pharmdel API payload
+    const payload = {
+      jobs: jobs,
+      vehicles: [{
+        id: 0,
+        profile: 'bike',
+        start: startCoords,
+        end: endCoords
+      }]
+    };
+
+    const pharmdelResponse = await fetch('https://routes.pharmdel.com/maps', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': process.env.PHARMDEL_API_KEY,
+        'Authorization': `Bearer ${process.env.PHARMDEL_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await pharmdelResponse.json();
+
+    if (data.code !== 0 || !data.routes || data.routes.length === 0) {
+      return res.status(502).json({ message: 'Optimization service error', details: data });
+    }
+
+    // 6. Process sequence updates and clean response fields
+    const steps = data.routes[0].steps;
+    let sequenceCounter = 1;
+
+    for (let step of steps) {
+      if (step.type === 'job') {
+        // Update sequence_no in the orders table based on optimized order
+        await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [sequenceCounter, step.id]);
+        step.sequence_no = sequenceCounter; // Add sequence_no to the response
+        sequenceCounter++;
+      }
+
+      // Remove unwanted fields from the response
+      delete step.arrival;
+      delete step.distance;
+      delete step.duration;
+      delete step.service;
+      delete step.setup;
+      delete step.violations;
+      delete step.waiting_time;
+      delete step.job;
+    }
+
+    res.status(200).json(data);
+  } catch (error) {
+    console.error('Optimize Route Error:', error);
+    res.status(500).json({ message: 'Server error during route optimization' });
+  }
+};
+
+module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, optimizeRoute };

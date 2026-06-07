@@ -15,6 +15,8 @@ Request Body (JSON):
   - name (String): Location name.
   - street (String): Street address.
   - city, country, postcode, housenumber: Address details.
+  - latitude (Number): Location latitude.
+  - longitude (Number): Location longitude.
 
 cURL Example:
 curl -X POST http://localhost:5000/order/add \
@@ -23,8 +25,13 @@ curl -X POST http://localhost:5000/order/add \
   -d '{
     "route_id": 1,
     "name": "Delivery Point A",
+    "housenumber": "10",
     "street": "Wyndham Road",
-    "city": "Salisbury"
+    "city": "Salisbury",
+    "postcode": "SP1 3AA",
+    "country": "United Kingdom",
+    "latitude": 51.0743,
+    "longitude": -1.7915
   }'
 
 ---------------------------------------------------------------------------
@@ -36,7 +43,9 @@ Method: PUT
 Request Body (JSON):
   - order_id (Integer): Required.
   - status, sequence_no: Order updates.
-  - name, street, city, etc.: Location updates (Coordinates updated automatically).
+  - name, street, city, etc.: Location updates. If any address field or coordinates are updated, the order's `sequence_no` is automatically reset to `NULL` to trigger re-optimization.
+  - latitude (Number): Optional. New latitude for the order's location.
+  - longitude (Number): Optional. New longitude for the order's location.
 
 cURL Example:
 curl -X PUT http://localhost:5000/order/edit \
@@ -45,10 +54,10 @@ curl -X PUT http://localhost:5000/order/edit \
   -d '{
     "order_id": 1,
     "status": "delivered",
-    "sequence_no": 1
+    "latitude": 51.0743,
+    "longitude": -1.7915
   }'
 
----------------------------------------------------------------------------
 3. FETCH ORDERS
 ---------------------------------------------------------------------------
 URL: /fetch

@@ -8,32 +8,13 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 // @route   POST /order/add
 // @access  Private
 const addOrder = async (req, res) => {
-  const { route_id, status, name, housenumber, street, city, postcode, country } = req.body;
+  const { route_id, status, name, housenumber, street, city, postcode, country, latitude, longitude } = req.body;
 
-  if (!route_id || !housenumber || !street || !city || !postcode || !country) {
-    return res.status(400).json({ message: 'Missing required fields. route_id, housenumber, street, city, postcode, and country are required.' });
+  if (!route_id || !housenumber || !street || !city || !postcode || !country || latitude === undefined || longitude === undefined) {
+    return res.status(400).json({ message: 'Missing required fields. route_id, housenumber, street, city, postcode, country, latitude, and longitude are required.' });
   }
 
   try {
-    // 0. Fetch coordinates automatically via Geoapify API call to /route/geocode
-    const geocodeResponse = await fetch(`http://localhost:${PORT}/route/geocode`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': req.headers.authorization
-      },
-      body: JSON.stringify({ name, housenumber, street, city, postcode, country })
-    });
-
-    const geocodeResult = await geocodeResponse.json();
-    const latitude = geocodeResult?.lat;
-    const longitude = geocodeResult?.lon;
-    // console.log('Geocoding Result for Add Order:', geocodeResult);
-
-    if (!latitude || !longitude) {
-      return res.status(400).json({ message: 'Unable to geocode the provided address. Please check your address details.' });
-    }
-
     // 1. Create entry in locations table
     const locationQuery = `
       INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude)
@@ -62,7 +43,7 @@ const addOrder = async (req, res) => {
 // @route   PUT /order/edit
 // @access  Private
 const editOrder = async (req, res) => {
-  const { order_id, status, sequence_no, name, housenumber, street, city, postcode, country } = req.body;
+  const { order_id, status, sequence_no, name, housenumber, street, city, postcode, country, latitude, longitude } = req.body;
 
   if (!order_id) return res.status(400).json({ message: 'order_id is required' });
 
@@ -77,52 +58,74 @@ const editOrder = async (req, res) => {
     const location_id = orderLocCheck.rows[0].location_id;
     const currentLoc = orderLocCheck.rows[0];
 
-    let latitude = null;
-    let longitude = null;
+    let locationUpdated = false;
+    let newLatitude = currentLoc.latitude;
+    let newLongitude = currentLoc.longitude;
 
-    // 2. If any address components are updated, re-geocode
-    if (name || housenumber || street || city || postcode || country) {
-      const updatedAddress = {
-        name: name !== undefined ? name : currentLoc.name,
-        housenumber: housenumber !== undefined ? housenumber : currentLoc.housenumber,
-        street: street !== undefined ? street : currentLoc.street,
-        city: city !== undefined ? city : currentLoc.city,
-        postcode: postcode !== undefined ? postcode : currentLoc.postcode,
-        country: country !== undefined ? country : currentLoc.country
-      };
+    // Check if any address components or coordinates are provided for update
+    if (
+      name !== undefined || housenumber !== undefined || street !== undefined ||
+      city !== undefined || postcode !== undefined || country !== undefined ||
+      latitude !== undefined || longitude !== undefined
+    ) {
+      locationUpdated = true;
 
-      const geocodeResponse = await fetch(`http://localhost:${PORT}/route/geocode`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': req.headers.authorization
-        },
-        body: JSON.stringify(updatedAddress)
-      });
+      // Use provided lat/lon if available, otherwise keep existing
+      if (latitude !== undefined) newLatitude = latitude;
+      if (longitude !== undefined) newLongitude = longitude;
 
-      const geocodeResult = await geocodeResponse.json();
-      latitude = geocodeResult?.lat;
-      longitude = geocodeResult?.lon;
+      // Update Location details
+      const locUpdateQuery = `
+        UPDATE locations
+        SET name = COALESCE($1, name), housenumber = COALESCE($2, housenumber), street = COALESCE($3, street),
+            city = COALESCE($4, city), postcode = COALESCE($5, postcode), country = COALESCE($6, country),
+            latitude = $7, longitude = $8, updated_at = CURRENT_TIMESTAMP
+        WHERE location_id = $9
+      `;
+      await runQuery(locUpdateQuery, [
+        name, housenumber, street, city, postcode, country,
+        newLatitude, newLongitude,
+        location_id
+      ]);
     }
 
-    // 3. Update Location details
-    const locUpdateQuery = `
-      UPDATE locations 
-      SET name = COALESCE($1, name), housenumber = COALESCE($2, housenumber), street = COALESCE($3, street), 
-          city = COALESCE($4, city), postcode = COALESCE($5, postcode), country = COALESCE($6, country), 
-          latitude = COALESCE($7, latitude), longitude = COALESCE($8, longitude), updated_at = CURRENT_TIMESTAMP
-      WHERE location_id = $9
-    `;
-    await runQuery(locUpdateQuery, [name, housenumber, street, city, postcode, country, latitude, longitude, location_id]);
+    // Prepare order update fields
+    const orderUpdateFields = [];
+    const orderUpdateValues = [];
+    let paramCounter = 1;
 
-    // 4. Update Order details
+    if (status !== undefined) {
+      orderUpdateFields.push(`status = $${paramCounter++}`);
+      orderUpdateValues.push(status);
+    }
+
+    if (locationUpdated) {
+      orderUpdateFields.push(`sequence_no = NULL`); // Set to NULL if location was updated
+    } else if (sequence_no !== undefined) {
+      orderUpdateFields.push(`sequence_no = $${paramCounter++}`);
+      orderUpdateValues.push(sequence_no);
+    }
+
+    // If no order-specific fields or location was updated, return existing order data
+    if (orderUpdateFields.length === 0) {
+      // Fetch the order again to return the most current state, including location updates
+      const updatedOrder = await runQuery(
+        'SELECT o.*, l.name, l.housenumber, l.street, l.city, l.postcode, l.country, l.latitude, l.longitude FROM orders o JOIN locations l ON o.location_id = l.location_id WHERE o.order_id = $1',
+        [order_id]
+      );
+      return res.status(200).json(updatedOrder.rows[0]);
+    }
+
+    orderUpdateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    orderUpdateValues.push(order_id); // Last parameter is order_id for WHERE clause
+
     const orderUpdateQuery = `
       UPDATE orders 
-      SET status = COALESCE($1, status), sequence_no = COALESCE($2, sequence_no), updated_at = CURRENT_TIMESTAMP
-      WHERE order_id = $3
+      SET ${orderUpdateFields.join(', ')}
+      WHERE order_id = $${paramCounter}
       RETURNING *
     `;
-    const result = await runQuery(orderUpdateQuery, [status, sequence_no, order_id]);
+    const result = await runQuery(orderUpdateQuery, orderUpdateValues);
 
     res.status(200).json(result.rows[0]);
   } catch (error) {
