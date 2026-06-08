@@ -72,7 +72,6 @@ const createRoute = async (req, res) => {
     status          // New: route status (optional)
   } = req.body;
   const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
-  console.log('Create Route Request Body:', req.body);  
   if (!user_id) {
     return res.status(401).json({ message: 'User not authenticated.' });
   }
@@ -95,14 +94,14 @@ const createRoute = async (req, res) => {
     `;
 
     // 3. Save Start Location
-    await runQuery(insertQuery, [
+    const startLocRes = await runQuery(insertQuery, [
       start_location.name, start_location.housenumber, start_location.street,
       start_location.city, start_location.postcode, start_location.country,
       start_location.latitude, start_location.longitude, start_location.full_address
     ]);
 
     // 4. Save End Location
-    await runQuery(insertQuery, [
+    const endLocRes = await runQuery(insertQuery, [
       end_location.name, end_location.housenumber, end_location.street,
       end_location.city, end_location.postcode, end_location.country,
       end_location.latitude, end_location.longitude, end_location.full_address
@@ -112,7 +111,7 @@ const createRoute = async (req, res) => {
     const insertRouteQuery = `
       INSERT INTO routes (user_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING route_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status
+      RETURNING *
     `;
     const routeRes = await runQuery(insertRouteQuery, [
       user_id,
@@ -126,9 +125,15 @@ const createRoute = async (req, res) => {
 
     res.status(201).json({
       message: 'Route created successfully',
-      route: routeRes.rows[0],
-      start_coords: { lat: start_location.latitude, lon: start_location.longitude },
-      end_coords: { lat: end_location.latitude, lon: end_location.longitude }
+      ...routeRes.rows[0],
+      start_location: {
+        ...start_location,
+        location_id: startLocRes.rows[0].location_id
+      },
+      end_location: {
+        ...end_location,
+        location_id: endLocRes.rows[0].location_id
+      }
     });
 
   } catch (error) {

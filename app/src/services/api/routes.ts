@@ -26,6 +26,7 @@ export interface Route {
   likes: number;
   createdAt: string;
   updatedAt: string;
+    route_id: number;
 }
 
 /**

@@ -46,8 +46,8 @@ export const API_ENDPOINTS = {
   // Maps/Routes endpoints (for your RouteFlow app)
   ROUTES: {
     CREATE_ROUTE: '/route/create',
-    GET_ROUTES: '/route',
-    GET_ROUTE: (id: string) => `/route/${id}`,
+    GET_ROUTES: '/route/fetch/all',
+    GET_ROUTE: (id: string) => `/route/fetch?id=${id}`,
     UPDATE_ROUTE: (id: string) => `/route/${id}`,
     DELETE_ROUTE: (id: string) => `/route/${id}`,
     GET_USER_ROUTES: '/route/user/all',

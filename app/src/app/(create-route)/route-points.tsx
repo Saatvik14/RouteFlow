@@ -693,26 +693,13 @@ export default function RoutePointsScreen() {
       }
 
       const responseData = response.data;
+      console.log('Route created successfully:', responseData);
+
 
       router.push({
         pathname: '/route-preview',
         params: {
-          routeId: String(responseData?.id || responseData?.id || ''),
-          routeName,
-          routeDate,
-          startLocation: startLocation.address,
-          startTime,
-          startDateTime: startDateTime.label,
-          endMode,
-          endAddress:
-            endMode === 'round_trip'
-              ? startLocation.address
-              : endMode === 'no_end'
-                ? ''
-                : endLocation.address,
-          endTime,
-          endDateTime: endDateTime.label,
-          saveAsDefault: String(saveAsDefault),
+         id : String(responseData?.route_id || responseData?.id || ''),
         },
       } as never);
     } catch (error) {
