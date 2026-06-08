@@ -161,14 +161,108 @@ const fetchRouteById = async (req, res) => {
   if (!id) return res.status(400).json({ message: 'Route ID is required in query parameters' });
 
   try {
-    const result = await runQuery('SELECT * FROM routes WHERE route_id = $1 AND user_id = $2', [id, user_id]);
+    // 1. Fetch the route main data
+    const routeResult = await runQuery('SELECT * FROM routes WHERE route_id = $1 AND user_id = $2', [id, user_id]);
     
-    if (result.rows.length === 0) {
+    if (routeResult.rows.length === 0) {
       return res.status(404).json({ message: 'Route not found or unauthorized' });
     }
+    const route = routeResult.rows[0];
 
-    res.status(200).json(result.rows[0]);
+    // 2. Fetch Start and End Location details from locations table
+    // We use full_address and order by created_at to get the most relevant record
+    const startLocRes = await runQuery('SELECT * FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.start_full_address]);
+    const endLocRes = await runQuery('SELECT * FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.end_full_address]);
+
+    const startLoc = startLocRes.rows[0] || {};
+    const endLoc = endLocRes.rows[0] || {};
+
+    // 3. Fetch all stops (orders) associated with this route
+    const stopsRes = await runQuery(`
+      SELECT o.*, l.name, l.housenumber, l.street, l.city, l.postcode, l.country, l.latitude, l.longitude, l.full_address
+      FROM orders o
+      JOIN locations l ON o.location_id = l.location_id
+      WHERE o.route_id = $1
+      ORDER BY o.sequence_no ASC NULLS LAST, o.created_at ASC
+    `, [id]);
+
+    // 4. Construct the response object in the exact requested format
+    const response = {
+      route_id: route.route_id,
+      name: route.name,
+      start_datetime: route.start_datetime,
+      end_datetime: route.end_datetime,
+      status: route.status,
+      user_id: route.user_id,
+      end_mode: route.end_mode || "round_trip",
+      distance: parseFloat(route.distance || 0),
+      duration: parseFloat(route.duration || 0),
+      created_at: route.created_at,
+      updated_at: route.updated_at,
+
+      start_location: {
+        mode: "manual_address",
+        full_address: startLoc.full_address || route.start_full_address,
+        latitude: parseFloat(startLoc.latitude || 0),
+        longitude: parseFloat(startLoc.longitude || 0),
+        title: startLoc.name || startLoc.full_address || route.start_full_address,
+        details: {
+          place_id: "geoapify-place-id-start",
+          address_line1: startLoc.street ? `${startLoc.housenumber || ''} ${startLoc.street}`.trim() : startLoc.name,
+          address_line2: "",
+          city: startLoc.city || "",
+          district: "",
+          state: "",
+          country: startLoc.country || "",
+          country_code: "",
+          postal_code: startLoc.postcode || "",
+          latitude: parseFloat(startLoc.latitude || 0),
+          longitude: parseFloat(startLoc.longitude || 0)
+        }
+      },
+
+      end_location: {
+        mode: "manual_address",
+        full_address: endLoc.full_address || route.end_full_address,
+        latitude: parseFloat(endLoc.latitude || 0),
+        longitude: parseFloat(endLoc.longitude || 0),
+        title: endLoc.name || endLoc.full_address || route.end_full_address,
+        details: {
+          place_id: "geoapify-place-id-end",
+          address_line1: endLoc.street ? `${endLoc.housenumber || ''} ${endLoc.street}`.trim() : endLoc.name,
+          address_line2: "",
+          city: endLoc.city || "",
+          district: "",
+          state: "",
+          country: endLoc.country || "",
+          country_code: "",
+          postal_code: endLoc.postcode || "",
+          latitude: parseFloat(endLoc.latitude || 0),
+          longitude: parseFloat(endLoc.longitude || 0)
+        }
+      },
+
+      stops: stopsRes.rows.map(stop => ({
+        ...stop,
+        latitude: parseFloat(stop.latitude),
+        longitude: parseFloat(stop.longitude)
+      })),
+
+      coordinates: [
+        {
+          latitude: parseFloat(startLoc.latitude || 0),
+          longitude: parseFloat(startLoc.longitude || 0)
+        },
+        {
+          latitude: parseFloat(endLoc.latitude || 0),
+          longitude: parseFloat(endLoc.longitude || 0)
+        }
+      ]
+    };
+
+    res.status(200).json(response);
   } catch (error) {
+    console.error('Fetch Route Details Error:', error);
     res.status(500).json({ message: 'Server error while fetching route' });
   }
 };

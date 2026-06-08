@@ -99,7 +99,75 @@ Query Parameters:
   - id (Integer): The route_id of the route you want to fetch.
 
 Response:
-  - 200 OK: Returns the requested route object.
+  - 200 OK: Returns the requested route object with full details, stops, and coordinates.
+    Response Body (JSON):
+    {
+      "route_id": Integer,
+      "name": String,
+      "start_datetime": ISO 8601 String,
+      "end_datetime": ISO 8601 String,
+      "status": String,
+      "user_id": Integer,
+      "end_mode": String,
+      "distance": Number,
+      "duration": Number,
+      "created_at": ISO 8601 String,
+      "updated_at": ISO 8601 String,
+      "start_location": {
+        "mode": String,
+        "full_address": String,
+        "latitude": Number,
+        "longitude": Number,
+        "title": String,
+        "details": {
+          "place_id": String,
+          "address_line1": String,
+          "address_line2": String,
+          "city": String,
+          "district": String,
+          "state": String,
+          "country": String,
+          "country_code": String,
+          "postal_code": String,
+          "latitude": Number,
+          "longitude": Number
+        }
+      },
+      "end_location": {
+        "mode": String,
+        "full_address": String,
+        "latitude": Number,
+        "longitude": Number,
+        "title": String,
+        "details": {
+          "place_id": String,
+          "address_line1": String,
+          "address_line2": String,
+          "city": String,
+          "district": String,
+          "state": String,
+          "country": String,
+          "country_code": String,
+          "postal_code": String,
+          "latitude": Number,
+          "longitude": Number
+        }
+      },
+      "stops": Array,
+      "coordinates": [
+        {
+          "latitude": Number,
+          "longitude": Number
+        },
+        {
+          "latitude": Number,
+          "longitude": Number
+        }
+      ]
+    }
+    Note: In the `coordinates` array, the first object is the `start_location` coordinates 
+    and the second object is the `end_location` coordinates.
+
   - 404 Not Found: Route doesn't exist or doesn't belong to the user.
 
 cURL Example:
