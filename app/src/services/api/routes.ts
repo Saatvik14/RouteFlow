@@ -114,4 +114,11 @@ export const routesService = {
     apiGet<any>(
       `${API_ENDPOINTS.ROUTES.AUTOCOMPLETE_ADDRESS}?text=${encodeURIComponent(text)}&limit=${limit}`
     ),
+
+
+  optimizeRoute: (routeId: any) =>
+    apiPost<any>(API_ENDPOINTS.ROUTES.OPTIMIZE, {"route_id": routeId}),
+
 };
+
+

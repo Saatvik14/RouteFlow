@@ -28,11 +28,26 @@ export type RoutePoint = {
   longitude: number;
   title?: string;
   description?: string;
+  markerType?: 'start' | 'stop' | 'end';
+  markerLabel?: string;
+  markerIcon?: string;
+};
+
+export type RouteStop = RoutePoint & {
+  id: string;
+  sequence: number;
+  address?: string;
+  notes?: string;
+  packages?: number;
+  order?: 'first' | 'auto' | 'last';
+  stopType?: 'delivery' | 'pickup';
+  status?: 'pending' | 'added';
 };
 
 export type ConfirmedRoute = {
   start: RoutePoint;
   end: RoutePoint;
+  stops?: RouteStop[];
   coordinates?: RoutePoint[];
 };
 
@@ -47,21 +62,139 @@ const FALLBACK_REGION = {
   longitude: 77.209,
 };
 
-function createIcon(color: string) {
+type DisplayMarker = {
+  key: string;
+  type: 'start' | 'stop' | 'end';
+  point: RoutePoint | RouteStop;
+  coordinate: RoutePoint;
+  label: string;
+  icon: string;
+};
+
+function getCoordinateKey(point: RoutePoint) {
+  return `${point.latitude.toFixed(6)},${point.longitude.toFixed(6)}`;
+}
+
+function offsetMarkerCoordinate(point: RoutePoint, index: number, total: number): RoutePoint {
+  if (total <= 1) return point;
+
+  const radiusMeters = 18;
+  const angle = (2 * Math.PI * index) / total - Math.PI / 2;
+  const latitudeOffset = (Math.sin(angle) * radiusMeters) / 111_320;
+  const longitudeScale = Math.max(
+    0.01,
+    Math.abs(Math.cos((point.latitude * Math.PI) / 180)),
+  );
+  const longitudeOffset =
+    (Math.cos(angle) * radiusMeters) / (111_320 * longitudeScale);
+
+  return {
+    ...point,
+    latitude: point.latitude + latitudeOffset,
+    longitude: point.longitude + longitudeOffset,
+  };
+}
+
+function buildDisplayMarkers(route: ConfirmedRoute): DisplayMarker[] {
+  const markerItems = [
+    {
+      key: 'start',
+      type: 'start' as const,
+      point: route.start,
+      label: route.start.markerLabel || 'S',
+      icon: route.start.markerIcon || '⌂',
+    },
+    ...(route.stops || []).map(stop => ({
+      key: `stop-${stop.id}`,
+      type: 'stop' as const,
+      point: stop,
+      label: stop.markerLabel || String(stop.sequence),
+      icon: stop.markerIcon || (stop.stopType === 'pickup' ? '↑' : '●'),
+    })),
+    {
+      key: 'end',
+      type: 'end' as const,
+      point: route.end,
+      label: route.end.markerLabel || 'E',
+      icon: route.end.markerIcon || '⚑',
+    },
+  ];
+
+  const grouped = markerItems.reduce<Record<string, typeof markerItems>>((acc, item) => {
+    const key = getCoordinateKey(item.point);
+    acc[key] = acc[key] || [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  return Object.values(grouped).flatMap(items =>
+    items.map((item, index) => ({
+      ...item,
+      coordinate: offsetMarkerCoordinate(item.point, index, items.length),
+    })),
+  );
+}
+
+function getMarkerPopupText(marker: DisplayMarker) {
+  return (
+    marker.point.description ||
+    marker.point.title ||
+    (marker.type === 'start'
+      ? 'Start location'
+      : marker.type === 'end'
+        ? 'End location'
+        : `Stop ${marker.label}`)
+  );
+}
+
+function createRouteMarkerIcon(marker: DisplayMarker) {
   if (!L) return undefined;
 
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">
-      <path fill="${color}" d="M17 0C7.6 0 0 7.6 0 17c0 12.7 17 27 17 27s17-14.3 17-27C34 7.6 26.4 0 17 0z"/>
-      <circle cx="17" cy="17" r="7" fill="#FFFFFF"/>
-    </svg>
-  `;
+  const color =
+    marker.type === 'start'
+      ? '#2F76F6'
+      : marker.type === 'end'
+        ? '#22C55E'
+        : '#111827';
+  const badgeColor = marker.type === 'stop' ? '#2F76F6' : color;
+  const label = String(marker.label || '').slice(0, 3);
+  const iconText = String(marker.icon || '').slice(0, 2);
+
+  const svg = marker.type === 'stop'
+    ? `
+      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="42" viewBox="0 0 64 42">
+        <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.24"/>
+        </filter>
+        <g filter="url(#shadow)">
+          <circle cx="21" cy="21" r="17" fill="${color}" stroke="#FFFFFF" stroke-width="3"/>
+          <rect x="31" y="8" width="28" height="26" rx="13" fill="${badgeColor}"/>
+          <text x="21" y="26" text-anchor="middle" font-size="13" font-family="Arial, sans-serif" font-weight="800" fill="#FFFFFF">${iconText}</text>
+          <text x="45" y="26" text-anchor="middle" font-size="13" font-family="Arial, sans-serif" font-weight="800" fill="#FFFFFF">${label}</text>
+        </g>
+      </svg>
+    `
+    : `
+      <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+        <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.22"/>
+        </filter>
+        <g filter="url(#shadow)">
+          <circle cx="22" cy="22" r="19" fill="#FFFFFF" stroke="${color}" stroke-width="3"/>
+          <text x="22" y="20" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" font-weight="800" fill="${color}">${iconText}</text>
+          <text x="22" y="32" text-anchor="middle" font-size="11" font-family="Arial, sans-serif" font-weight="900" fill="${color}">${label}</text>
+        </g>
+      </svg>
+    `;
+
+  const size = marker.type === 'stop' ? [64, 42] : [44, 44];
+  const anchor = marker.type === 'stop' ? [32, 21] : [22, 22];
 
   return L.icon({
     iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    iconSize: [34, 44],
-    iconAnchor: [17, 44],
-    popupAnchor: [0, -40],
+    iconSize: size,
+    iconAnchor: anchor,
+    popupAnchor: [0, marker.type === 'stop' ? -24 : -26],
   });
 }
 
@@ -129,15 +262,38 @@ export default function MapScreen({
     lng: FALLBACK_REGION.longitude,
   });
 
-  const startIcon = useMemo(() => createIcon('#2F76F6'), []);
-  const endIcon = useMemo(() => createIcon('#22C55E'), []);
+  const currentLocationIcon = useMemo(() => {
+    if (!L) return undefined;
 
-  const routeCoordinates =
-    confirmedRoute?.coordinates?.length
-      ? confirmedRoute.coordinates
-      : confirmedRoute
-        ? [confirmedRoute.start, confirmedRoute.end]
-        : [];
+    return L.divIcon({
+      className: 'current-location-marker',
+      html: '<div style="width:18px;height:18px;border-radius:9px;background:#2F76F6;border:3px solid #FFFFFF;box-shadow:0 2px 8px rgba(0,0,0,0.25);"></div>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -14],
+    });
+  }, []);
+
+  const routePoints = useMemo(() => {
+    if (!confirmedRoute) return [];
+
+    return [
+      confirmedRoute.start,
+      ...(confirmedRoute.stops || []),
+      confirmedRoute.end,
+    ];
+  }, [confirmedRoute]);
+
+  const routeCoordinates = useMemo(() => {
+    if (!confirmedRoute) return [];
+    if (confirmedRoute.coordinates?.length) return confirmedRoute.coordinates;
+    return routePoints;
+  }, [confirmedRoute, routePoints]);
+
+  const displayMarkers = useMemo(() => {
+    if (!confirmedRoute) return [];
+    return buildDisplayMarkers(confirmedRoute);
+  }, [confirmedRoute]);
 
   const leafletRouteCoordinates = routeCoordinates.map(point => [
     point.latitude,
@@ -213,34 +369,20 @@ export default function MapScreen({
               }}
             />
 
-            <Marker
-              position={[
-                confirmedRoute.start.latitude,
-                confirmedRoute.start.longitude,
-              ]}
-              icon={startIcon}>
-              <Popup>
-                {confirmedRoute.start.description ||
-                  confirmedRoute.start.title ||
-                  'Start location'}
-              </Popup>
-            </Marker>
-
-            <Marker
-              position={[
-                confirmedRoute.end.latitude,
-                confirmedRoute.end.longitude,
-              ]}
-              icon={endIcon}>
-              <Popup>
-                {confirmedRoute.end.description ||
-                  confirmedRoute.end.title ||
-                  'End location'}
-              </Popup>
-            </Marker>
+            {displayMarkers.map(marker => (
+              <Marker
+                key={marker.key}
+                position={[
+                  marker.coordinate.latitude,
+                  marker.coordinate.longitude,
+                ]}
+                icon={createRouteMarkerIcon(marker)}>
+                <Popup>{getMarkerPopupText(marker)}</Popup>
+              </Marker>
+            ))}
           </>
         ) : (
-          <Marker position={[position.lat, position.lng]} icon={startIcon}>
+          <Marker position={[position.lat, position.lng]} icon={currentLocationIcon}>
             <Popup>Your Location</Popup>
           </Marker>
         )}

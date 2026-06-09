@@ -8,29 +8,60 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 // @route   POST /order/add
 // @access  Private
 const addOrder = async (req, res) => {
-  const { route_id, status, name, housenumber, street, city, postcode, country, latitude, longitude } = req.body;
+  const { 
+    route_id, 
+    status, 
+    title, 
+    address, 
+    latitude, 
+    longitude, 
+    sequence, 
+    location,
+    notes,
+    packages,
+    stop_type
+  } = req.body;
 
-  if (!route_id || !housenumber || !street || !city || !postcode || !country || latitude === undefined || longitude === undefined) {
-    return res.status(400).json({ message: 'Missing required fields. route_id, housenumber, street, city, postcode, country, latitude, and longitude are required.' });
+  if (!route_id || !address || latitude === undefined || longitude === undefined) {
+    return res.status(400).json({ 
+      message: 'Missing required fields. route_id, address, latitude, and longitude are required.' 
+    });
   }
+
+  const details = location?.details || {};
 
   try {
     // 1. Create entry in locations table
     const locationQuery = `
-      INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING location_id
     `;
-    const locRes = await runQuery(locationQuery, [name, housenumber, street, city, postcode, country, latitude, longitude]);
+    const locRes = await runQuery(locationQuery, [
+      title || null, 
+      details.housenumber || null, 
+      details.street || details.addressLine1 || null,
+      details.city || null, 
+      details.postalCode || null, 
+      details.country || null, 
+      latitude, 
+      longitude, 
+      address
+    ]);
     const location_id = locRes.rows[0].location_id;
 
-    // 2. Create entry in orders table (sequence_no is null at first)
+    // 2. Create entry in orders table
     const orderQuery = `
       INSERT INTO orders (location_id, status, route_id, sequence_no)
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-    const orderRes = await runQuery(orderQuery, [location_id, status || 'pending', route_id, null]);
+    const orderRes = await runQuery(orderQuery, [
+      location_id, 
+      status || 'pending', 
+      route_id, 
+      sequence || null
+    ]);
 
     res.status(201).json(orderRes.rows[0]);
   } catch (error) {

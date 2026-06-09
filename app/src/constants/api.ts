@@ -53,6 +53,18 @@ export const API_ENDPOINTS = {
     GET_USER_ROUTES: '/route/user/all',
     SEARCH_ROUTES: '/route/search',
     AUTOCOMPLETE_ADDRESS: '/route/autocomplete',
+    OPTIMIZE: '/route/optimize',
+  },
+
+  // Order endpoints
+  ORDERS: {
+    ADD: '/order/add',
+    EDIT: '/order/edit',
+    DELETE_ALL: '/order/delete/all',
+    DELETE: (id: string) => `/order/delete?id=${id}`,
+    FETCH: '/order/fetch',
+    VEHICLE_PLACE: '/order/vehicleplace',
+    GET_VEHICLE_PLACE: (orderId: string) => `/order/vehicleplace?orderId=${orderId}`,
   },
 
   // Search endpoints

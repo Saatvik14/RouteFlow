@@ -1,6 +1,7 @@
 import { useAuth } from '@/app/_layout';
 import { restoreAuthToken } from '@/services/api';
-import { useRouter } from 'expo-router';
+import { routesService } from '@/services/api/routes';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { jwtDecode } from 'jwt-decode';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -57,9 +58,6 @@ type RouteHistoryItem = {
   title: string;
   date: string;
 };
-
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
 const getUserFromToken = (token: string): SidebarUser => {
   const decoded = jwtDecode<TokenUserPayload>(token);
@@ -136,6 +134,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
   const { logout } = useAuth();
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
 
   const [user, setUser] = useState<SidebarUser>({
@@ -147,11 +146,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const [routes, setRoutes] = useState<RouteHistoryItem[]>([]);
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [routeError, setRouteError] = useState('');
 
   const sidebarWidth = useMemo(() => {
     return Math.min(width * 0.82, 310);
   }, [width]);
+
+  useEffect(() => {
+    // Sync the selected highlight with the current route ID in the URL
+    setSelectedRouteId((params.id as string) || null);
+  }, [params.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -173,20 +178,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           return;
         }
 
-        const response = await fetch(`${API_BASE_URL}/routes`, {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // Using the routesService to fetch the last 20 routes
+        const response = await routesService.getRoutes(20, 0);
 
-        if (!response.ok) {
-          throw new Error('Unable to fetch routes');
+        if (!response.success) {
+          throw new Error(response.error || 'Unable to fetch routes');
         }
-
-        const data = await response.json();
-        const routeList = normalizeRoutes(data);
+        const routeList = normalizeRoutes(response.data);
 
         setRoutes(routeList);
       } catch (error) {
@@ -218,12 +216,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const handleRoutePress = (routeId: string) => {
+    // Close sidebar before navigating to ensure smooth transition
     onClose();
 
+    // Navigate to the preview screen
     router.push({
-      pathname: '/',
+      pathname: '/route-preview',
       params: {
-        routeId,
+        id: String(routeId),
       },
     } as never);
   };
@@ -327,13 +327,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 key={route.id}
                 style={[
                   styles.routeItem,
-                  index === 0 && styles.activeRouteItem,
+                  selectedRouteId === route.id && styles.activeRouteItem,
                 ]}
                 onPress={() => handleRoutePress(route.id)}>
                 <Text
                   style={[
                     styles.routeDate,
-                    index === 0 && styles.activeRouteDate,
+                    selectedRouteId === route.id && styles.activeRouteDate,
                   ]}>
                   {route.date || '--'}
                 </Text>
@@ -342,7 +342,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   numberOfLines={1}
                   style={[
                     styles.routeTitle,
-                    index === 0 && styles.activeRouteTitle,
+                    selectedRouteId === route.id && styles.activeRouteTitle,
                   ]}>
                   {route.title}
                 </Text>

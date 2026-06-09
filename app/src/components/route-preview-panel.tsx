@@ -45,13 +45,14 @@ type RoutePreviewPanelProps = {
   suggestions: PlaceSuggestion[];
   selectedSuggestion: PlaceSuggestion | null;
   stopDetails: StopDetails;
+  isAddingStop?: boolean;
 
   onSearchTextChange: (value: string) => void;
   onOpenSearch: () => void;
   onCloseSearch: () => void;
   onSelectSuggestion: (suggestion: PlaceSuggestion) => void;
   onStopDetailsChange: (details: StopDetails) => void;
-  onConfirmStopDetails: () => void;
+  onConfirmStopDetails: () => void | Promise<void>;
   onOptimizeRoute: () => void;
   onRefine: () => void;
   onConfirm: () => void;
@@ -218,7 +219,9 @@ function StopDetailsPanel({
   isWide,
   selectedSuggestion,
   stopDetails,
+  isAddingStop,
   onStopDetailsChange,
+  onOpenSearch,
   onCloseSearch,
   onConfirmStopDetails,
 }: RoutePreviewPanelProps & { isWide: boolean }) {
@@ -234,7 +237,7 @@ function StopDetailsPanel({
       <View style={styles.dragHandle} />
 
       <View style={styles.searchHeader}>
-        <Pressable style={styles.searchInputBox}>
+        <Pressable style={styles.searchInputBox} onPress={onOpenSearch}>
           <Text style={styles.searchIcon}>⌕</Text>
           <Text style={styles.searchPlaceholder}>Type to add more stops</Text>
           <Text style={styles.searchSideIcon}>⌗</Text>
@@ -340,7 +343,7 @@ function StopDetailsPanel({
           <Text style={styles.optionValue}>Default</Text>
         </View>
 
-        <Pressable style={styles.actionRow}>
+        <Pressable style={styles.actionRow} onPress={onOpenSearch}>
           <Text style={styles.optionIcon}>⌕</Text>
           <Text style={styles.optionLabel}>Change address</Text>
           <Text style={styles.rowArrow}>›</Text>
@@ -352,8 +355,14 @@ function StopDetailsPanel({
           <Text style={styles.rowArrow}>›</Text>
         </Pressable>
 
-        <Pressable style={styles.addStopConfirmButton} onPress={onConfirmStopDetails}>
-          <Text style={styles.addStopConfirmText}>Add stop</Text>
+        <Pressable
+          style={[styles.addStopConfirmButton, isAddingStop && styles.buttonDisabled]}
+          onPress={onConfirmStopDetails}
+          disabled={isAddingStop}
+        >
+          <Text style={styles.addStopConfirmText}>
+            {isAddingStop ? 'Adding stop...' : 'Add stop'}
+          </Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -389,7 +398,7 @@ function RouteSetupPanel({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 96, 110) }}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 158, 174) }}
       >
         <Text style={styles.sectionHeader}>Route setup</Text>
 
@@ -428,6 +437,10 @@ function RouteSetupPanel({
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 10, 18) }]}>
+        <Pressable style={styles.secondaryFullButton} onPress={onOpenSearch}>
+          <Text style={styles.secondaryFullButtonText}>＋ Add another stop</Text>
+        </Pressable>
+
         <Pressable style={styles.primaryFullButton} onPress={onOptimizeRoute}>
           <Text style={styles.primaryFullButtonText}>↻ Optimize route</Text>
         </Pressable>
@@ -1029,6 +1042,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: '#FFFFFF',
   },
+  buttonDisabled: {
+    opacity: 0.65,
+  },
   setupHeader: {
     height: 64,
     borderBottomWidth: 1,
@@ -1126,6 +1142,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
+    gap: 10,
   },
   confirmFooter: {
     position: 'absolute',

@@ -1,3 +1,4 @@
+import { ordersService } from "@/services/api/orders";
 import { routesService } from "@/services/api/routes";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -12,6 +13,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RoutePreviewPanel } from "@/components/route-preview-panel";
+import { Sidebar } from "@/components/sidebar";
 import MapScreen, {
   type ConfirmedRoute,
   type RouteMapType,
@@ -41,12 +43,17 @@ type StopDetails = {
 type RouteStop = RoutePoint & {
   id: string;
   sequence: number;
+  markerType?: "start" | "stop" | "end";
+  markerLabel?: string;
+  markerIcon?: string;
   address?: string;
   notes?: string;
   packages?: number;
   order?: "first" | "auto" | "last";
   stopType?: "delivery" | "pickup";
   status?: "pending" | "added";
+  backendOrderId?: any;
+  orderId: any;
 };
 
 type AppRoute = ConfirmedRoute & {
@@ -63,6 +70,13 @@ const DEFAULT_POINT: RoutePoint = {
   longitude: 77.209,
   title: "Delhi",
   description: "Delhi",
+};
+
+const DEFAULT_STOP_DETAILS: StopDetails = {
+  packages: 1,
+  order: "auto",
+  stopType: "delivery",
+  notes: "",
 };
 
 function getParam(value: string | string[] | undefined, fallback = "") {
@@ -267,6 +281,69 @@ function getInitialCoordinates(route: AppRoute): RoutePoint[] {
   return getRoutePoints(route);
 }
 
+
+function unwrapApiList(response: any): any[] {
+  const payload = response?.data ?? response;
+
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.orders)) return payload.orders;
+  if (Array.isArray(payload?.data?.orders)) return payload.data.orders;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+
+  return [];
+}
+
+function getOrderRouteId(order: any) {
+  const routeValue =
+    order?.routeId ??
+    order?.route_id ??
+    order?.routeID ??
+    order?.route?.id ??
+    order?.route?._id ??
+    order?.route;
+
+  return routeValue === null || routeValue === undefined ? "" : String(routeValue);
+}
+
+function isOrderForRoute(order: any, routeId: string) {
+  if (!routeId) return false;
+  return getOrderRouteId(order) === routeId;
+}
+
+function getStopIdentity(stop: RouteStop) {
+  if (stop.id) return `id:${stop.id}`;
+
+  return [
+    "geo",
+    stop.latitude.toFixed(6),
+    stop.longitude.toFixed(6),
+    stop.address || stop.description || stop.title || "",
+  ].join(":");
+}
+
+function mergeStops(...stopGroups: RouteStop[][]) {
+  const seen = new Set<string>();
+  const merged: RouteStop[] = [];
+
+  stopGroups.flat().forEach((stop) => {
+    const key = getStopIdentity(stop);
+
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    merged.push(stop);
+  });
+
+  return merged
+    .sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0))
+    .map((stop, index) => ({
+      ...stop,
+      sequence: index + 1,
+    }));
+}
+
 async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
   if (!Array.isArray(rawStops)) return [];
 
@@ -279,14 +356,21 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
       return {
         ...point,
         id: String(
-          item?.id || item?._id || item?.place_id || `${Date.now()}-${index}`,
+          item?.id ||
+            item?._id ||
+            item?.orderId ||
+            item?.order_id ||
+            item?.place_id ||
+            `${Date.now()}-${index}`,
         ),
-        sequence: Number(item?.sequence || index + 1),
-        address: getAddressFromLocation(item) || point.description,
-        packages: Number(item?.packages || 1),
+        sequence: Number(
+          item?.sequence || item?.stopSequence || item?.stop_sequence || index + 1,
+        ),
+        address: getAddressFromLocation(item) || item?.address || point.description,
+        packages: Number(item?.packages || item?.packageCount || item?.package_count || 1),
         order: item?.order || "auto",
-        stopType: item?.stopType || item?.stop_type || "delivery",
-        notes: item?.notes || "",
+        stopType: item?.stopType || item?.stop_type || item?.type || "delivery",
+        notes: item?.notes || item?.note || "",
         status: item?.status || "added",
       } as RouteStop;
     })
@@ -295,7 +379,26 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
   return stops.sort((a, b) => a.sequence - b.sequence);
 }
 
-async function buildRouteFromBackendResponse(response: any): Promise<{
+
+async function fetchRouteOrderStops(routeId: string): Promise<RouteStop[]> {
+  if (!routeId) return [];
+
+  try {
+    const response = await ordersService.fetchOrders();
+    const routeOrders = unwrapApiList(response).filter((order) =>
+      isOrderForRoute(order, routeId),
+    );
+
+    return buildStopsFromBackend(routeOrders);
+  } catch {
+    return [];
+  }
+}
+
+async function buildRouteFromBackendResponse(
+  response: any,
+  routeId = "",
+): Promise<{
   route: AppRoute;
   routeTitle: string;
   startTime: string;
@@ -358,9 +461,15 @@ async function buildRouteFromBackendResponse(response: any): Promise<{
     };
   }
 
-  const stops = await buildStopsFromBackend(
+  const routeIdForOrders = String(
+    routeId || rawRoute.id || rawRoute._id || rawRoute.routeId || rawRoute.route_id || "",
+  );
+  const routeStops = await buildStopsFromBackend(
     rawRoute.stops || rawRoute.route_stops || rawRoute.routeStops || [],
   );
+  console.log("Fetched route stops from route data:", routeStops);
+  const orderStops = await fetchRouteOrderStops(routeIdForOrders);
+  const stops = mergeStops(routeStops, orderStops);
 
   const route: AppRoute = {
     start: startPoint,
@@ -369,9 +478,10 @@ async function buildRouteFromBackendResponse(response: any): Promise<{
     coordinates: [],
   };
 
-  const routeCoordinates = backendCoordinates.length
-    ? backendCoordinates
-    : getInitialCoordinates(route);
+  const routeCoordinates =
+    backendCoordinates.length >= stops.length + 2
+      ? backendCoordinates
+      : getInitialCoordinates(route);
 
   const distance = Number(rawRoute.distance || rawRoute.total_distance || 0);
   const duration = Number(rawRoute.duration || rawRoute.total_duration || 0);
@@ -418,6 +528,7 @@ function getStraightLineDistanceMeters(start: RoutePoint, end: RoutePoint) {
   return earthRadius * c;
 }
 
+
 async function fetchRoutePath(points: RoutePoint[]) {
   try {
     if (points.length < 2) {
@@ -436,6 +547,7 @@ async function fetchRoutePath(points: RoutePoint[]) {
 
     const response = await fetch(url);
     const data = await response.json();
+
     const route = data?.routes?.[0];
 
     if (!route?.geometry?.coordinates?.length) {
@@ -570,6 +682,207 @@ async function fetchPlaceSuggestions(
   }
 }
 
+
+function unwrapOrderPayload(response: any) {
+  const payload = response?.data ?? response;
+
+  return (
+    payload?.data?.order ||
+    payload?.data?.item ||
+    payload?.order ||
+    payload?.item ||
+    payload?.data ||
+    payload
+  );
+}
+
+function buildOrderPayload({
+  routeId,
+  sequence,
+  suggestion,
+  details,
+}: {
+  routeId: string;
+  sequence: number;
+  suggestion: PlaceSuggestion;
+  details: StopDetails;
+}) {
+  const location = {
+    mode: "manual_address",
+    address: suggestion.fullAddress,
+    selectedFromSuggestion: true,
+    details: {
+      housenumber: "",
+      street: "",
+      placeId: suggestion.id,
+      addressLine1: suggestion.title,
+      addressLine2: suggestion.subtitle,
+      city: "",
+      district: "",
+      state: "",
+      country: "",
+      countryCode: "",
+      postalCode: "",
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    },
+  };
+
+  return {
+    route_id: routeId,
+    sequence,
+    stopSequence: sequence,
+    location,
+    address: suggestion.fullAddress,
+    title: suggestion.title,
+    description: suggestion.subtitle,
+    latitude: suggestion.latitude,
+    longitude: suggestion.longitude,
+    packages: details.packages,
+    order: details.order,
+    stopType: details.stopType,
+    stop_type: details.stopType,
+    notes: details.notes,
+    status: "added",
+  };
+}
+
+function buildStopFromSavedOrder(savedOrder: any, fallbackStop: RouteStop): RouteStop {
+  if (!savedOrder || typeof savedOrder !== "object") return fallbackStop;
+
+  const point =
+    buildPointFromBackendLocation(savedOrder, fallbackStop.title || "Stop", fallbackStop) ||
+    fallbackStop;
+
+  return {
+    ...fallbackStop,
+    ...point,
+    id: String(
+      savedOrder.id ||
+        savedOrder._id ||
+        savedOrder.orderId ||
+        savedOrder.order_id ||
+        fallbackStop.id,
+    ),
+    sequence: Number(
+      savedOrder.sequence || savedOrder.stopSequence || savedOrder.stop_sequence || fallbackStop.sequence,
+    ),
+    address:
+      getAddressFromLocation(savedOrder) ||
+      savedOrder.address ||
+      fallbackStop.address ||
+      point.description,
+    packages: Number(
+      savedOrder.packages || savedOrder.packageCount || savedOrder.package_count || fallbackStop.packages || 1,
+    ),
+    order: savedOrder.order || fallbackStop.order || "auto",
+    stopType:
+      savedOrder.stopType ||
+      savedOrder.stop_type ||
+      savedOrder.type ||
+      fallbackStop.stopType ||
+      "delivery",
+    notes: savedOrder.notes || savedOrder.note || fallbackStop.notes || "",
+    status: savedOrder.status || fallbackStop.status || "added",
+  };
+}
+
+type MarkerRoutePoint = RoutePoint & {
+  markerType?: "start" | "stop" | "end";
+  markerLabel?: string;
+  markerIcon?: string;
+};
+
+type MarkerRouteStop = RouteStop & MarkerRoutePoint;
+
+function getCoordinateKey(point: RoutePoint) {
+  return `${point.latitude.toFixed(6)},${point.longitude.toFixed(6)}`;
+}
+
+function offsetPointForMarker(point: RoutePoint, index: number, total: number) {
+  if (total <= 1) return point;
+
+  const radiusMeters = 16;
+  const angle = (2 * Math.PI * index) / total - Math.PI / 2;
+  const latitudeOffset = (Math.sin(angle) * radiusMeters) / 111_320;
+  const longitudeScale = Math.max(
+    0.01,
+    Math.abs(Math.cos((point.latitude * Math.PI) / 180)),
+  );
+  const longitudeOffset = (Math.cos(angle) * radiusMeters) / (111_320 * longitudeScale);
+
+  return {
+    ...point,
+    latitude: point.latitude + latitudeOffset,
+    longitude: point.longitude + longitudeOffset,
+  };
+}
+
+function buildMapDisplayRoute(route: AppRoute): AppRoute {
+  const markerItems = [
+    {
+      key: "start",
+      markerType: "start" as const,
+      markerLabel: "S",
+      markerIcon: "⌂",
+      point: route.start,
+    },
+    ...route.stops.map((stop) => ({
+      key: `stop-${stop.id}`,
+      markerType: "stop" as const,
+      markerLabel: String(stop.sequence),
+      markerIcon: "●",
+      point: stop,
+    })),
+    {
+      key: "end",
+      markerType: "end" as const,
+      markerLabel: "E",
+      markerIcon: "⚑",
+      point: route.end,
+    },
+  ];
+
+  const grouped = markerItems.reduce<Record<string, typeof markerItems>>((acc, item) => {
+    const key = getCoordinateKey(item.point);
+    acc[key] = acc[key] || [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  const displayMarkers = new Map<string, MarkerRoutePoint | MarkerRouteStop>();
+
+  Object.values(grouped).forEach((items) => {
+    items.forEach((item, index) => {
+      const offsetPoint = offsetPointForMarker(item.point, index, items.length);
+
+      displayMarkers.set(item.key, {
+        ...item.point,
+        ...offsetPoint,
+        markerType: item.markerType,
+        markerLabel: item.markerLabel,
+        markerIcon: item.markerIcon,
+        title:
+          item.markerType === "stop"
+            ? `Stop ${item.markerLabel}: ${item.point.title || "Stop"}`
+            : item.markerType === "start"
+              ? item.point.title || "Start location"
+              : item.point.title || "End location",
+      });
+    });
+  });
+
+  return {
+    ...route,
+    start: (displayMarkers.get("start") || route.start) as RoutePoint,
+    stops: route.stops.map(
+      (stop) => (displayMarkers.get(`stop-${stop.id}`) || stop) as RouteStop,
+    ),
+    end: (displayMarkers.get("end") || route.end) as RoutePoint,
+    coordinates: route.coordinates?.length ? route.coordinates : getInitialCoordinates(route),
+  };
+}
+
 export default function RoutePreviewScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -589,18 +902,20 @@ export default function RoutePreviewScreen() {
   const [centerSignal, setCenterSignal] = useState(0);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isAddingStop, setIsAddingStop] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const [searchText, setSearchText] = useState("");
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] =
     useState<PlaceSuggestion | null>(null);
-  const [stopDetails, setStopDetails] = useState<StopDetails>({
-    packages: 1,
-    order: "auto",
-    stopType: "delivery",
-    notes: "",
-  });
+  const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
+
+  const mapRoute = useMemo(() => {
+    if (!route) return null;
+    return buildMapDisplayRoute(route);
+  }, [route]);
 
   useEffect(() => {
     let mounted = true;
@@ -618,7 +933,7 @@ export default function RoutePreviewScreen() {
 
       try {
         const response = await routesService.getRoute(routeId);
-        const result = await buildRouteFromBackendResponse(response);
+        const result = await buildRouteFromBackendResponse(response, routeId);
 
         if (!mounted) return;
 
@@ -692,21 +1007,21 @@ export default function RoutePreviewScreen() {
 
   const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
     setSelectedSuggestion(suggestion);
-    setStopDetails({
-      packages: 1,
-      order: "auto",
-      stopType: "delivery",
-      notes: "",
-    });
+    setStopDetails(DEFAULT_STOP_DETAILS);
     setPanelMode("details");
   };
 
-  const handleConfirmStopDetails = () => {
-    if (!route || !selectedSuggestion) return;
+  const handleConfirmStopDetails = async () => {
+    if (!route || !selectedSuggestion || isAddingStop) return;
+
+    if (!routeId) {
+      setErrorMessage("Route id is missing. Unable to add stop.");
+      return;
+    }
 
     const nextSequence = route.stops.length + 1;
 
-    const newStop: RouteStop = {
+    const fallbackStop: RouteStop = {
       id: `${Date.now()}-${selectedSuggestion.id}`,
       sequence: nextSequence,
       latitude: selectedSuggestion.latitude,
@@ -721,49 +1036,174 @@ export default function RoutePreviewScreen() {
       status: "added",
     };
 
-    const nextStops = [...route.stops, newStop];
+    setIsAddingStop(true);
+    setErrorMessage("");
 
-    const nextRoute: AppRoute = {
-      ...route,
-      stops: nextStops,
-      coordinates: getInitialCoordinates({
+    try {
+      const payload = buildOrderPayload({
+        routeId,
+        sequence: nextSequence,
+        suggestion: selectedSuggestion,
+        details: stopDetails,
+      });
+      const response = await ordersService.addOrder(payload);
+      const savedOrder = unwrapOrderPayload(response);
+      const newStop = buildStopFromSavedOrder(savedOrder, fallbackStop);
+
+      const nextStops = [...route.stops, newStop].map((stop, index) => ({
+        ...stop,
+        sequence: index + 1,
+      }));
+
+      const nextRoute: AppRoute = {
         ...route,
         stops: nextStops,
-      }),
-    };
+        coordinates: getInitialCoordinates({
+          ...route,
+          stops: nextStops,
+        }),
+      };
 
-    setRoute(nextRoute);
-    setSelectedSuggestion(null);
-    setSearchText("");
-    setSuggestions([]);
-    setPanelMode("setup");
-    setCenterSignal((prev) => prev + 1);
+      setRoute(nextRoute);
+      setSelectedSuggestion(null);
+      setSearchText("");
+      setSuggestions([]);
+      setStopDetails(DEFAULT_STOP_DETAILS);
+      setPanelMode("setup");
+      setCenterSignal((prev) => prev + 1);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to add stop on backend.",
+      );
+    } finally {
+      setIsAddingStop(false);
+    }
   };
 
+
   const handleOptimizeRoute = async () => {
-    if (!route) return;
+  if (!route || isOptimizing) return;
 
-    setIsOptimizing(true);
+  if (!routeId) {
+    setErrorMessage("Route id is missing.");
+    return;
+  }
 
-    const points = getRoutePoints(route);
-    const path = await fetchRoutePath(points);
+  setIsOptimizing(true);
+  setErrorMessage("");
+
+  try {
+    // Call the newly created optimizeRoute function from the service
+    const response = await routesService.optimizeRoute(routeId);
+
+    if (!response.success) {
+      throw new Error(response.error || "Unable to optimize route.");
+    }
+
+    const optimizedSteps = response.data?.routes?.[0]?.steps || [];
+
+    const jobSteps = optimizedSteps
+      .filter((step: any) => step.type === "job")
+      .sort(
+        (a: any, b: any) =>
+          Number(a.sequence_no || 0) - Number(b.sequence_no || 0),
+      );
+
+    const usedStopIds = new Set<string>();
+
+    const optimizedStops: RouteStop[] = [];
+
+    jobSteps.forEach((step: any) => {
+      let matchedStop = route.stops.find((stop: any) => {
+        const possibleIds = [
+          stop.backendOrderId,
+          stop.orderId,
+          stop.id,
+          stop.sequence,
+          stop.sequenceNo,
+        ]
+          .filter(Boolean)
+          .map(String);
+
+        return possibleIds.includes(String(step.id));
+      });
+
+      if (!matchedStop && Array.isArray(step.location)) {
+        const [longitude, latitude] = step.location;
+
+        matchedStop = route.stops.find((stop: any) => {
+          const stopKey = String(stop.backendOrderId || stop.orderId || stop.id);
+
+          if (usedStopIds.has(stopKey)) return false;
+
+          return (
+            Number(stop.latitude).toFixed(6) === Number(latitude).toFixed(6) &&
+            Number(stop.longitude).toFixed(6) === Number(longitude).toFixed(6)
+          );
+        });
+      }
+
+      if (!matchedStop) return;
+
+      const stopKey = String(
+        matchedStop.backendOrderId || matchedStop.orderId || matchedStop.id,
+      );
+
+      if (usedStopIds.has(stopKey)) return;
+
+      usedStopIds.add(stopKey);
+      optimizedStops.push(matchedStop);
+    });
+
+    route.stops.forEach((stop: any) => {
+      const stopKey = String(stop.backendOrderId || stop.orderId || stop.id);
+
+      if (!usedStopIds.has(stopKey)) {
+        optimizedStops.push(stop);
+      }
+    });
+
+    const finalStops = optimizedStops.map((stop, index) => ({
+      ...stop,
+      sequence: index + 1,
+      sequenceNo: index + 1,
+      markerLabel: String(index + 1),
+    }));
+
+    const optimizedRoute: AppRoute = {
+      ...route,
+      stops: finalStops,
+    };
+
+    console.log("Final optimized stops:", optimizedRoute);
+    const path = await fetchRoutePath(getRoutePoints(optimizedRoute));
+    console.log("Fetched optimized route path:", path);
 
     setRoute({
-      ...route,
+      ...optimizedRoute,
       coordinates: path.coordinates,
     });
 
     setRouteMeta({
-      distanceLabel: formatDistance(path.distanceMeters),
-      durationLabel: formatDuration(path.durationSeconds),
+      distanceLabel: formatDistance(
+        Number(response.data?.summary?.distance || response.data?.routes?.[0]?.distance || path.distanceMeters),
+      ),
+      durationLabel: formatDuration(
+        Number(response.data?.summary?.duration || response.data?.routes?.[0]?.duration || path.durationSeconds),
+      ),
     });
 
-    setTimeout(() => {
-      setIsOptimizing(false);
-      setPanelMode("confirmed");
-      setCenterSignal((prev) => prev + 1);
-    }, 900);
-  };
+    setPanelMode("confirmed");
+    setCenterSignal((prev) => prev + 1);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error ? error.message : "Unable to optimize route.",
+    );
+  } finally {
+    setIsOptimizing(false);
+  }
+};
+
 
   const handleToggleMapType = () => {
     setMapType((prev) => (prev === "standard" ? "satellite" : "standard"));
@@ -776,7 +1216,7 @@ export default function RoutePreviewScreen() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <MapScreen
-        confirmedRoute={route}
+        confirmedRoute={mapRoute}
         mapType={mapType}
         centerSignal={centerSignal}
       />
@@ -788,7 +1228,7 @@ export default function RoutePreviewScreen() {
             top: insets.top + 16,
           },
         ]}
-        onPress={() => router.back()}
+        onPress={() => setIsSidebarOpen(true)}
       >
         <View style={styles.hamburger}>
           <View style={styles.hamburgerBar} />
@@ -862,6 +1302,7 @@ export default function RoutePreviewScreen() {
           suggestions={suggestions}
           selectedSuggestion={selectedSuggestion}
           stopDetails={stopDetails}
+          isAddingStop={isAddingStop}
           onSearchTextChange={setSearchText}
           onOpenSearch={handleOpenSearch}
           onCloseSearch={handleCloseSearch}
@@ -873,6 +1314,11 @@ export default function RoutePreviewScreen() {
           onConfirm={handleConfirmRoute}
         />
       ) : null}
+
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+      />
 
       {isOptimizing ? (
         <View style={styles.optimizingOverlay}>
