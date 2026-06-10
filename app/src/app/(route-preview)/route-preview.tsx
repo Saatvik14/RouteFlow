@@ -14,7 +14,7 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { RoutePreviewPanel } from "@/components/route-preview-panel";
+import { RoutePreviewPanel } from "@/components/route-preview-panel-refactor/route-preview-panel";
 import { Sidebar } from "@/components/sidebar";
 import MapScreen, {
   type ConfirmedRoute,
