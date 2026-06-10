@@ -202,7 +202,16 @@ export default function LoginScreen() {
 
             <View style={styles.passwordInputWrap}>
               <TextInput
-                style={styles.passwordInput}
+                          style={[
+                            styles.passwordInput,
+                            Platform.OS === 'web' &&
+                            ({
+                              outlineStyle: 'none',
+                              outlineWidth: 0,
+                              outlineColor: 'transparent',
+                            } as any),
+                          ]}
+
                 placeholder="Enter password"
                 placeholderTextColor="#9AA8BD"
                 secureTextEntry={!showPassword}

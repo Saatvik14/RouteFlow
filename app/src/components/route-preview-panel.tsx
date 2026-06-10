@@ -24,7 +24,7 @@ export type PanelMode =
   | 'confirmed'
   | 'transit';
 
-  export type PlaceSuggestion = {
+export type PlaceSuggestion = {
   id: string;
   title: string;
   subtitle: string;
@@ -187,10 +187,10 @@ function getStopSubtitle(stop: any) {
 function getStopStatus(stop: any) {
   return normalizeRouteStatus(
     stop?.status ||
-      stop?.order_status ||
-      stop?.orderStatus ||
-      stop?.delivery_status ||
-      stop?.deliveryStatus,
+    stop?.order_status ||
+    stop?.orderStatus ||
+    stop?.delivery_status ||
+    stop?.deliveryStatus,
   );
 }
 
@@ -384,7 +384,15 @@ function SearchPanel({
             placeholder="Type to add a stop"
             placeholderTextColor="#64748B"
             autoFocus
-            style={styles.searchInput}
+            style={[
+              styles.searchInput,
+              Platform.OS === 'web' &&
+              ({
+                outlineStyle: 'none',
+                outlineWidth: 0,
+                outlineColor: 'transparent',
+              } as any),
+            ]}
           />
 
           {searchText ? (
@@ -1229,9 +1237,8 @@ function TransitStopPanel({
     `A${activeStopIndex + 1}`;
 
   const stopTime = stop.eta || stop.time || '';
-  const progressLabel = `${activeStopIndex + 1}/${totalActiveStops || 1}${
-    stopTime ? `, ${stopTime}` : ''
-  }`;
+  const progressLabel = `${activeStopIndex + 1}/${totalActiveStops || 1}${stopTime ? `, ${stopTime}` : ''
+    }`;
 
   return (
     <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
@@ -1584,585 +1591,585 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
 export default RoutePreviewPanel;
 
 const styles = StyleSheet.create({
-completionTopBar: {
-  minHeight: 72,
-  borderBottomWidth: 1,
-  borderBottomColor: '#E2E8F0',
-  paddingHorizontal: 30,
-  paddingBottom: 14,
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 12,
-  backgroundColor: '#FFFFFF',
-},
-
-completionTopTextBox: {
-  flex: 1,
-  minWidth: 0,
-},
-
-completionTopTitle: {
-  fontSize: 18,
-  lineHeight: 24,
-  fontWeight: '500',
-  color: '#334155',
-},
-
-completionTopSubtitle: {
-  marginTop: 2,
-  fontSize: 13,
-  lineHeight: 18,
-  fontWeight: '400',
-  color: '#94A3B8',
-},
-
-completionIconButton: {
-  width: 44,
-  height: 44,
-  borderRadius: 22,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-completionContent: {
-  paddingHorizontal: 30,
-  paddingTop: 0,
-  backgroundColor: '#F8FAFC',
-},
-
-completionTimelineBlock: {
-  backgroundColor: '#FFFFFF',
-  marginHorizontal: -30,
-  paddingHorizontal: 30,
-  paddingTop: 2,
-  paddingBottom: 18,
-  borderBottomWidth: 1,
-  borderBottomColor: '#E2E8F0',
-},
-
-completionTimelineItem: {
-  minHeight: 78,
-  flexDirection: 'row',
-  alignItems: 'stretch',
-},
-
-completionTimeBox: {
-  width: 58,
-  paddingTop: 22,
-  alignItems: 'flex-start',
-},
-
-completionTimeText: {
-  fontSize: 15,
-  lineHeight: 20,
-  fontWeight: '400',
-  color: '#64748B',
-},
-
-completionTimeActiveText: {
-  color: '#2563EB',
-  fontWeight: '500',
-},
-
-completionMarkerColumn: {
-  width: 28,
-  alignItems: 'center',
-},
-
-completionMarker: {
-  width: 19,
-  height: 19,
-  borderRadius: 10,
-  marginTop: 22,
-  backgroundColor: '#93C5FD',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 2,
-},
-
-completionMarkerStart: {
-  width: 13,
-  height: 13,
-  borderRadius: 7,
-  backgroundColor: '#BFDBFE',
-},
-
-completionMarkerEnd: {
-  width: 28,
-  height: 28,
-  borderRadius: 9,
-  marginTop: 17,
-  backgroundColor: '#2563EB',
-},
-
-completionMarkerSuccess: {
-  backgroundColor: '#22C55E',
-},
-
-completionMarkerDanger: {
-  backgroundColor: '#EF4444',
-},
-
-completionMarkerText: {
-  fontSize: 10,
-  lineHeight: 13,
-  fontWeight: '600',
-  color: '#FFFFFF',
-},
-
-completionMarkerLine: {
-  flex: 1,
-  width: 3,
-  marginTop: 0,
-  backgroundColor: '#BFDBFE',
-},
-
-completionTimelineCard: {
-  flex: 1,
-  minHeight: 72,
-  marginLeft: 18,
-  paddingVertical: 12,
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderBottomWidth: 1,
-  borderBottomColor: '#EEF2F7',
-},
-
-completionTimelineCardActive: {
-  borderBottomWidth: 0,
-},
-
-completionTimelineTextBox: {
-  flex: 1,
-  minWidth: 0,
-},
-
-completionTimelineTitle: {
-  fontSize: 19,
-  lineHeight: 25,
-  fontWeight: '500',
-  color: '#94A3B8',
-},
-
-completionTimelineTitleActive: {
-  color: '#111827',
-},
-
-completionTimelineSubtitle: {
-  marginTop: 2,
-  fontSize: 15,
-  lineHeight: 21,
-  fontWeight: '400',
-  color: '#64748B',
-},
-
-completionStatusBadge: {
-  minWidth: 70,
-  height: 38,
-  borderRadius: 12,
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 10,
-},
-
-completionStatusSuccess: {
-  backgroundColor: '#F0FDF4',
-},
-
-completionStatusFailed: {
-  backgroundColor: '#FEF2F2',
-},
-
-completionStatusText: {
-  fontSize: 14,
-  lineHeight: 20,
-  fontWeight: '500',
-},
-
-completionStatusSuccessText: {
-  color: '#16A34A',
-},
-
-completionStatusFailedText: {
-  color: '#DC2626',
-},
-
-completionEndIconBox: {
-  width: 48,
-  height: 48,
-  borderRadius: 14,
-  backgroundColor: '#EFF6FF',
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-markRouteCompletedButton: {
-  marginTop: 24,
-  height: 58,
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: '#E2E8F0',
-  backgroundColor: '#FFFFFF',
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 12,
-},
-
-markRouteCompletedText: {
-  fontSize: 18,
-  lineHeight: 24,
-  fontWeight: '500',
-  color: '#2563EB',
-},
-
-routeCompletedContent: {
-  paddingHorizontal: 30,
-  paddingTop: 22,
-  backgroundColor: '#FFFFFF',
-},
-
-routeCompletedHeroCard: {
-  borderRadius: 12,
-  backgroundColor: '#F1F5F9',
-  paddingHorizontal: 24,
-  paddingTop: 28,
-  paddingBottom: 22,
-  alignItems: 'center',
-},
-
-routeCompletedIconBox: {
-  width: 46,
-  height: 46,
-  borderRadius: 23,
-  backgroundColor: '#22C55E',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: 16,
-},
-
-routeCompletedTitle: {
-  fontSize: 27,
-  lineHeight: 34,
-  fontWeight: '500',
-  color: '#111827',
-  textAlign: 'center',
-},
-
-routeCompletedSubtitle: {
-  marginTop: 6,
-  fontSize: 14,
-  lineHeight: 20,
-  fontWeight: '400',
-  color: '#94A3B8',
-  textAlign: 'center',
-},
-
-routeCompletedStatsRow: {
-  width: '100%',
-  marginTop: 28,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-},
-
-routeCompletedStatsLeft: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 14,
-},
-
-routeCompletedStatsText: {
-  fontSize: 17,
-  lineHeight: 24,
-  fontWeight: '500',
-  color: '#334155',
-},
-
-routeCompletedStatusText: {
-  fontSize: 17,
-  lineHeight: 24,
-  fontWeight: '400',
-  color: '#94A3B8',
-},
-
-copyRouteButton: {
-  marginTop: 32,
-  minHeight: 60,
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: '#E2E8F0',
-  backgroundColor: '#FFFFFF',
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 16,
-  gap: 12,
-},
-
-copyRouteButtonText: {
-  fontSize: 20,
-  lineHeight: 26,
-  fontWeight: '500',
-  color: '#2563EB',
-  textAlign: 'center',
-},
-
-createRouteButton: {
-  marginTop: 14,
-  minHeight: 64,
-  borderRadius: 12,
-  backgroundColor: '#2F76F6',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 16,
-},
-
-createRouteButtonText: {
-  fontSize: 20,
-  lineHeight: 27,
-  fontWeight: '500',
-  color: '#FFFFFF',
-},
-
-draggableTransitSheetWeb: {
-  left: 24,
-  right: undefined,
-  bottom: 24,
-  width: 460,
-  maxWidth: 460,
-  borderRadius: 30,
-},
-
-transitSheetContent: {
-  paddingHorizontal: 30,
-  paddingTop: 4,
-  backgroundColor: '#FFFFFF',
-},
-
-transitHeader: {
-  flexDirection: 'row',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  marginBottom: 20,
-},
-
-transitHeaderTextBox: {
-  flex: 1,
-  paddingRight: 16,
-  minWidth: 0,
-},
-
-transitTitle: {
-  fontSize: 32,
-  lineHeight: 39,
-  fontWeight: '500',
-  color: '#111827',
-  letterSpacing: -0.4,
-},
-
-transitProgressRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginTop: 8,
-},
-
-transitBlueDot: {
-  width: 13,
-  height: 13,
-  borderRadius: 7,
-  backgroundColor: '#2F76F6',
-  marginRight: 9,
-},
-
-transitProgressText: {
-  fontSize: 18,
-  lineHeight: 24,
-  fontWeight: '400',
-  color: '#64748B',
-},
-
-transitCloseButton: {
-  width: 50,
-  height: 50,
-  borderRadius: 25,
-  backgroundColor: '#EEF2F7',
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-transitActionsRow: {
-  flexDirection: 'row',
-  gap: 14,
-  marginBottom: 26,
-},
-
-transitActionCard: {
-  flex: 1,
-  minHeight: 108,
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: '#D8E0EC',
-  backgroundColor: '#F8FAFC',
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 8,
-},
-
-transitNavigateCard: {
-  backgroundColor: '#2F76F6',
-  borderColor: '#2F76F6',
-},
-
-transitActionText: {
-  marginTop: 7,
-  fontSize: 18,
-  lineHeight: 23,
-  fontWeight: '500',
-  color: '#111827',
-  textAlign: 'center',
-},
-
-transitNavigateText: {
-  color: '#FFFFFF',
-},
-
-packageActionIconWrap: {
-  width: 40,
-  height: 38,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-packageActionBadge: {
-  position: 'absolute',
-  right: 1,
-  bottom: 0,
-  width: 18,
-  height: 18,
-  borderRadius: 9,
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderWidth: 2,
-  borderColor: '#F8FAFC',
-},
-
-packageActionBadgeSuccess: {
-  backgroundColor: '#22C55E',
-},
-
-packageActionBadgeDanger: {
-  backgroundColor: '#EF4444',
-},
-
-stopRowsBlock: {
-  backgroundColor: '#FFFFFF',
-  marginBottom: 0,
-},
-
-stopDetailRow: {
-  minHeight: 78,
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderBottomWidth: 1,
-  borderBottomColor: '#EEF2F7',
-},
-
-rowIconBox: {
-  width: 52,
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: 20,
-},
-
-stopMainText: {
-  flex: 1,
-  fontSize: 20,
-  lineHeight: 27,
-  fontWeight: '400',
-  color: '#111827',
-},
-
-stopMutedText: {
-  flex: 1,
-  fontSize: 20,
-  lineHeight: 27,
-  fontWeight: '400',
-  color: '#94A3B8',
-},
-
-stopMutedInlineText: {
-  fontSize: 20,
-  lineHeight: 27,
-  fontWeight: '400',
-  color: '#94A3B8',
-},
-
-stopIdIcon: {
-  fontSize: 18,
-  lineHeight: 24,
-  fontWeight: '500',
-  color: '#475569',
-},
-
-transitOptionsBlock: {
-  backgroundColor: '#F1F5F9',
-  marginHorizontal: -30,
-  marginTop: 20,
-  paddingHorizontal: 30,
-  paddingVertical: 8,
-},
-
-transitOptionRow: {
-  minHeight: 76,
-  flexDirection: 'row',
-  alignItems: 'center',
-  borderBottomWidth: 1,
-  borderBottomColor: '#E2E8F0',
-},
-
-transitOptionText: {
-  flex: 1,
-  fontSize: 23,
-  lineHeight: 30,
-  fontWeight: '400',
-  color: '#111827',
-},
-
-transitCompleteCard: {
-  flex: 1,
-  alignItems: 'center',
-  justifyContent: 'center',
-  paddingHorizontal: 28,
-},
-
-transitCompleteIconBox: {
-  width: 72,
-  height: 72,
-  borderRadius: 36,
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#DCFCE7',
-  marginBottom: 18,
-},
-
-transitCompleteTitle: {
-  fontSize: 24,
-  lineHeight: 30,
-  fontWeight: '500',
-  color: '#111827',
-  textAlign: 'center',
-},
-
-transitCompleteText: {
-  marginTop: 8,
-  fontSize: 16,
-  lineHeight: 22,
-  fontWeight: '400',
-  color: '#64748B',
-  textAlign: 'center',
-},
+  completionTopBar: {
+    minHeight: 72,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 30,
+    paddingBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
+  },
+
+  completionTopTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  completionTopTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '500',
+    color: '#334155',
+  },
+
+  completionTopSubtitle: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+    color: '#94A3B8',
+  },
+
+  completionIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completionContent: {
+    paddingHorizontal: 30,
+    paddingTop: 0,
+    backgroundColor: '#F8FAFC',
+  },
+
+  completionTimelineBlock: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: -30,
+    paddingHorizontal: 30,
+    paddingTop: 2,
+    paddingBottom: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+
+  completionTimelineItem: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+
+  completionTimeBox: {
+    width: 58,
+    paddingTop: 22,
+    alignItems: 'flex-start',
+  },
+
+  completionTimeText: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '400',
+    color: '#64748B',
+  },
+
+  completionTimeActiveText: {
+    color: '#2563EB',
+    fontWeight: '500',
+  },
+
+  completionMarkerColumn: {
+    width: 28,
+    alignItems: 'center',
+  },
+
+  completionMarker: {
+    width: 19,
+    height: 19,
+    borderRadius: 10,
+    marginTop: 22,
+    backgroundColor: '#93C5FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+
+  completionMarkerStart: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: '#BFDBFE',
+  },
+
+  completionMarkerEnd: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    marginTop: 17,
+    backgroundColor: '#2563EB',
+  },
+
+  completionMarkerSuccess: {
+    backgroundColor: '#22C55E',
+  },
+
+  completionMarkerDanger: {
+    backgroundColor: '#EF4444',
+  },
+
+  completionMarkerText: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  completionMarkerLine: {
+    flex: 1,
+    width: 3,
+    marginTop: 0,
+    backgroundColor: '#BFDBFE',
+  },
+
+  completionTimelineCard: {
+    flex: 1,
+    minHeight: 72,
+    marginLeft: 18,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
+  },
+
+  completionTimelineCardActive: {
+    borderBottomWidth: 0,
+  },
+
+  completionTimelineTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  completionTimelineTitle: {
+    fontSize: 19,
+    lineHeight: 25,
+    fontWeight: '500',
+    color: '#94A3B8',
+  },
+
+  completionTimelineTitleActive: {
+    color: '#111827',
+  },
+
+  completionTimelineSubtitle: {
+    marginTop: 2,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '400',
+    color: '#64748B',
+  },
+
+  completionStatusBadge: {
+    minWidth: 70,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+
+  completionStatusSuccess: {
+    backgroundColor: '#F0FDF4',
+  },
+
+  completionStatusFailed: {
+    backgroundColor: '#FEF2F2',
+  },
+
+  completionStatusText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+
+  completionStatusSuccessText: {
+    color: '#16A34A',
+  },
+
+  completionStatusFailedText: {
+    color: '#DC2626',
+  },
+
+  completionEndIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  markRouteCompletedButton: {
+    marginTop: 24,
+    height: 58,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+
+  markRouteCompletedText: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '500',
+    color: '#2563EB',
+  },
+
+  routeCompletedContent: {
+    paddingHorizontal: 30,
+    paddingTop: 22,
+    backgroundColor: '#FFFFFF',
+  },
+
+  routeCompletedHeroCard: {
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 22,
+    alignItems: 'center',
+  },
+
+  routeCompletedIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+
+  routeCompletedTitle: {
+    fontSize: 27,
+    lineHeight: 34,
+    fontWeight: '500',
+    color: '#111827',
+    textAlign: 'center',
+  },
+
+  routeCompletedSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '400',
+    color: '#94A3B8',
+    textAlign: 'center',
+  },
+
+  routeCompletedStatsRow: {
+    width: '100%',
+    marginTop: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  routeCompletedStatsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+
+  routeCompletedStatsText: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '500',
+    color: '#334155',
+  },
+
+  routeCompletedStatusText: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '400',
+    color: '#94A3B8',
+  },
+
+  copyRouteButton: {
+    marginTop: 32,
+    minHeight: 60,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+
+  copyRouteButtonText: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '500',
+    color: '#2563EB',
+    textAlign: 'center',
+  },
+
+  createRouteButton: {
+    marginTop: 14,
+    minHeight: 64,
+    borderRadius: 12,
+    backgroundColor: '#2F76F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+
+  createRouteButtonText: {
+    fontSize: 20,
+    lineHeight: 27,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+
+  draggableTransitSheetWeb: {
+    left: 24,
+    right: undefined,
+    bottom: 24,
+    width: 460,
+    maxWidth: 460,
+    borderRadius: 30,
+  },
+
+  transitSheetContent: {
+    paddingHorizontal: 30,
+    paddingTop: 4,
+    backgroundColor: '#FFFFFF',
+  },
+
+  transitHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+
+  transitHeaderTextBox: {
+    flex: 1,
+    paddingRight: 16,
+    minWidth: 0,
+  },
+
+  transitTitle: {
+    fontSize: 32,
+    lineHeight: 39,
+    fontWeight: '500',
+    color: '#111827',
+    letterSpacing: -0.4,
+  },
+
+  transitProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+
+  transitBlueDot: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: '#2F76F6',
+    marginRight: 9,
+  },
+
+  transitProgressText: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '400',
+    color: '#64748B',
+  },
+
+  transitCloseButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#EEF2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  transitActionsRow: {
+    flexDirection: 'row',
+    gap: 14,
+    marginBottom: 26,
+  },
+
+  transitActionCard: {
+    flex: 1,
+    minHeight: 108,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D8E0EC',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+
+  transitNavigateCard: {
+    backgroundColor: '#2F76F6',
+    borderColor: '#2F76F6',
+  },
+
+  transitActionText: {
+    marginTop: 7,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '500',
+    color: '#111827',
+    textAlign: 'center',
+  },
+
+  transitNavigateText: {
+    color: '#FFFFFF',
+  },
+
+  packageActionIconWrap: {
+    width: 40,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  packageActionBadge: {
+    position: 'absolute',
+    right: 1,
+    bottom: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#F8FAFC',
+  },
+
+  packageActionBadgeSuccess: {
+    backgroundColor: '#22C55E',
+  },
+
+  packageActionBadgeDanger: {
+    backgroundColor: '#EF4444',
+  },
+
+  stopRowsBlock: {
+    backgroundColor: '#FFFFFF',
+    marginBottom: 0,
+  },
+
+  stopDetailRow: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
+  },
+
+  rowIconBox: {
+    width: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 20,
+  },
+
+  stopMainText: {
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 27,
+    fontWeight: '400',
+    color: '#111827',
+  },
+
+  stopMutedText: {
+    flex: 1,
+    fontSize: 20,
+    lineHeight: 27,
+    fontWeight: '400',
+    color: '#94A3B8',
+  },
+
+  stopMutedInlineText: {
+    fontSize: 20,
+    lineHeight: 27,
+    fontWeight: '400',
+    color: '#94A3B8',
+  },
+
+  stopIdIcon: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '500',
+    color: '#475569',
+  },
+
+  transitOptionsBlock: {
+    backgroundColor: '#F1F5F9',
+    marginHorizontal: -30,
+    marginTop: 20,
+    paddingHorizontal: 30,
+    paddingVertical: 8,
+  },
+
+  transitOptionRow: {
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+
+  transitOptionText: {
+    flex: 1,
+    fontSize: 23,
+    lineHeight: 30,
+    fontWeight: '400',
+    color: '#111827',
+  },
+
+  transitCompleteCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+
+  transitCompleteIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    marginBottom: 18,
+  },
+
+  transitCompleteTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '500',
+    color: '#111827',
+    textAlign: 'center',
+  },
+
+  transitCompleteText: {
+    marginTop: 8,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '400',
+    color: '#64748B',
+    textAlign: 'center',
+  },
   panel: {
     position: 'absolute',
     left: 0,
