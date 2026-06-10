@@ -773,13 +773,9 @@ async function persistRouteSnapshot({
 
   const payload: any = {
     route_id: routeId,
-    coordinates: serializeRouteCoordinates(route.coordinates || []),
   };
 
   if (status) payload.status = status;
-  if (distanceMeters !== undefined) payload.distance = distanceMeters;
-  if (durationSeconds !== undefined) payload.duration = durationSeconds;
-
   await routesService.updateRoute(payload);
 }
 
@@ -1468,10 +1464,7 @@ export default function RoutePreviewScreen() {
 
     const response = await routesService.updateRoute({
       route_id: routeId,
-      status: ROUTE_STATUS_OPTIMIZED,
-      distance: path.distanceMeters,
-      duration: path.durationSeconds,
-      coordinates: serializeRouteCoordinates(path.coordinates),
+      status: ROUTE_STATUS_OPTIMIZED
     });
 
     if (!isSuccessResponse(response)) {
@@ -1512,10 +1505,7 @@ const handleStartRoute = async () => {
 
     const response = await routesService.updateRoute({
       route_id: routeId,
-      status: ROUTE_STATUS_IN_TRANSIT,
-      distance: path.distanceMeters,
-      duration: path.durationSeconds,
-      coordinates: serializeRouteCoordinates(path.coordinates),
+      status: ROUTE_STATUS_IN_TRANSIT
     });
 
     if (!isSuccessResponse(response)) {
@@ -1659,6 +1649,18 @@ const handleCreateNewRoute = () => {
           <View style={styles.hamburgerBar} />
           <View style={styles.hamburgerBar} />
         </View>
+      </Pressable>
+
+      <Pressable
+        style={[
+          styles.homeButton,
+          {
+            top: insets.top + 16,
+          },
+        ]}
+        onPress={() => router.replace("/")}
+      >
+        <Text style={styles.homeIcon}>🏠</Text>
       </Pressable>
 
       <View
@@ -1810,6 +1812,26 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 999,
     backgroundColor: "#111827",
+  },
+
+  homeButton: {
+    position: "absolute",
+    left: 94,
+    zIndex: 80,
+    elevation: 12,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+  },
+  homeIcon: {
+    fontSize: 24,
   },
 
   mapControls: {

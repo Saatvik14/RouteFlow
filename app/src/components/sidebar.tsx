@@ -191,6 +191,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   if (!isOpen) return null;
 
+  const handleHome = () => {
+    onClose();
+    router.replace('/' as never);
+  };
+
   const handleCreateRoute = () => {
     onClose();
     router.push('/setup-locations' as never);
@@ -280,6 +285,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </Pressable>
 
         <View style={styles.quickActions}>
+          <Pressable style={styles.quickActionButton} onPress={handleHome}>
+            <Text style={styles.quickActionText}>🏠 Home</Text>
+          </Pressable>
+
           <Pressable style={styles.quickActionButton} onPress={handleSettings}>
             <Text style={styles.quickActionText}>⚙ Settings</Text>
           </Pressable>
