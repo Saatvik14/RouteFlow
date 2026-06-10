@@ -11,6 +11,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from './client';
  */
 export interface Order {
   id: string;
+  status?: string;
   [key: string]: any;
 }
 

@@ -48,7 +48,7 @@ export const API_ENDPOINTS = {
     CREATE_ROUTE: '/route/create',
     GET_ROUTES: '/route/fetch/all',
     GET_ROUTE: (id: string) => `/route/fetch?id=${id}`,
-    UPDATE_ROUTE: (id: string) => `/route/${id}`,
+    UPDATE_ROUTE: `/route/edit`,
     DELETE_ROUTE: (id: string) => `/route/${id}`,
     GET_USER_ROUTES: '/route/user/all',
     SEARCH_ROUTES: '/route/search',
@@ -111,3 +111,15 @@ export const ERROR_MESSAGES = {
   UNKNOWN_ERROR: 'An unknown error occurred.',
   INVALID_REQUEST: 'Invalid request. Please check your input.',
 };
+
+/**
+ * Route and Order Status Constants
+ */
+export const ROUTE_STATUS = {
+  PENDING: 'pending',
+  OPTIMIZED: 'optimized',
+  IN_TRANSIT: 'in_transit',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  DELIVERED: 'delivered'
+} as const;

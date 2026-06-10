@@ -1,9 +1,11 @@
+import { ROUTE_STATUS } from "@/constants/api";
 import { ordersService } from "@/services/api/orders";
 import { routesService } from "@/services/api/routes";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -20,7 +22,15 @@ import MapScreen, {
   type RoutePoint,
 } from "../(MapScreen)/MapScreen";
 
-type PanelMode = "empty" | "search" | "details" | "setup" | "confirmed";
+type PanelMode =
+  | "empty"
+  | "search"
+  | "details"
+  | "setup"
+  | "confirmed"
+  | "transit";
+
+type RouteStatus = string;
 
 type EndMode = "round_trip" | "other_address" | "no_end";
 
@@ -51,13 +61,13 @@ type RouteStop = RoutePoint & {
   packages?: number;
   order?: "first" | "auto" | "last";
   stopType?: "delivery" | "pickup";
-  status?: "pending" | "added";
+  status?: string;
   backendOrderId?: any;
-  orderId: any;
+  orderId?: any;
 };
 
 type AppRoute = ConfirmedRoute & {
-  stops: RouteStop[];
+  stops: any;
 };
 
 type RouteMeta = {
@@ -78,6 +88,91 @@ const DEFAULT_STOP_DETAILS: StopDetails = {
   stopType: "delivery",
   notes: "",
 };
+
+const ROUTE_STATUS_PENDING =
+  (ROUTE_STATUS as Record<string, string>).PENDING || "pending";
+
+const ROUTE_STATUS_OPTIMIZED =
+  (ROUTE_STATUS as Record<string, string>).OPTIMIZED || "optimized";
+
+const ROUTE_STATUS_IN_TRANSIT =
+  (ROUTE_STATUS as Record<string, string>).IN_TRANSIT || "in_transit";
+
+const ROUTE_STATUS_COMPLETED =
+  (ROUTE_STATUS as Record<string, string>).COMPLETED || "completed";
+
+
+const ORDER_STATUS_DELIVERED = "delivered";
+const ORDER_STATUS_FAILED = "failed";
+
+function normalizeRouteStatus(status: unknown): RouteStatus {
+  return String(status || ROUTE_STATUS_PENDING)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function isStatus(status: unknown, expectedStatus: unknown) {
+  return normalizeRouteStatus(status) === normalizeRouteStatus(expectedStatus);
+}
+
+function isOptimizedStatus(status: unknown) {
+  return isStatus(status, ROUTE_STATUS_OPTIMIZED);
+}
+
+function isInTransitStatus(status: unknown) {
+  return isStatus(status, ROUTE_STATUS_IN_TRANSIT);
+}
+
+
+function getPanelModeFromStatus(status: unknown, stopsCount: number): PanelMode {
+  if (isInTransitStatus(status) || isStatus(status, ROUTE_STATUS_COMPLETED)) {
+    return "transit";
+  }
+
+  if (isOptimizedStatus(status)) {
+    return "confirmed";
+  }
+
+  return stopsCount > 0 ? "setup" : "empty";
+}
+
+
+function isFinishedStopStatus(status: unknown) {
+  const normalized = normalizeRouteStatus(status);
+
+  return [
+    ORDER_STATUS_DELIVERED,
+    ORDER_STATUS_FAILED,
+    "completed",
+    "cancelled",
+    "canceled",
+  ].includes(normalized);
+}
+
+function isSuccessResponse(response: any) {
+  if (response === undefined || response === null) return true;
+  if (response.success === false) return false;
+  if (response.data?.success === false) return false;
+
+  const possibleCodes = [response?.code, response?.data?.code, response?.data?.data?.code];
+  const numericCode = possibleCodes.find((code) => Number.isFinite(Number(code)));
+
+  if (numericCode !== undefined && Number(numericCode) !== 0) return false;
+
+  return true;
+}
+
+function getResponseErrorMessage(response: any, fallback: string) {
+  return String(
+    response?.error ||
+      response?.message ||
+      response?.data?.error ||
+      response?.data?.message ||
+      fallback,
+  );
+}
+
 
 function getParam(value: string | string[] | undefined, fallback = "") {
   if (Array.isArray(value)) return value[0] || fallback;
@@ -281,6 +376,12 @@ function getInitialCoordinates(route: AppRoute): RoutePoint[] {
   return getRoutePoints(route);
 }
 
+function hasDetailedRoadPath(route: AppRoute) {
+  const routePointsCount = getRoutePoints(route).length;
+
+  return Boolean(route.coordinates && route.coordinates.length > routePointsCount + 2);
+}
+
 
 function unwrapApiList(response: any): any[] {
   const payload = response?.data ?? response;
@@ -344,6 +445,65 @@ function mergeStops(...stopGroups: RouteStop[][]) {
     }));
 }
 
+function getActiveStop(stops: RouteStop[] = []) {
+  const orderedStops = [...stops].sort(
+    (a, b) => Number(a.sequence || 0) - Number(b.sequence || 0),
+  );
+
+  const deliverableStops = orderedStops.filter(
+    (stop) => stop.markerType !== "start" && stop.markerType !== "end",
+  );
+
+  const activeIndex = deliverableStops.findIndex(
+    (stop) => !isFinishedStopStatus(stop.status),
+  );
+
+  return {
+    stop: activeIndex >= 0 ? deliverableStops[activeIndex] : null,
+    index: activeIndex >= 0 ? activeIndex : 0,
+    total: deliverableStops.length,
+  };
+}
+
+function getStopBackendId(stop?: RouteStop | null) {
+  return String(stop?.backendOrderId || stop?.orderId || stop?.id || "");
+}
+
+async function updateOrderStatusOnBackend(stop: RouteStop, status: string) {
+  const orderId = getStopBackendId(stop);
+
+  if (!orderId) {
+    throw new Error("Order id is missing.");
+  }
+
+  const service: any = ordersService;
+
+  if (typeof service.updateOrderStatus === "function") {
+    return service.updateOrderStatus({
+      order_id: orderId,
+      status,
+    });
+  }
+
+  if (typeof service.updateOrder === "function") {
+    return service.updateOrder({
+      order_id: orderId,
+      id: orderId,
+      status,
+    });
+  }
+
+  if (typeof service.patchOrder === "function") {
+    return service.patchOrder(orderId, { status });
+  }
+
+  throw new Error("Order status update API is not configured.");
+}
+
+function getMapsNavigationUrl(stop: RouteStop) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${stop.latitude},${stop.longitude}&travelmode=driving`;
+}
+
 async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
   if (!Array.isArray(rawStops)) return [];
 
@@ -363,6 +523,8 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
             item?.place_id ||
             `${Date.now()}-${index}`,
         ),
+        backendOrderId: item?.id || item?._id || item?.orderId || item?.order_id,
+        orderId: item?.orderId || item?.order_id || item?.id || item?._id,
         sequence: Number(
           item?.sequence || item?.stopSequence || item?.stop_sequence || index + 1,
         ),
@@ -371,7 +533,7 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
         order: item?.order || "auto",
         stopType: item?.stopType || item?.stop_type || item?.type || "delivery",
         notes: item?.notes || item?.note || "",
-        status: item?.status || "added",
+        status: item?.status || ROUTE_STATUS.PENDING,
       } as RouteStop;
     })
     .filter(Boolean) as RouteStop[];
@@ -404,6 +566,7 @@ async function buildRouteFromBackendResponse(
   startTime: string;
   routeMeta: RouteMeta;
   panelMode: PanelMode;
+  routeStatus: RouteStatus;
 }> {
   const rawRoute = unwrapApiPayload(response);
   
@@ -411,6 +574,7 @@ async function buildRouteFromBackendResponse(
     throw new Error("Route not found.");
   }
 
+  const routeStatus = normalizeRouteStatus(rawRoute.status || ROUTE_STATUS.PENDING);
   const backendCoordinates = getCoordinatesFromBackendRoute(rawRoute);
 
   const startRaw =
@@ -499,12 +663,8 @@ async function buildRouteFromBackendResponse(
       distanceLabel: formatDistance(distance),
       durationLabel: formatDuration(duration),
     },
-    panelMode:
-      routeCoordinates.length > stops.length + 2
-        ? "confirmed"
-        : stops.length
-          ? "setup"
-          : "empty",
+    panelMode: getPanelModeFromStatus(routeStatus, stops.length),
+    routeStatus,
   };
 }
 
@@ -582,6 +742,60 @@ async function fetchRoutePath(points: RoutePoint[]) {
       durationSeconds: Math.max(300, (distanceMeters / 35000) * 3600),
     };
   }
+}
+
+
+function serializeRouteCoordinates(coordinates: RoutePoint[] = []) {
+  return coordinates.map((point) => ({
+    latitude: point.latitude,
+    longitude: point.longitude,
+  }));
+}
+
+function getOptimizePayload(response: any) {
+  const payload = response?.data ?? response;
+
+  return payload?.data ?? payload;
+}
+
+function getOptimizedRouteData(response: any) {
+  const payload = getOptimizePayload(response);
+
+  return payload?.routes?.[0] || payload?.route || payload;
+}
+
+function getOptimizedSteps(response: any) {
+  const routeData = getOptimizedRouteData(response);
+  const payload = getOptimizePayload(response);
+
+  return routeData?.steps || payload?.steps || [];
+}
+
+async function persistRouteSnapshot({
+  routeId,
+  status,
+  route,
+  distanceMeters,
+  durationSeconds,
+}: {
+  routeId: string;
+  status?: string;
+  route: AppRoute;
+  distanceMeters?: number;
+  durationSeconds?: number;
+}) {
+  if (!routeId) return;
+
+  const payload: any = {
+    route_id: routeId,
+    coordinates: serializeRouteCoordinates(route.coordinates || []),
+  };
+
+  if (status) payload.status = status;
+  if (distanceMeters !== undefined) payload.distance = distanceMeters;
+  if (durationSeconds !== undefined) payload.duration = durationSeconds;
+
+  await routesService.updateRoute(payload);
 }
 
 function parsePlaceSuggestion(
@@ -743,7 +957,7 @@ function buildOrderPayload({
     stopType: details.stopType,
     stop_type: details.stopType,
     notes: details.notes,
-    status: "added",
+    status: ROUTE_STATUS.PENDING,
   };
 }
 
@@ -764,6 +978,10 @@ function buildStopFromSavedOrder(savedOrder: any, fallbackStop: RouteStop): Rout
         savedOrder.order_id ||
         fallbackStop.id,
     ),
+    backendOrderId:
+      savedOrder.id || savedOrder._id || savedOrder.orderId || savedOrder.order_id || fallbackStop.backendOrderId,
+    orderId:
+      savedOrder.orderId || savedOrder.order_id || savedOrder.id || savedOrder._id || fallbackStop.orderId,
     sequence: Number(
       savedOrder.sequence || savedOrder.stopSequence || savedOrder.stop_sequence || fallbackStop.sequence,
     ),
@@ -783,7 +1001,7 @@ function buildStopFromSavedOrder(savedOrder: any, fallbackStop: RouteStop): Rout
       fallbackStop.stopType ||
       "delivery",
     notes: savedOrder.notes || savedOrder.note || fallbackStop.notes || "",
-    status: savedOrder.status || fallbackStop.status || "added",
+    status: savedOrder.status,
   };
 }
 
@@ -884,7 +1102,6 @@ function buildMapDisplayRoute(route: AppRoute): AppRoute {
 }
 
 export default function RoutePreviewScreen() {
-  const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
@@ -902,7 +1119,11 @@ export default function RoutePreviewScreen() {
   const [centerSignal, setCenterSignal] = useState(0);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isStartingRoute, setIsStartingRoute] = useState(false);
   const [isAddingStop, setIsAddingStop] = useState(false);
+  const [routeStatus, setRouteStatus] = useState<RouteStatus>(
+    normalizeRouteStatus(ROUTE_STATUS.PENDING),
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -911,11 +1132,16 @@ export default function RoutePreviewScreen() {
   const [selectedSuggestion, setSelectedSuggestion] =
     useState<PlaceSuggestion | null>(null);
   const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
+  const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
 
   const mapRoute = useMemo(() => {
     if (!route) return null;
     return buildMapDisplayRoute(route);
   }, [route]);
+
+  const activeStopInfo = useMemo(() => {
+  return getActiveStop(route?.stops || []);
+}, [route?.stops]);
 
   useEffect(() => {
     let mounted = true;
@@ -935,12 +1161,33 @@ export default function RoutePreviewScreen() {
         const response = await routesService.getRoute(routeId);
         const result = await buildRouteFromBackendResponse(response, routeId);
 
+        let nextRoute = result.route;
+        let nextRouteMeta = result.routeMeta;
+
+        if (
+          (isOptimizedStatus(result.routeStatus) || isInTransitStatus(result.routeStatus)) &&
+          getRoutePoints(nextRoute).length >= 2 &&
+          !hasDetailedRoadPath(nextRoute)
+        ) {
+          const roadPath = await fetchRoutePath(getRoutePoints(nextRoute));
+
+          nextRoute = {
+            ...nextRoute,
+            coordinates: roadPath.coordinates,
+          };
+          nextRouteMeta = {
+            distanceLabel: formatDistance(roadPath.distanceMeters),
+            durationLabel: formatDuration(roadPath.durationSeconds),
+          };
+        }
+
         if (!mounted) return;
 
-        setRoute(result.route);
+        setRoute(nextRoute);
         setRouteTitle(result.routeTitle);
         setPreviewStartTime(result.startTime);
-        setRouteMeta(result.routeMeta);
+        setRouteMeta(nextRouteMeta);
+        setRouteStatus(result.routeStatus);
         setPanelMode(result.panelMode);
         setCenterSignal((prev) => prev + 1);
       } catch (error) {
@@ -954,6 +1201,7 @@ export default function RoutePreviewScreen() {
         });
         setRouteTitle("Route");
         setPreviewStartTime("");
+        setRouteStatus(normalizeRouteStatus(ROUTE_STATUS.PENDING));
         setPanelMode("empty");
         setErrorMessage(
           error instanceof Error
@@ -1002,7 +1250,7 @@ export default function RoutePreviewScreen() {
     setSearchText("");
     setSuggestions([]);
     setSelectedSuggestion(null);
-    setPanelMode(route?.stops?.length ? "setup" : "empty");
+    setPanelMode(getPanelModeFromStatus(routeStatus, route?.stops?.length || 0));
   };
 
   const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
@@ -1033,7 +1281,7 @@ export default function RoutePreviewScreen() {
       order: stopDetails.order,
       stopType: stopDetails.stopType,
       notes: stopDetails.notes,
-      status: "added",
+      status: ROUTE_STATUS.PENDING,
     };
 
     setIsAddingStop(true);
@@ -1093,24 +1341,24 @@ export default function RoutePreviewScreen() {
   setErrorMessage("");
 
   try {
-    // Call the newly created optimizeRoute function from the service
     const response = await routesService.optimizeRoute(routeId);
 
-    if (!response.success) {
-      throw new Error(response.error || "Unable to optimize route.");
+    if (!isSuccessResponse(response)) {
+      throw new Error(getResponseErrorMessage(response, "Unable to optimize route."));
     }
 
-    const optimizedSteps = response.data?.routes?.[0]?.steps || [];
+    const optimizedSteps = getOptimizedSteps(response);
+    const routeData = getOptimizedRouteData(response);
 
     const jobSteps = optimizedSteps
       .filter((step: any) => step.type === "job")
       .sort(
         (a: any, b: any) =>
-          Number(a.sequence_no || 0) - Number(b.sequence_no || 0),
+          Number(a.sequence_no || a.sequenceNo || a.sequence || 0) -
+          Number(b.sequence_no || b.sequenceNo || b.sequence || 0),
       );
 
     const usedStopIds = new Set<string>();
-
     const optimizedStops: RouteStop[] = [];
 
     jobSteps.forEach((step: any) => {
@@ -1125,7 +1373,7 @@ export default function RoutePreviewScreen() {
           .filter(Boolean)
           .map(String);
 
-        return possibleIds.includes(String(step.id));
+        return possibleIds.includes(String(step.id || step.order_id || step.orderId));
       });
 
       if (!matchedStop && Array.isArray(step.location)) {
@@ -1175,24 +1423,36 @@ export default function RoutePreviewScreen() {
       stops: finalStops,
     };
 
-    console.log("Final optimized stops:", optimizedRoute);
     const path = await fetchRoutePath(getRoutePoints(optimizedRoute));
-    console.log("Fetched optimized route path:", path);
-
-    setRoute({
+    const distanceMeters = Number(
+      routeData?.distance ||
+        getOptimizePayload(response)?.summary?.distance ||
+        path.distanceMeters,
+    );
+    const durationSeconds = Number(
+      routeData?.duration ||
+        getOptimizePayload(response)?.summary?.duration ||
+        path.durationSeconds,
+    );
+    const nextRoute = {
       ...optimizedRoute,
       coordinates: path.coordinates,
+    };
+
+    await persistRouteSnapshot({
+      routeId,
+      status: ROUTE_STATUS_OPTIMIZED,
+      route: nextRoute,
+      distanceMeters,
+      durationSeconds,
     });
 
+    setRoute(nextRoute);
     setRouteMeta({
-      distanceLabel: formatDistance(
-        Number(response.data?.summary?.distance || response.data?.routes?.[0]?.distance || path.distanceMeters),
-      ),
-      durationLabel: formatDuration(
-        Number(response.data?.summary?.duration || response.data?.routes?.[0]?.duration || path.durationSeconds),
-      ),
+      distanceLabel: formatDistance(distanceMeters),
+      durationLabel: formatDuration(durationSeconds),
     });
-
+    setRouteStatus(ROUTE_STATUS_OPTIMIZED);
     setPanelMode("confirmed");
     setCenterSignal((prev) => prev + 1);
   } catch (error) {
@@ -1209,9 +1469,262 @@ export default function RoutePreviewScreen() {
     setMapType((prev) => (prev === "standard" ? "satellite" : "standard"));
   };
 
-  const handleConfirmRoute = () => {
-    router.replace("/" as never);
-  };
+  const handleConfirmRoute = async () => {
+  if (!routeId || !route) return;
+
+  try {
+    setErrorMessage("");
+
+    const path = await fetchRoutePath(getRoutePoints(route));
+    const nextRoute = {
+      ...route,
+      coordinates: path.coordinates,
+    };
+
+    const response = await routesService.updateRoute({
+      route_id: routeId,
+      status: ROUTE_STATUS_OPTIMIZED,
+      distance: path.distanceMeters,
+      duration: path.durationSeconds,
+      coordinates: serializeRouteCoordinates(path.coordinates),
+    });
+
+    if (!isSuccessResponse(response)) {
+      throw new Error(getResponseErrorMessage(response, "Unable to confirm route."));
+    }
+
+    setRoute(nextRoute);
+
+    setRouteMeta({
+      distanceLabel: formatDistance(path.distanceMeters),
+      durationLabel: formatDuration(path.durationSeconds),
+    });
+
+    setRouteStatus(ROUTE_STATUS_OPTIMIZED);
+    setPanelMode("confirmed");
+    setCenterSignal((prev) => prev + 1);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : "An error occurred while confirming the route.",
+    );
+  }
+};
+
+const handleStartRoute = async () => {
+  if (!routeId || !route || isStartingRoute) return;
+
+  setIsStartingRoute(true);
+  setErrorMessage("");
+
+  try {
+    const path = await fetchRoutePath(getRoutePoints(route));
+    const nextRoute = {
+      ...route,
+      coordinates: path.coordinates,
+    };
+
+    const response = await routesService.updateRoute({
+      route_id: routeId,
+      status: ROUTE_STATUS_IN_TRANSIT,
+      distance: path.distanceMeters,
+      duration: path.durationSeconds,
+      coordinates: serializeRouteCoordinates(path.coordinates),
+    });
+
+    if (!isSuccessResponse(response)) {
+      throw new Error(getResponseErrorMessage(response, "Unable to start route."));
+    }
+
+    setRoute(nextRoute);
+    setRouteMeta({
+      distanceLabel: formatDistance(path.distanceMeters),
+      durationLabel: formatDuration(path.durationSeconds),
+    });
+
+    setRouteStatus(ROUTE_STATUS_IN_TRANSIT);
+    setPanelMode("transit");
+    setCenterSignal((prev) => prev + 1);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error ? error.message : "Unable to start route.",
+    );
+  } finally {
+    setIsStartingRoute(false);
+  }
+};
+
+const handleNavigateActiveStop = async () => {
+  const activeStop = activeStopInfo.stop;
+
+  if (!activeStop) return;
+
+  try {
+    await Linking.openURL(getMapsNavigationUrl(activeStop));
+  } catch {
+    setErrorMessage("Unable to open navigation.");
+  }
+};
+
+const handleUpdateActiveStopStatus = async (nextStatus: string) => {
+  if (!route || isUpdatingStopStatus) return;
+
+  const activeStop = activeStopInfo.stop;
+
+  if (!activeStop) return;
+
+  setIsUpdatingStopStatus(true);
+  setErrorMessage("");
+
+  try {
+    const response = await updateOrderStatusOnBackend(activeStop, nextStatus);
+
+    if (!isSuccessResponse(response)) {
+      throw new Error(
+        getResponseErrorMessage(response, "Unable to update order status."),
+      );
+    }
+
+    const activeStopKey = getStopIdentity(activeStop);
+
+    const nextStops = route.stops.map((stop) =>
+      getStopIdentity(stop) === activeStopKey
+        ? {
+            ...stop,
+            status: nextStatus,
+          }
+        : stop,
+    );
+
+    const nextRoute = {
+      ...route,
+      stops: nextStops,
+    };
+
+    setRoute(nextRoute);
+
+    const nextActiveStop = getActiveStop(nextStops).stop;
+
+    if (!nextActiveStop) {
+      try {
+        await routesService.updateRoute({
+          route_id: routeId,
+          status: ROUTE_STATUS_COMPLETED,
+        });
+
+        setRouteStatus(ROUTE_STATUS_COMPLETED);
+      } catch {
+        // Order status was updated, route completion update failed.
+      }
+    }
+
+    setPanelMode("transit");
+    setCenterSignal((prev) => prev + 1);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error ? error.message : "Unable to update order status.",
+    );
+  } finally {
+    setIsUpdatingStopStatus(false);
+  }
+};
+
+const handleMarkStopDelivered = () => {
+  return handleUpdateActiveStopStatus(ORDER_STATUS_DELIVERED);
+};
+
+const handleMarkStopFailed = () => {
+  return handleUpdateActiveStopStatus(ORDER_STATUS_FAILED);
+};
+
+const resolvedPanelMode = useMemo(() => {
+  if (isInTransitStatus(routeStatus) || isStatus(routeStatus, ROUTE_STATUS_COMPLETED)) {
+    return "transit" as PanelMode;
+  }
+
+  return panelMode;
+}, [panelMode, routeStatus]);
+
+
+  // const handleConfirmRoute = async () => {
+  //   if (!routeId || !route) return;
+
+  //   try {
+  //     let nextRoute = route;
+
+  //     if (getRoutePoints(nextRoute).length >= 2 && !hasDetailedRoadPath(nextRoute)) {
+  //       const roadPath = await fetchRoutePath(getRoutePoints(nextRoute));
+  //       nextRoute = {
+  //         ...nextRoute,
+  //         coordinates: roadPath.coordinates,
+  //       };
+  //       setRoute(nextRoute);
+  //       setRouteMeta({
+  //         distanceLabel: formatDistance(roadPath.distanceMeters),
+  //         durationLabel: formatDuration(roadPath.durationSeconds),
+  //       });
+  //     }
+
+  //     const response = await routesService.updateRoute({
+  //       route_id: routeId,
+  //       status: ROUTE_STATUS.OPTIMIZED,
+  //       coordinates: nextRoute.coordinates?.map((point) => ({
+  //         latitude: point.latitude,
+  //         longitude: point.longitude,
+  //       })),
+  //     });
+
+  //     if (!isSuccessResponse(response)) {
+  //       setErrorMessage(
+  //         getResponseErrorMessage(response, "Unable to confirm route."),
+  //       );
+  //       return;
+  //     }
+
+  //     setRouteStatus(normalizeRouteStatus(ROUTE_STATUS.OPTIMIZED));
+  //     setPanelMode("confirmed");
+  //     setCenterSignal((prev) => prev + 1);
+  //   } catch (error) {
+  //     setErrorMessage(
+  //       error instanceof Error
+  //         ? error.message
+  //         : "An error occurred while confirming the route.",
+  //     );
+  //   }
+  // };
+
+
+
+  // const handleStartRoute = async () => {
+  //   if (!routeId || isStartingRoute) return;
+
+  //   setIsStartingRoute(true);
+  //   setErrorMessage("");
+
+  //   try {
+  //     const response = await routesService.updateRoute({
+  //       route_id: routeId,
+  //       status: ROUTE_STATUS_IN_TRANSIT,
+  //     });
+
+  //     if (!isSuccessResponse(response)) {
+  //       setErrorMessage(
+  //         getResponseErrorMessage(response, "Unable to start route."),
+  //       );
+  //       return;
+  //     }
+
+  //     setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_IN_TRANSIT));
+  //     setPanelMode("confirmed");
+  //   } catch (error) {
+  //     setErrorMessage(
+  //       error instanceof Error ? error.message : "Unable to start route.",
+  //     );
+  //   } finally {
+  //     setIsStartingRoute(false);
+  //   }
+  // };
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -1289,30 +1802,40 @@ export default function RoutePreviewScreen() {
       ) : null}
 
       {!isInitialLoading && route ? (
-        <RoutePreviewPanel
-          mode={panelMode}
-          routeName={routeTitle}
-          startTime={previewStartTime}
-          start={route.start}
-          end={route.end}
-          stops={route.stops}
-          durationLabel={routeMeta.durationLabel}
-          distanceLabel={routeMeta.distanceLabel}
-          searchText={searchText}
-          suggestions={suggestions}
-          selectedSuggestion={selectedSuggestion}
-          stopDetails={stopDetails}
-          isAddingStop={isAddingStop}
-          onSearchTextChange={setSearchText}
-          onOpenSearch={handleOpenSearch}
-          onCloseSearch={handleCloseSearch}
-          onSelectSuggestion={handleSelectSuggestion}
-          onStopDetailsChange={setStopDetails}
-          onConfirmStopDetails={handleConfirmStopDetails}
-          onOptimizeRoute={handleOptimizeRoute}
-          onRefine={() => setPanelMode("setup")}
-          onConfirm={handleConfirmRoute}
-        />
+<RoutePreviewPanel
+  mode={resolvedPanelMode}
+  routeName={routeTitle}
+  startTime={previewStartTime}
+  start={route.start}
+  end={route.end}
+  stops={route.stops}
+  durationLabel={routeMeta.durationLabel}
+  distanceLabel={routeMeta.distanceLabel}
+  routeStatus={routeStatus}
+  activeStop={activeStopInfo.stop}
+  activeStopIndex={activeStopInfo.index}
+  totalActiveStops={activeStopInfo.total}
+  isUpdatingStopStatus={isUpdatingStopStatus}
+  searchText={searchText}
+  suggestions={suggestions}
+  selectedSuggestion={selectedSuggestion}
+  stopDetails={stopDetails}
+  isAddingStop={isAddingStop}
+  isStartingRoute={isStartingRoute}
+  onSearchTextChange={setSearchText}
+  onOpenSearch={handleOpenSearch}
+  onCloseSearch={handleCloseSearch}
+  onSelectSuggestion={handleSelectSuggestion}
+  onStopDetailsChange={setStopDetails}
+  onConfirmStopDetails={handleConfirmStopDetails}
+  onOptimizeRoute={handleOptimizeRoute}
+  onRefine={() => setPanelMode("setup")}
+  onConfirm={handleConfirmRoute}
+  onStartRoute={handleStartRoute}
+  onNavigateActiveStop={handleNavigateActiveStop}
+  onMarkStopDelivered={handleMarkStopDelivered}
+  onMarkStopFailed={handleMarkStopFailed}
+/>
       ) : null}
 
       <Sidebar 

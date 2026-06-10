@@ -1,4 +1,5 @@
 const { runQuery } = require('../config/db');
+const { ROUTE_STATUS } = require('../constants/statusConstants');
 const { PORT } = require('../config/env');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
@@ -58,7 +59,7 @@ const addOrder = async (req, res) => {
     `;
     const orderRes = await runQuery(orderQuery, [
       location_id, 
-      status || 'pending', 
+      status || ROUTE_STATUS.PENDING, 
       route_id, 
       sequence || null
     ]);

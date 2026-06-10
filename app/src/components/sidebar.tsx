@@ -43,14 +43,9 @@ type SidebarUser = {
 };
 
 type BackendRoute = {
-  id?: string;
-  _id?: string;
+  route_id?: string;
   name?: string;
-  title?: string;
-  routeName?: string;
-  createdAt?: string;
-  created_time?: string;
-  createdTime?: string;
+  created_at?: string;
 };
 
 type RouteHistoryItem = {
@@ -63,6 +58,8 @@ const getUserFromToken = (token: string): SidebarUser => {
   const decoded = jwtDecode<TokenUserPayload>(token);
 
   const tokenUser = decoded.user || decoded;
+
+  console.log('Decoded token user:', tokenUser);
 
   const name =
     tokenUser.fullName ||
@@ -112,19 +109,13 @@ const normalizeRoutes = (response: any): RouteHistoryItem[] => {
   if (!Array.isArray(list)) return [];
 
   return list.map((route, index) => {
-    const id = route.id || route._id || String(index);
+    const id = route.route_id ||  String(index);
 
     return {
       id,
-      title:
-        route.routeName ||
-        route.name ||
-        route.title ||
-        `Route ${index + 1}`,
+      title: route.name || `Route ${index + 1}`,
       date: formatRouteDate(
-        route.createdAt ||
-          route.createdTime ||
-          route.created_time
+        route.created_at
       ),
     };
   });

@@ -9,8 +9,8 @@ const {
 } = require('../config/env');
 
 // Helper functions to generate tokens
-const generateAccessToken = (id) => {
-  return jwt.sign({ id }, JWT_ACCESS_SECRET, { expiresIn: JWT_ACCESS_EXPIRES_IN });
+const generateAccessToken = (id, email, role, name) => {
+  return jwt.sign({ id, email, role, name }, JWT_ACCESS_SECRET, { expiresIn: JWT_ACCESS_EXPIRES_IN });
 };
 
 const generateRefreshToken = (id) => {
@@ -72,7 +72,7 @@ const signup = async (req, res) => {
     const newUser = newUserResult.rows[0];
 
     res.status(201).json({
-      accessToken: generateAccessToken(newUser.user_id),
+      accessToken: generateAccessToken(newUser.user_id, newUser.email, newUser.role, newUser.name),
       refreshToken: generateRefreshToken(newUser.user_id),
     });
   } catch (error) {
@@ -111,7 +111,7 @@ const login = async (req, res) => {
     }
 
     res.status(200).json({
-      accessToken: generateAccessToken(user.user_id),
+      accessToken: generateAccessToken(user.user_id, user.email, user.role, user.name),
       refreshToken: generateRefreshToken(user.user_id),
     });
   } catch (error) {
@@ -136,7 +136,7 @@ const refresh = async (req, res) => {
 
     // Check if user still exists and is active
     const userResult = await runQuery(
-      'SELECT user_id, status FROM users WHERE user_id = $1',
+      'SELECT user_id, status, email, role, name FROM users WHERE user_id = $1',
       [decoded.id]
     );
     const user = userResult.rows[0];
@@ -146,7 +146,7 @@ const refresh = async (req, res) => {
     }
 
     // Issue a new access token
-    const newAccessToken = generateAccessToken(user.user_id);
+    const newAccessToken = generateAccessToken(user.user_id, user.email, user.role, user.name);
 
     res.status(200).json({
       accessToken: newAccessToken

@@ -1,5 +1,6 @@
 import {
   KeyboardAvoidingView,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -9,13 +10,21 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import type { RoutePoint, RouteStop } from '@/app/(MapScreen)/MapScreen';
 
-export type PanelMode = 'empty' | 'search' | 'details' | 'setup' | 'confirmed';
+export type PanelMode =
+  | 'empty'
+  | 'search'
+  | 'details'
+  | 'setup'
+  | 'confirmed'
+  | 'transit';
 
-export type PlaceSuggestion = {
+  export type PlaceSuggestion = {
   id: string;
   title: string;
   subtitle: string;
@@ -37,15 +46,22 @@ type RoutePreviewPanelProps = {
   startTime: string;
   start: RoutePoint;
   end: RoutePoint;
-  stops: RouteStop[];
+  stops: any;
   durationLabel: string;
   distanceLabel: string;
+  routeStatus?: string;
+
+  activeStop?: RouteStop | null;
+  activeStopIndex?: number;
+  totalActiveStops?: number;
+  isUpdatingStopStatus?: boolean;
 
   searchText: string;
   suggestions: PlaceSuggestion[];
   selectedSuggestion: PlaceSuggestion | null;
   stopDetails: StopDetails;
   isAddingStop?: boolean;
+  isStartingRoute?: boolean;
 
   onSearchTextChange: (value: string) => void;
   onOpenSearch: () => void;
@@ -55,30 +71,178 @@ type RoutePreviewPanelProps = {
   onConfirmStopDetails: () => void | Promise<void>;
   onOptimizeRoute: () => void;
   onRefine: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
+  onStartRoute?: () => void | Promise<void>;
+
+  onNavigateActiveStop?: () => void | Promise<void>;
+  onMarkStopDelivered?: () => void | Promise<void>;
+  onMarkStopFailed?: () => void | Promise<void>;
 };
 
-export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
-  const { width } = useWindowDimensions();
-  const isWide = width >= 768;
 
-  if (props.mode === 'search') {
-    return <SearchPanel {...props} isWide={isWide} />;
-  }
+function RowIcon({
+  name,
+  size = 26,
+  color = '#475569',
+}: {
+  name: keyof typeof Feather.glyphMap;
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <View style={styles.rowIconBox}>
+      <Feather name={name} size={size} color={color} />
+    </View>
+  );
+}
 
-  if (props.mode === 'details') {
-    return <StopDetailsPanel {...props} isWide={isWide} />;
-  }
+function McIcon({
+  name,
+  size = 28,
+  color = '#475569',
+}: {
+  name: keyof typeof MaterialCommunityIcons.glyphMap;
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <View style={styles.rowIconBox}>
+      <MaterialCommunityIcons name={name} size={size} color={color} />
+    </View>
+  );
+}
 
-  if (props.mode === 'setup') {
-    return <RouteSetupPanel {...props} isWide={isWide} />;
-  }
+function PackageActionIcon({ type }: { type: 'failed' | 'delivered' }) {
+  const isDelivered = type === 'delivered';
 
-  if (props.mode === 'confirmed') {
-    return <ConfirmedRoutePanel {...props} isWide={isWide} />;
-  }
+  return (
+    <View style={styles.packageActionIconWrap}>
+      <MaterialCommunityIcons
+        name="package-variant-closed"
+        size={31}
+        color="#475569"
+      />
 
-  return <EmptyStopsPanel {...props} isWide={isWide} />;
+      <View
+        style={[
+          styles.packageActionBadge,
+          isDelivered ? styles.packageActionBadgeSuccess : styles.packageActionBadgeDanger,
+        ]}
+      >
+        <Feather name={isDelivered ? 'check' : 'x'} size={11} color="#FFFFFF" />
+      </View>
+    </View>
+  );
+}
+
+
+function normalizeRouteStatus(status?: string) {
+  return String(status || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function isReadyToStartStatus(status?: string) {
+  return normalizeRouteStatus(status) === 'optimized';
+}
+
+function isInTransitStatus(status?: string) {
+  return normalizeRouteStatus(status) === 'in_transit';
+}
+
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function DraggableRouteSheet({
+  children,
+  isWide,
+  mode = 'default',
+}: {
+  children?: ReactNode;
+  isWide: boolean;
+  mode?: 'default' | 'large';
+}) {
+  const { height } = useWindowDimensions();
+
+  const sheetBounds = useMemo(() => {
+    const topSafeGap = isWide ? 72 : 62;
+    const maxHeight = height - topSafeGap;
+
+    if (mode === 'large') {
+      return {
+        min: isWide ? Math.min(420, maxHeight) : Math.min(height * 0.58, maxHeight),
+        initial: isWide ? Math.min(620, maxHeight) : Math.min(height * 0.76, maxHeight),
+        max: maxHeight,
+      };
+    }
+
+    return {
+      min: isWide ? Math.min(360, maxHeight) : Math.min(height * 0.44, maxHeight),
+      initial: isWide ? Math.min(540, maxHeight) : Math.min(height * 0.58, maxHeight),
+      max: isWide ? Math.min(720, maxHeight) : maxHeight,
+    };
+  }, [height, isWide, mode]);
+
+  const [sheetHeight, setSheetHeight] = useState(sheetBounds.initial);
+  const gestureStartHeight = useRef(sheetBounds.initial);
+
+  useEffect(() => {
+    setSheetHeight(currentHeight => clamp(currentHeight, sheetBounds.min, sheetBounds.max));
+  }, [sheetBounds.max, sheetBounds.min]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 3,
+        onPanResponderGrant: () => {
+          gestureStartHeight.current = sheetHeight;
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const nextHeight = gestureStartHeight.current - gestureState.dy;
+          setSheetHeight(clamp(nextHeight, sheetBounds.min, sheetBounds.max));
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const currentHeight = clamp(
+            gestureStartHeight.current - gestureState.dy,
+            sheetBounds.min,
+            sheetBounds.max,
+          );
+
+          const midpoint = (sheetBounds.min + sheetBounds.max) / 2;
+          const shouldExpand = gestureState.vy < -0.45 || currentHeight > midpoint;
+          const shouldCollapse = gestureState.vy > 0.45 || currentHeight <= midpoint;
+
+          if (shouldExpand) {
+            setSheetHeight(sheetBounds.max);
+          } else if (shouldCollapse) {
+            setSheetHeight(sheetBounds.initial);
+          } else {
+            setSheetHeight(currentHeight);
+          }
+        },
+      }),
+    [sheetBounds.initial, sheetBounds.max, sheetBounds.min, sheetHeight],
+  );
+
+  return (
+    <View
+      style={[
+        styles.draggableSheet,
+        isWide && styles.draggableSheetWeb,
+        { height: clamp(sheetHeight, sheetBounds.min, sheetBounds.max) },
+      ]}
+    >
+      <View style={styles.dragHandleZone} {...panResponder.panHandlers}>
+        <View style={styles.dragHandle} />
+      </View>
+
+      {children}
+    </View>
+  );
 }
 
 function EmptyStopsPanel({
@@ -371,86 +535,7 @@ function StopDetailsPanel({
 
 function RouteSetupPanel({
   isWide,
-  start,
-  end,
-  stops,
-  startTime,
-  onOpenSearch,
-  onOptimizeRoute,
-}: RoutePreviewPanelProps & { isWide: boolean }) {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <View style={[styles.panel, isWide && styles.panelWeb]}>
-      <View style={styles.dragHandle} />
-
-      <View style={styles.setupHeader}>
-        <Text style={styles.setupHeaderText}>
-          {stops.length} {stops.length === 1 ? 'stop' : 'stops'}
-        </Text>
-
-        <Pressable onPress={onOpenSearch}>
-          <Text style={styles.setupHeaderIcon}>⌕</Text>
-        </Pressable>
-
-        <Text style={styles.setupHeaderIcon}>⋮</Text>
-      </View>
-
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 158, 174) }}
-      >
-        <Text style={styles.sectionHeader}>Route setup</Text>
-
-        <SetupItem
-          time={startTime || 'Now'}
-          title="Start from current location"
-          subtitle={start.description || 'Use GPS position when optimizing'}
-          icon="⌂"
-        />
-
-        <SetupItem
-          dotOnly
-          title="Round trip"
-          subtitle={end.description || 'Return to start location'}
-          icon="⚑"
-        />
-
-        <SetupItem
-          dotOnly
-          title="No break"
-          subtitle="Tap to plan a break"
-          icon="☕"
-        />
-
-        {stops.length ? <Text style={styles.sectionHeader}>Stop</Text> : null}
-
-        {stops.map(stop => (
-          <SetupItem
-            key={stop.id}
-            time={`0${stop.sequence}`}
-            title={stop.title || 'Stop'}
-            subtitle={stop.description || stop.address || ''}
-            badge={`A${stop.sequence}`}
-          />
-        ))}
-      </ScrollView>
-
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 10, 18) }]}>
-        <Pressable style={styles.secondaryFullButton} onPress={onOpenSearch}>
-          <Text style={styles.secondaryFullButtonText}>＋ Add another stop</Text>
-        </Pressable>
-
-        <Pressable style={styles.primaryFullButton} onPress={onOptimizeRoute}>
-          <Text style={styles.primaryFullButtonText}>↻ Optimize route</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function ConfirmedRoutePanel({
-  isWide,
+  routeName,
   start,
   end,
   stops,
@@ -458,70 +543,547 @@ function ConfirmedRoutePanel({
   durationLabel,
   distanceLabel,
   onOpenSearch,
-  onRefine,
-  onConfirm,
+  onOptimizeRoute,
 }: RoutePreviewPanelProps & { isWide: boolean }) {
   const insets = useSafeAreaInsets();
+  const stopLabel = `${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}`;
 
   return (
-    <View style={[styles.panel, isWide && styles.panelWeb]}>
-      <View style={styles.dragHandle} />
+    <DraggableRouteSheet isWide={isWide}>
+      <View style={styles.previewHeader}>
+        <View style={styles.routeIconBox}>
+          <Text style={styles.routeIconText}>↝</Text>
+        </View>
 
-      <View style={styles.setupHeader}>
-        <Text style={styles.setupHeaderText}>
-          {durationLabel} • {stops.length} {stops.length === 1 ? 'stop' : 'stops'} • {distanceLabel}
-        </Text>
+        <View style={styles.previewTitleBox}>
+          <View style={styles.previewTitleRow}>
+            <Text style={styles.previewTitle} numberOfLines={1}>
+              {routeName || 'Route preview'}
+            </Text>
+            <View style={styles.statusChip}>
+              <Text style={styles.statusChipText}>Active</Text>
+            </View>
+          </View>
+          <Text style={styles.previewSubtitle}>{stopLabel} • Round trip</Text>
+        </View>
 
-        <Pressable onPress={onOpenSearch}>
-          <Text style={styles.setupHeaderIcon}>⌕</Text>
+        <Pressable style={styles.headerIconButton} onPress={onOpenSearch}>
+          <Text style={styles.headerIconText}>⌕</Text>
         </Pressable>
+        <Pressable style={styles.headerIconButton}>
+          <Text style={styles.headerIconText}>⋮</Text>
+        </Pressable>
+      </View>
 
-        <Text style={styles.setupHeaderIcon}>⋮</Text>
+      <View style={[styles.summaryGrid, isWide && styles.summaryGridWeb]}>
+        <SummaryCard tone="blue" icon="⌖" label="Stops" value={String(stops.length)} />
+        <SummaryCard tone="green" icon="⌁" label="Distance" value={distanceLabel || '0 km'} />
+        <SummaryCard tone="purple" icon="◷" label="Duration" value={durationLabel || '0 min'} />
+        <SummaryCard tone="orange" icon="▣" label="Start time" value={startTime || 'Now'} />
       </View>
 
       <ScrollView
+        style={styles.previewScroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 96, 110) }}
+        contentContainerStyle={[
+          styles.previewScrollContent,
+          { paddingBottom: Math.max(insets.bottom + 116, 130) },
+        ]}
       >
-        <SetupItem dotOnly title="No break" subtitle="Tap to plan a break" icon="☕" />
+        <View style={[styles.previewMain, isWide && styles.previewMainWeb]}>
+          <View style={[styles.routeSetupCard, isWide && styles.previewColumn]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.previewSectionTitle}>Route setup</Text>
+              <View style={styles.roundTripChip}>
+                <Text style={styles.roundTripChipText}>↻ Round trip</Text>
+              </View>
+            </View>
 
-        <SetupItem
-          time={startTime || 'Now'}
-          title="Start location"
-          subtitle={start.description || 'Used GPS position when optimizing'}
-          icon="⌂"
-        />
+            <LocationCard
+              marker="start"
+              title="Start location"
+              subtitle={start.description || start.title || 'Use GPS position when optimizing'}
+              time={startTime || 'Now'}
+            />
 
-        {stops.map(stop => (
-          <SetupItem
-            key={stop.id}
-            time={`0${stop.sequence}`}
-            title={stop.title || 'Stop'}
-            subtitle={stop.description || stop.address || ''}
-            badge={`A${stop.sequence}`}
-          />
-        ))}
+            <View style={styles.locationConnector} />
 
-        <SetupItem
-          time="End"
-          title={end.title || 'End location'}
-          subtitle={end.description || 'Return to start location'}
-          icon="⚑"
-        />
+            <LocationCard
+              marker="end"
+              title="End location"
+              subtitle={end.description || end.title || 'Return to start location'}
+              time={startTime || 'Now'}
+            />
+          </View>
+
+          <View style={[styles.stopsCard, isWide && styles.previewColumn]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.previewSectionTitle}>Stops</Text>
+              <Text style={styles.sectionMeta}>{stopLabel}</Text>
+            </View>
+
+            {stops.length ? (
+              stops.map(stop => <StopListItem key={stop.id} stop={stop} />)
+            ) : (
+              <View style={styles.noStopsCard}>
+                <Text style={styles.noStopsTitle}>No stops added yet</Text>
+                <Text style={styles.noStopsSubtitle}>Add delivery or pickup stops to build this route.</Text>
+              </View>
+            )}
+          </View>
+        </View>
       </ScrollView>
 
-      <View style={[styles.confirmFooter, { paddingBottom: Math.max(insets.bottom + 10, 18) }]}>
-        <Text style={styles.footerDuration}>{durationLabel}</Text>
-
-        <Pressable style={styles.refineButton} onPress={onRefine}>
-          <Text style={styles.refineText}>Refine</Text>
+      <View
+        style={[
+          styles.previewFooter,
+          isWide && styles.previewFooterWeb,
+          { paddingBottom: Math.max(insets.bottom + 10, 18) },
+        ]}
+      >
+        <Pressable style={[styles.secondaryActionButton, isWide && styles.actionButtonWeb]} onPress={onOpenSearch}>
+          <Text style={styles.secondaryActionText}>Refine</Text>
         </Pressable>
 
-        <Pressable style={styles.confirmButton} onPress={onConfirm}>
-          <Text style={styles.confirmText}>Confirm</Text>
+        <Pressable style={[styles.primaryActionButton, isWide && styles.actionButtonWeb]} onPress={onOptimizeRoute}>
+          <Text style={styles.primaryActionText}>↻ Optimize route</Text>
         </Pressable>
       </View>
+    </DraggableRouteSheet>
+  );
+}
+
+function ConfirmedRoutePanel({
+  isWide,
+  routeName,
+  start,
+  end,
+  stops,
+  startTime,
+  durationLabel,
+  distanceLabel,
+  routeStatus,
+  isStartingRoute,
+  onOpenSearch,
+  onRefine,
+  onConfirm,
+  onStartRoute,
+}: RoutePreviewPanelProps & { isWide: boolean }) {
+  const insets = useSafeAreaInsets();
+  const stopLabel = `${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}`;
+
+  const normalizedStatus = String(routeStatus || '').toLowerCase();
+  const isReadyToStart =
+    normalizedStatus === 'optimized' || normalizedStatus === 'confirmed';
+
+  const isInTransit = normalizedStatus === 'in_transit';
+
+  const primaryButtonDisabled = Boolean(
+    isStartingRoute || isInTransit || (isReadyToStart && !onStartRoute),
+  );
+
+  const handlePrimaryAction = () => {
+    if (isReadyToStart) {
+      onStartRoute?.();
+      return;
+    }
+
+    onConfirm();
+  };
+
+  const primaryLabel = isReadyToStart
+    ? isStartingRoute
+      ? 'Starting...'
+      : 'Start route'
+    : 'Confirm route';
+
+  return (
+    <DraggableRouteSheet isWide={isWide}>
+      <View style={styles.previewHeader}>
+        <View style={styles.routeIconBox}>
+          <Text style={styles.routeIconText}>✓</Text>
+        </View>
+
+        <View style={styles.previewTitleBox}>
+          <View style={styles.previewTitleRow}>
+            <Text style={styles.previewTitle} numberOfLines={1}>
+              {routeName || 'Optimized route'}
+            </Text>
+
+            <View style={[styles.statusChip, styles.optimizedChip]}>
+              <Text style={[styles.statusChipText, styles.optimizedChipText]}>
+                Optimized
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.previewSubtitle}>
+            {stopLabel} • {distanceLabel} • {durationLabel}
+          </Text>
+        </View>
+
+        <Pressable style={styles.headerIconButton} onPress={onOpenSearch}>
+          <Text style={styles.headerIconText}>⌕</Text>
+        </Pressable>
+
+        <Pressable style={styles.headerIconButton}>
+          <Text style={styles.headerIconText}>⋮</Text>
+        </Pressable>
+      </View>
+
+      <View style={[styles.summaryGrid, isWide && styles.summaryGridWeb]}>
+        <SummaryCard tone="blue" icon="⌖" label="Stops" value={String(stops.length)} />
+        <SummaryCard tone="green" icon="⌁" label="Distance" value={distanceLabel || '0 km'} />
+        <SummaryCard tone="purple" icon="◷" label="Duration" value={durationLabel || '0 min'} />
+        <SummaryCard tone="orange" icon="▣" label="Start time" value={startTime || 'Now'} />
+      </View>
+
+      <ScrollView
+        style={styles.previewScroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.previewScrollContent,
+          { paddingBottom: Math.max(insets.bottom + 104, 118) },
+        ]}
+      >
+        <View style={[styles.previewMain, isWide && styles.previewMainWeb]}>
+          <View style={[styles.routeSetupCard, isWide && styles.previewColumn]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.previewSectionTitle}>Route setup</Text>
+
+              <View style={styles.roundTripChip}>
+                <Text style={styles.roundTripChipText}>↻ Round trip</Text>
+              </View>
+            </View>
+
+            <LocationCard
+              marker="start"
+              title="Start location"
+              subtitle={start.description || start.title || 'Used GPS position when optimizing'}
+              time={startTime || 'Now'}
+            />
+
+            <View style={styles.locationConnector} />
+
+            <LocationCard
+              marker="end"
+              title="End location"
+              subtitle={end.description || end.title || 'Return to start location'}
+              time="End"
+            />
+          </View>
+
+          <View style={[styles.stopsCard, isWide && styles.previewColumn]}>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.previewSectionTitle}>Optimized stops</Text>
+              <Text style={styles.sectionMeta}>{durationLabel}</Text>
+            </View>
+
+            {stops.map((stop) => (
+              <StopListItem key={stop.id} stop={stop} />
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+
+      <View
+        style={[
+          styles.previewFooter,
+          isWide && styles.previewFooterWeb,
+          { paddingBottom: Math.max(insets.bottom + 10, 18) },
+        ]}
+      >
+        <View style={styles.confirmSummaryPill}>
+          <Text style={styles.confirmSummaryLabel}>Total</Text>
+          <Text style={styles.confirmSummaryValue}>{durationLabel || '0 min'}</Text>
+        </View>
+
+        <Pressable
+          style={[styles.refineActionButton, isWide && styles.confirmActionWeb]}
+          onPress={onRefine}
+        >
+          <Text style={styles.refineActionText}>
+            {isReadyToStart ? 'Edit' : 'Refine'}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.primaryActionButton,
+            isWide && styles.confirmActionWeb,
+            primaryButtonDisabled && styles.buttonDisabled,
+          ]}
+          onPress={handlePrimaryAction}
+          disabled={primaryButtonDisabled}
+        >
+          <Text style={styles.primaryActionText}>{primaryLabel}</Text>
+        </Pressable>
+      </View>
+    </DraggableRouteSheet>
+  );
+}
+
+function TransitStopPanel({
+  isWide,
+  activeStop,
+  activeStopIndex = 0,
+  totalActiveStops = 0,
+  isUpdatingStopStatus,
+  onNavigateActiveStop,
+  onMarkStopDelivered,
+  onMarkStopFailed,
+}: RoutePreviewPanelProps & { isWide: boolean }) {
+  const insets = useSafeAreaInsets();
+  const stop: any = activeStop || null;
+
+  if (!stop) {
+    return (
+      <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
+        <View style={styles.transitCompleteCard}>
+          <View style={styles.transitCompleteIconBox}>
+            <Feather name="check" size={32} color="#16A34A" />
+          </View>
+
+          <Text style={styles.transitCompleteTitle}>All orders completed</Text>
+
+          <Text style={styles.transitCompleteText}>
+            There are no pending stops left in this route.
+          </Text>
+        </View>
+      </DraggableRouteSheet>
+    );
+  }
+
+  const stopTitle =
+    stop.title ||
+    stop.address ||
+    stop.description ||
+    `Stop ${activeStopIndex + 1}`;
+
+  const stopAddress =
+    stop.subtitle ||
+    stop.description ||
+    stop.address ||
+    'Address not available';
+
+  const stopCode =
+    stop.orderId ||
+    stop.backendOrderId ||
+    stop.id ||
+    `A${activeStopIndex + 1}`;
+
+  const stopTime = stop.eta || stop.time || '';
+  const progressLabel = `${activeStopIndex + 1}/${totalActiveStops || 1}${
+    stopTime ? `, ${stopTime}` : ''
+  }`;
+
+  return (
+    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.transitSheetContent,
+          { paddingBottom: Math.max(insets.bottom + 18, 28) },
+        ]}
+      >
+        <View style={styles.transitHeader}>
+          <View style={styles.transitHeaderTextBox}>
+            <Text style={styles.transitTitle} numberOfLines={2}>
+              {stopTitle}
+            </Text>
+
+            <View style={styles.transitProgressRow}>
+              <View style={styles.transitBlueDot} />
+              <Text style={styles.transitProgressText}>{progressLabel}</Text>
+            </View>
+          </View>
+
+          <Pressable style={styles.transitCloseButton} hitSlop={10}>
+            <Feather name="x" size={28} color="#111827" />
+          </Pressable>
+        </View>
+
+        <View style={styles.transitActionsRow}>
+          <Pressable
+            style={[styles.transitActionCard, styles.transitNavigateCard]}
+            onPress={onNavigateActiveStop}
+            disabled={Boolean(isUpdatingStopStatus)}
+          >
+            <MaterialCommunityIcons
+              name="navigation-variant"
+              size={35}
+              color="#FFFFFF"
+            />
+
+            <Text style={[styles.transitActionText, styles.transitNavigateText]}>
+              Navigate
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.transitActionCard,
+              isUpdatingStopStatus && styles.buttonDisabled,
+            ]}
+            onPress={onMarkStopFailed}
+            disabled={Boolean(isUpdatingStopStatus)}
+          >
+            <PackageActionIcon type="failed" />
+
+            <Text style={styles.transitActionText}>
+              {isUpdatingStopStatus ? 'Updating...' : 'Failed'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.transitActionCard,
+              isUpdatingStopStatus && styles.buttonDisabled,
+            ]}
+            onPress={onMarkStopDelivered}
+            disabled={Boolean(isUpdatingStopStatus)}
+          >
+            <PackageActionIcon type="delivered" />
+
+            <Text style={styles.transitActionText}>
+              {isUpdatingStopStatus ? 'Updating...' : 'Delivered'}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.stopRowsBlock}>
+          <Pressable style={styles.stopDetailRow}>
+            <McIcon name="note-text-outline" size={29} color="#475569" />
+
+            <Text style={styles.stopMutedText}>Add notes</Text>
+
+            <Feather name="chevron-right" size={28} color="#94A3B8" />
+          </Pressable>
+
+          <Pressable style={styles.stopDetailRow}>
+            <McIcon name="map-outline" size={30} color="#475569" />
+
+            <Text style={styles.stopMainText} numberOfLines={2}>
+              {stopAddress}
+            </Text>
+
+            <Feather name="chevron-right" size={28} color="#94A3B8" />
+          </Pressable>
+
+          <Pressable style={styles.stopDetailRow}>
+            <View style={styles.rowIconBox}>
+              <Text style={styles.stopIdIcon}>ID</Text>
+            </View>
+
+            <Text style={styles.stopMainText} numberOfLines={1}>
+              {String(stopCode)}{' '}
+              <Text style={styles.stopMutedInlineText}>
+                Originally {activeStopIndex + 1}
+              </Text>
+            </Text>
+
+            <Feather name="chevron-right" size={28} color="#94A3B8" />
+          </Pressable>
+        </View>
+
+        <View style={styles.transitOptionsBlock}>
+          <Pressable style={styles.transitOptionRow}>
+            <RowIcon name="edit-3" size={28} color="#475569" />
+
+            <Text style={styles.transitOptionText}>Edit stop</Text>
+
+            <Feather name="chevron-right" size={28} color="#94A3B8" />
+          </Pressable>
+
+          <Pressable style={styles.transitOptionRow}>
+            <McIcon name="content-duplicate" size={30} color="#475569" />
+
+            <Text style={styles.transitOptionText}>Duplicate stop</Text>
+
+            <Feather name="chevron-right" size={28} color="#94A3B8" />
+          </Pressable>
+        </View>
+      </ScrollView>
+    </DraggableRouteSheet>
+  );
+}
+
+function SummaryCard({
+  tone,
+  icon,
+  label,
+  value,
+}: {
+  tone: 'blue' | 'green' | 'purple' | 'orange';
+  icon: string;
+  label: string;
+  value: string;
+}) {
+  const toneStyle = {
+    blue: styles.summaryIconBlue,
+    green: styles.summaryIconGreen,
+    purple: styles.summaryIconPurple,
+    orange: styles.summaryIconOrange,
+  }[tone];
+
+  return (
+    <View style={styles.summaryCard}>
+      <View style={[styles.summaryIconBox, toneStyle]}>
+        <Text style={styles.summaryIconText}>{icon}</Text>
+      </View>
+      <View style={styles.summaryTextBox}>
+        <Text style={styles.summaryLabel}>{label}</Text>
+        <Text style={styles.summaryValue} numberOfLines={1}>{value}</Text>
+      </View>
     </View>
+  );
+}
+
+function LocationCard({
+  marker,
+  title,
+  subtitle,
+  time,
+}: {
+  marker: 'start' | 'end';
+  title: string;
+  subtitle: string;
+  time: string;
+}) {
+  const isStart = marker === 'start';
+
+  return (
+    <View style={styles.locationCard}>
+      <View style={[styles.locationMarker, isStart ? styles.startMarker : styles.endMarker]}>
+        <Text style={styles.locationMarkerText}>{isStart ? '▲' : '●'}</Text>
+      </View>
+
+      <View style={styles.locationTextBox}>
+        <Text style={styles.locationTitle}>{title}</Text>
+        <Text style={styles.locationSubtitle} numberOfLines={2}>{subtitle}</Text>
+      </View>
+
+      <View style={styles.timePill}>
+        <Text style={styles.timePillText}>{time}</Text>
+      </View>
+    </View>
+  );
+}
+
+function StopListItem({ stop }: { stop: RouteStop }) {
+  return (
+    <Pressable style={styles.stopListItem}>
+      <Text style={styles.stopDragDots}>⠿</Text>
+      <View style={styles.stopNumberBadge}>
+        <Text style={styles.stopNumberText}>{stop.sequence}</Text>
+      </View>
+      <View style={styles.stopListTextBox}>
+        <Text style={styles.stopListTitle} numberOfLines={1}>{stop.title || 'Stop'}</Text>
+        <Text style={styles.stopListSubtitle} numberOfLines={1}>{stop.description || stop.address || 'Address not available'}</Text>
+      </View>
+      <Text style={styles.stopEtaText}>#{stop.sequence}</Text>
+      <Text style={styles.stopChevron}>›</Text>
+    </Pressable>
   );
 }
 
@@ -625,7 +1187,281 @@ function SetupItem({
   );
 }
 
+
+export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
+  const normalizedStatus = normalizeRouteStatus(props.routeStatus);
+  const resolvedMode: PanelMode =
+    props.mode === 'transit' ||
+    normalizedStatus === 'in_transit' ||
+    normalizedStatus === 'completed'
+      ? 'transit'
+      : props.mode;
+
+  if (resolvedMode === 'transit') {
+    return <TransitStopPanel {...props} isWide={isWide} />;
+  }
+
+  if (resolvedMode === 'search') {
+    return <SearchPanel {...props} isWide={isWide} />;
+  }
+
+  if (resolvedMode === 'details') {
+    return <StopDetailsPanel {...props} isWide={isWide} />;
+  }
+
+  if (resolvedMode === 'setup') {
+    return <RouteSetupPanel {...props} isWide={isWide} />;
+  }
+
+  if (resolvedMode === 'confirmed') {
+    return <ConfirmedRoutePanel {...props} isWide={isWide} />;
+  }
+
+  return <EmptyStopsPanel {...props} isWide={isWide} />;
+}
+
+export default RoutePreviewPanel;
+
 const styles = StyleSheet.create({
+draggableTransitSheetWeb: {
+  left: 24,
+  right: undefined,
+  bottom: 24,
+  width: 460,
+  maxWidth: 460,
+  borderRadius: 30,
+},
+
+transitSheetContent: {
+  paddingHorizontal: 30,
+  paddingTop: 4,
+  backgroundColor: '#FFFFFF',
+},
+
+transitHeader: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  marginBottom: 20,
+},
+
+transitHeaderTextBox: {
+  flex: 1,
+  paddingRight: 16,
+  minWidth: 0,
+},
+
+transitTitle: {
+  fontSize: 32,
+  lineHeight: 39,
+  fontWeight: '500',
+  color: '#111827',
+  letterSpacing: -0.4,
+},
+
+transitProgressRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginTop: 8,
+},
+
+transitBlueDot: {
+  width: 13,
+  height: 13,
+  borderRadius: 7,
+  backgroundColor: '#2F76F6',
+  marginRight: 9,
+},
+
+transitProgressText: {
+  fontSize: 18,
+  lineHeight: 24,
+  fontWeight: '400',
+  color: '#64748B',
+},
+
+transitCloseButton: {
+  width: 50,
+  height: 50,
+  borderRadius: 25,
+  backgroundColor: '#EEF2F7',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+transitActionsRow: {
+  flexDirection: 'row',
+  gap: 14,
+  marginBottom: 26,
+},
+
+transitActionCard: {
+  flex: 1,
+  minHeight: 108,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#D8E0EC',
+  backgroundColor: '#F8FAFC',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 8,
+},
+
+transitNavigateCard: {
+  backgroundColor: '#2F76F6',
+  borderColor: '#2F76F6',
+},
+
+transitActionText: {
+  marginTop: 7,
+  fontSize: 18,
+  lineHeight: 23,
+  fontWeight: '500',
+  color: '#111827',
+  textAlign: 'center',
+},
+
+transitNavigateText: {
+  color: '#FFFFFF',
+},
+
+packageActionIconWrap: {
+  width: 40,
+  height: 38,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+packageActionBadge: {
+  position: 'absolute',
+  right: 1,
+  bottom: 0,
+  width: 18,
+  height: 18,
+  borderRadius: 9,
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderWidth: 2,
+  borderColor: '#F8FAFC',
+},
+
+packageActionBadgeSuccess: {
+  backgroundColor: '#22C55E',
+},
+
+packageActionBadgeDanger: {
+  backgroundColor: '#EF4444',
+},
+
+stopRowsBlock: {
+  backgroundColor: '#FFFFFF',
+  marginBottom: 0,
+},
+
+stopDetailRow: {
+  minHeight: 78,
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderBottomWidth: 1,
+  borderBottomColor: '#EEF2F7',
+},
+
+rowIconBox: {
+  width: 52,
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginRight: 20,
+},
+
+stopMainText: {
+  flex: 1,
+  fontSize: 20,
+  lineHeight: 27,
+  fontWeight: '400',
+  color: '#111827',
+},
+
+stopMutedText: {
+  flex: 1,
+  fontSize: 20,
+  lineHeight: 27,
+  fontWeight: '400',
+  color: '#94A3B8',
+},
+
+stopMutedInlineText: {
+  fontSize: 20,
+  lineHeight: 27,
+  fontWeight: '400',
+  color: '#94A3B8',
+},
+
+stopIdIcon: {
+  fontSize: 18,
+  lineHeight: 24,
+  fontWeight: '500',
+  color: '#475569',
+},
+
+transitOptionsBlock: {
+  backgroundColor: '#F1F5F9',
+  marginHorizontal: -30,
+  marginTop: 20,
+  paddingHorizontal: 30,
+  paddingVertical: 8,
+},
+
+transitOptionRow: {
+  minHeight: 76,
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderBottomWidth: 1,
+  borderBottomColor: '#E2E8F0',
+},
+
+transitOptionText: {
+  flex: 1,
+  fontSize: 23,
+  lineHeight: 30,
+  fontWeight: '400',
+  color: '#111827',
+},
+
+transitCompleteCard: {
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 28,
+},
+
+transitCompleteIconBox: {
+  width: 72,
+  height: 72,
+  borderRadius: 36,
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#DCFCE7',
+  marginBottom: 18,
+},
+
+transitCompleteTitle: {
+  fontSize: 24,
+  lineHeight: 30,
+  fontWeight: '500',
+  color: '#111827',
+  textAlign: 'center',
+},
+
+transitCompleteText: {
+  marginTop: 8,
+  fontSize: 16,
+  lineHeight: 22,
+  fontWeight: '400',
+  color: '#64748B',
+  textAlign: 'center',
+},
   panel: {
     position: 'absolute',
     left: 0,
@@ -663,14 +1499,456 @@ const styles = StyleSheet.create({
   panelDetailsWeb: {
     top: '12%',
   },
+  draggableSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 90,
+    elevation: 30,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    overflow: 'hidden',
+  },
+  draggableSheetWeb: {
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+  },
+  dragHandleZone: {
+    minHeight: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dragHandle: {
     alignSelf: 'center',
     width: 72,
-    height: 4,
+    height: 5,
     borderRadius: 999,
-    backgroundColor: '#D8DEE8',
+    backgroundColor: '#CBD5E1',
     marginTop: 8,
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  previewHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  routeIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  routeIconText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  previewTitleBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  previewTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  previewTitle: {
+    flexShrink: 1,
+    fontSize: 19,
+    lineHeight: 24,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  previewSubtitle: {
+    marginTop: 2,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  statusChip: {
+    height: 26,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  optimizedChip: {
+    backgroundColor: '#DBEAFE',
+  },
+  optimizedChipText: {
+    color: '#1D4ED8',
+  },
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerIconText: {
+    fontSize: 24,
+    color: '#334155',
+  },
+  summaryGrid: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  summaryGridWeb: {
+    paddingHorizontal: 28,
+    gap: 14,
+  },
+  summaryCard: {
+    flexGrow: 1,
+    flexBasis: 155,
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  summaryIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryIconBlue: {
+    backgroundColor: '#EFF6FF',
+  },
+  summaryIconGreen: {
+    backgroundColor: '#DCFCE7',
+  },
+  summaryIconPurple: {
+    backgroundColor: '#F3E8FF',
+  },
+  summaryIconOrange: {
+    backgroundColor: '#FFEDD5',
+  },
+  summaryIconText: {
+    fontSize: 20,
+    color: '#2563EB',
+  },
+  summaryTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  summaryValue: {
+    marginTop: 3,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  previewScroll: {
+    flex: 1,
+  },
+  previewScrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
+  previewMain: {
+    gap: 12,
+  },
+  previewMainWeb: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    gap: 16,
+  },
+  previewColumn: {
+    flex: 1,
+  },
+  routeSetupCard: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+  },
+  stopsCard: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+  },
+  sectionTitleRow: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 10,
+  },
+  previewSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  sectionMeta: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  roundTripChip: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    justifyContent: 'center',
+  },
+  roundTripChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  locationCard: {
+    minHeight: 74,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  locationMarker: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startMarker: {
+    backgroundColor: '#22C55E',
+  },
+  endMarker: {
+    backgroundColor: '#EF4444',
+  },
+  locationMarkerText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  locationTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  locationTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  locationSubtitle: {
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#475569',
+  },
+  timePill: {
+    minWidth: 66,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EAF1FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  timePillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  locationConnector: {
+    width: 2,
+    height: 18,
+    marginLeft: 31,
+    backgroundColor: '#CBD5E1',
+  },
+  stopListItem: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  stopDragDots: {
+    fontSize: 17,
+    color: '#94A3B8',
+  },
+  stopNumberBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#2F76F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopNumberText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  stopListTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  stopListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  stopListSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748B',
+  },
+  stopEtaText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  stopChevron: {
+    fontSize: 24,
+    fontWeight: '300',
+    color: '#94A3B8',
+  },
+  noStopsCard: {
+    minHeight: 96,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  noStopsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  noStopsSubtitle: {
+    marginTop: 4,
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#64748B',
+  },
+  previewFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    gap: 10,
+  },
+  previewFooterWeb: {
+    paddingHorizontal: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  secondaryActionButton: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryActionButton: {
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#2F76F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+  },
+  actionButtonWeb: {
+    flex: 1,
+  },
+  secondaryActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  primaryActionText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  confirmSummaryPill: {
+    minWidth: 96,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#F0FDF4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  confirmSummaryLabel: {
+    fontSize: 11,
+    color: '#16A34A',
+  },
+  confirmSummaryValue: {
+    marginTop: 2,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  refineActionButton: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refineActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  confirmActionWeb: {
+    flex: 1,
   },
   searchRow: {
     marginHorizontal: 28,

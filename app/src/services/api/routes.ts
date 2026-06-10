@@ -27,6 +27,7 @@ export interface Route {
   createdAt: string;
   updatedAt: string;
     route_id: number;
+  status?: string;
 }
 
 /**
@@ -40,7 +41,10 @@ export interface CreateRouteRequest {
 /**
  * Update route request
  */
-export interface UpdateRouteRequest extends Partial<CreateRouteRequest> {}
+export interface UpdateRouteRequest extends Partial<CreateRouteRequest> {
+  route_id: number;
+  status?: string;
+}
 
 /**
  * Search query
@@ -81,8 +85,8 @@ export const routesService = {
   /**
    * Update route
    */
-  updateRoute: (routeId: string, data: UpdateRouteRequest) =>
-    apiPut<Route>(API_ENDPOINTS.ROUTES.UPDATE_ROUTE(routeId), data),
+  updateRoute: (data: any) =>
+    apiPut<Route>(API_ENDPOINTS.ROUTES.UPDATE_ROUTE, data),
 
   /**
    * Delete route
@@ -120,5 +124,3 @@ export const routesService = {
     apiPost<any>(API_ENDPOINTS.ROUTES.OPTIMIZE, {"route_id": routeId}),
 
 };
-
-

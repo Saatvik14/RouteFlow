@@ -1,4 +1,5 @@
 const { runQuery } = require('../config/db');
+const { ROUTE_STATUS } = require('../constants/statusConstants');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -120,7 +121,7 @@ const createRoute = async (req, res) => {
       end_location.full_address,
       start_datetime,
       end_datetime,
-      status || 'active' // Default status if not provided
+      status || ROUTE_STATUS.PENDING // Default status
     ]);
 
     res.status(201).json({
@@ -276,38 +277,106 @@ const fetchRouteById = async (req, res) => {
 // @route   PUT /route/edit
 // @access  Private
 const editRoute = async (req, res) => {
-  const { route_id, name, start_location, end_location, start_datetime, end_datetime, status } = req.body;
+  const { 
+    route_id, 
+    name, 
+    start_location, 
+    end_location, 
+    start_datetime, 
+    end_datetime, 
+    status,
+    distance,
+    duration,
+    end_mode 
+  } = req.body;
+
   const user_id = req.user?.user_id;
 
-  if (!user_id) {
-    return res.status(401).json({ message: 'User authentication failed' });
-  }
-
+  if (!user_id) return res.status(401).json({ message: 'User authentication failed' });
   if (!route_id) return res.status(400).json({ message: 'Route ID is required' });
 
   try {
-    const updateQuery = `
+    const updateFields = [];
+    const updateValues = [];
+    let paramIdx = 1;
+
+    // Helper to add fields to dynamic query
+    const addField = (col, val) => {
+      if (val !== undefined) {
+        updateFields.push(`${col} = $${paramIdx++}`);
+        updateValues.push(val);
+      }
+    };
+
+    addField('name', name);
+    addField('start_datetime', start_datetime);
+    addField('end_datetime', end_datetime);
+    addField('status', status);
+    addField('distance', distance);
+    addField('duration', duration);
+    addField('end_mode', end_mode);
+
+    const insertLocQuery = `
+      INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING location_id
+    `;
+
+    // Handle Start Location update
+    if (start_location && typeof start_location === 'object') {
+      const details = start_location.details || {};
+      await runQuery(insertLocQuery, [
+        start_location.name || details.name || null,
+        start_location.housenumber || details.housenumber || null,
+        start_location.street || details.street || details.addressLine1 || null,
+        start_location.city || details.city || null,
+        start_location.postcode || details.postalCode || null,
+        start_location.country || details.country || null,
+        start_location.latitude,
+        start_location.longitude,
+        start_location.full_address || start_location.address
+      ]);
+      addField('start_full_address', start_location.full_address || start_location.address);
+    }
+
+    // Handle End Location update
+    if (end_location && typeof end_location === 'object') {
+      const details = end_location.details || {};
+      await runQuery(insertLocQuery, [
+        end_location.name || details.name || null,
+        end_location.housenumber || details.housenumber || null,
+        end_location.street || details.street || details.addressLine1 || null,
+        end_location.city || details.city || null,
+        end_location.postcode || details.postalCode || null,
+        end_location.country || details.country || null,
+        end_location.latitude,
+        end_location.longitude,
+        end_location.full_address || end_location.address
+      ]);
+      addField('end_full_address', end_location.full_address || end_location.address);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: 'No fields provided for update' });
+    }
+
+    updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+    updateValues.push(route_id, user_id);
+    
+    const query = `
       UPDATE routes 
-      SET name = COALESCE($1, name),
-          start_datetime = COALESCE($2, start_datetime), 
-          end_datetime = COALESCE($3, end_datetime),
-          status = COALESCE($4, status),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE route_id = $5 AND user_id = $6
+      SET ${updateFields.join(', ')}
+      WHERE route_id = $${paramIdx++} AND user_id = $${paramIdx}
       RETURNING *
     `;
-    
-    // Note: The original editRoute had start_location and end_location as string fields.
-    // With the new schema, these would be location_ids.
-    // For simplicity and to avoid breaking existing API contract for editRoute,
-    // we are temporarily removing start_location and end_location from the update query for routes table.
-    // A more robust solution would involve updating the locations table and then the location_ids in routes.
-    const result = await runQuery(updateQuery, [name, start_datetime, end_datetime, status, route_id, user_id]);
+
+    const result = await runQuery(query, updateValues);
 
     if (result.rows.length === 0) return res.status(404).json({ message: 'Route not found or unauthorized' });
 
     res.status(200).json(result.rows[0]);
   } catch (error) {
+    console.error('Edit Route Error:', error);
     res.status(500).json({ message: 'Server error while updating route' });
   }
 };
