@@ -1,7 +1,7 @@
 import { ROUTE_STATUS } from "@/constants/api";
 import { ordersService } from "@/services/api/orders";
 import { routesService } from "@/services/api/routes";
-import { useLocalSearchParams } from "expo-router";
+import {router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -67,6 +67,7 @@ type RouteStop = RoutePoint & {
 };
 
 type AppRoute = ConfirmedRoute & {
+  
   stops: any;
 };
 
@@ -476,28 +477,12 @@ async function updateOrderStatusOnBackend(stop: RouteStop, status: string) {
     throw new Error("Order id is missing.");
   }
 
-  const service: any = ordersService;
-
-  if (typeof service.updateOrderStatus === "function") {
-    return service.updateOrderStatus({
-      order_id: orderId,
-      status,
-    });
-  }
-
-  if (typeof service.updateOrder === "function") {
-    return service.updateOrder({
-      order_id: orderId,
-      id: orderId,
-      status,
-    });
-  }
-
-  if (typeof service.patchOrder === "function") {
-    return service.patchOrder(orderId, { status });
-  }
-
-  throw new Error("Order status update API is not configured.");
+  // Directly call ordersService.editOrder to update the order status
+  // The payload includes the order_id and the new status.
+  return ordersService.editOrder({
+    order_id: orderId,
+    status: status,
+  });
 }
 
 function getMapsNavigationUrl(stop: RouteStop) {
@@ -635,7 +620,7 @@ async function buildRouteFromBackendResponse(
   const orderStops = await fetchRouteOrderStops(routeIdForOrders);
   const stops = mergeStops(routeStops, orderStops);
 
-  const route: AppRoute = {
+  const route: any = {
     start: startPoint,
     end: endPoint,
     stops,
@@ -1045,7 +1030,7 @@ function buildMapDisplayRoute(route: AppRoute): AppRoute {
       markerIcon: "⌂",
       point: route.start,
     },
-    ...route.stops.map((stop) => ({
+    ...route.stops.map((stop: any) => ({
       key: `stop-${stop.id}`,
       markerType: "stop" as const,
       markerLabel: String(stop.sequence),
@@ -1094,7 +1079,7 @@ function buildMapDisplayRoute(route: AppRoute): AppRoute {
     ...route,
     start: (displayMarkers.get("start") || route.start) as RoutePoint,
     stops: route.stops.map(
-      (stop) => (displayMarkers.get(`stop-${stop.id}`) || stop) as RouteStop,
+      (stop: any) => (displayMarkers.get(`stop-${stop.id}`) || stop) as RouteStop,
     ),
     end: (displayMarkers.get("end") || route.end) as RoutePoint,
     coordinates: route.coordinates?.length ? route.coordinates : getInitialCoordinates(route),
@@ -1418,7 +1403,7 @@ export default function RoutePreviewScreen() {
       markerLabel: String(index + 1),
     }));
 
-    const optimizedRoute: AppRoute = {
+    const optimizedRoute: any = {
       ...route,
       stops: finalStops,
     };
@@ -1588,7 +1573,7 @@ const handleUpdateActiveStopStatus = async (nextStatus: string) => {
 
     const activeStopKey = getStopIdentity(activeStop);
 
-    const nextStops = route.stops.map((stop) =>
+    const nextStops = route.stops.map((stop: any) =>
       getStopIdentity(stop) === activeStopKey
         ? {
             ...stop,
@@ -1647,84 +1632,10 @@ const resolvedPanelMode = useMemo(() => {
 }, [panelMode, routeStatus]);
 
 
-  // const handleConfirmRoute = async () => {
-  //   if (!routeId || !route) return;
+const handleCreateNewRoute = () => {
+  router.push("/setup-locations" as any);
+};
 
-  //   try {
-  //     let nextRoute = route;
-
-  //     if (getRoutePoints(nextRoute).length >= 2 && !hasDetailedRoadPath(nextRoute)) {
-  //       const roadPath = await fetchRoutePath(getRoutePoints(nextRoute));
-  //       nextRoute = {
-  //         ...nextRoute,
-  //         coordinates: roadPath.coordinates,
-  //       };
-  //       setRoute(nextRoute);
-  //       setRouteMeta({
-  //         distanceLabel: formatDistance(roadPath.distanceMeters),
-  //         durationLabel: formatDuration(roadPath.durationSeconds),
-  //       });
-  //     }
-
-  //     const response = await routesService.updateRoute({
-  //       route_id: routeId,
-  //       status: ROUTE_STATUS.OPTIMIZED,
-  //       coordinates: nextRoute.coordinates?.map((point) => ({
-  //         latitude: point.latitude,
-  //         longitude: point.longitude,
-  //       })),
-  //     });
-
-  //     if (!isSuccessResponse(response)) {
-  //       setErrorMessage(
-  //         getResponseErrorMessage(response, "Unable to confirm route."),
-  //       );
-  //       return;
-  //     }
-
-  //     setRouteStatus(normalizeRouteStatus(ROUTE_STATUS.OPTIMIZED));
-  //     setPanelMode("confirmed");
-  //     setCenterSignal((prev) => prev + 1);
-  //   } catch (error) {
-  //     setErrorMessage(
-  //       error instanceof Error
-  //         ? error.message
-  //         : "An error occurred while confirming the route.",
-  //     );
-  //   }
-  // };
-
-
-
-  // const handleStartRoute = async () => {
-  //   if (!routeId || isStartingRoute) return;
-
-  //   setIsStartingRoute(true);
-  //   setErrorMessage("");
-
-  //   try {
-  //     const response = await routesService.updateRoute({
-  //       route_id: routeId,
-  //       status: ROUTE_STATUS_IN_TRANSIT,
-  //     });
-
-  //     if (!isSuccessResponse(response)) {
-  //       setErrorMessage(
-  //         getResponseErrorMessage(response, "Unable to start route."),
-  //       );
-  //       return;
-  //     }
-
-  //     setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_IN_TRANSIT));
-  //     setPanelMode("confirmed");
-  //   } catch (error) {
-  //     setErrorMessage(
-  //       error instanceof Error ? error.message : "Unable to start route.",
-  //     );
-  //   } finally {
-  //     setIsStartingRoute(false);
-  //   }
-  // };
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -1812,9 +1723,9 @@ const resolvedPanelMode = useMemo(() => {
   durationLabel={routeMeta.durationLabel}
   distanceLabel={routeMeta.distanceLabel}
   routeStatus={routeStatus}
-  activeStop={activeStopInfo.stop}
-  activeStopIndex={activeStopInfo.index}
-  totalActiveStops={activeStopInfo.total}
+  activeStop={activeStopInfo?.stop}
+  activeStopIndex={activeStopInfo?.index}
+  totalActiveStops={activeStopInfo?.total}
   isUpdatingStopStatus={isUpdatingStopStatus}
   searchText={searchText}
   suggestions={suggestions}
@@ -1835,6 +1746,7 @@ const resolvedPanelMode = useMemo(() => {
   onNavigateActiveStop={handleNavigateActiveStop}
   onMarkStopDelivered={handleMarkStopDelivered}
   onMarkStopFailed={handleMarkStopFailed}
+  onCreateNewRoute={handleCreateNewRoute}
 />
       ) : null}
 

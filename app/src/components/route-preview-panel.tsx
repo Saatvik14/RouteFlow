@@ -51,7 +51,7 @@ type RoutePreviewPanelProps = {
   distanceLabel: string;
   routeStatus?: string;
 
-  activeStop?: RouteStop | null;
+  activeStop?: any;
   activeStopIndex?: number;
   totalActiveStops?: number;
   isUpdatingStopStatus?: boolean;
@@ -77,6 +77,11 @@ type RoutePreviewPanelProps = {
   onNavigateActiveStop?: () => void | Promise<void>;
   onMarkStopDelivered?: () => void | Promise<void>;
   onMarkStopFailed?: () => void | Promise<void>;
+
+  isCompletingRoute?: boolean;
+  onMarkRouteCompleted?: () => void | Promise<void>;
+  onCopyStopsToNewRoute?: () => void | Promise<void>;
+  onCreateNewRoute?: () => void | Promise<void>;
 };
 
 
@@ -151,6 +156,74 @@ function isInTransitStatus(status?: string) {
   return normalizeRouteStatus(status) === 'in_transit';
 }
 
+function isRouteCompletedStatus(status?: string) {
+  return ['completed', 'complete', 'route_completed', 'done'].includes(
+    normalizeRouteStatus(status),
+  );
+}
+
+function getStopTitle(stop: any, fallback = 'Stop') {
+  return (
+    stop?.title ||
+    stop?.address ||
+    stop?.description ||
+    stop?.customer_name ||
+    stop?.customerName ||
+    fallback
+  );
+}
+
+function getStopSubtitle(stop: any) {
+  return (
+    stop?.subtitle ||
+    stop?.description ||
+    stop?.address ||
+    stop?.full_address ||
+    stop?.fullAddress ||
+    'Address not available'
+  );
+}
+
+function getStopStatus(stop: any) {
+  return normalizeRouteStatus(
+    stop?.status ||
+      stop?.order_status ||
+      stop?.orderStatus ||
+      stop?.delivery_status ||
+      stop?.deliveryStatus,
+  );
+}
+
+function isDeliveredStop(stop: any) {
+  return ['delivered', 'success', 'successful', 'completed'].includes(getStopStatus(stop));
+}
+
+function isFailedStop(stop: any) {
+  return ['failed', 'failure', 'undelivered', 'cancelled', 'canceled'].includes(
+    getStopStatus(stop),
+  );
+}
+
+function isResolvedStop(stop: any) {
+  return isDeliveredStop(stop) || isFailedStop(stop);
+}
+
+function countStopsByStatus(stops: any[]) {
+  const delivered = stops.filter(isDeliveredStop).length;
+  const failed = stops.filter(isFailedStop).length;
+  const resolved = stops.filter(isResolvedStop).length;
+
+  return {
+    delivered,
+    failed,
+    resolved,
+    pending: Math.max(stops.length - resolved, 0),
+  };
+}
+
+function formatStopCount(count: number) {
+  return `${count} ${count === 1 ? 'stop' : 'stops'}`;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -160,10 +233,12 @@ function DraggableRouteSheet({
   children,
   isWide,
   mode = 'default',
+  variant = 'default',
 }: {
   children?: ReactNode;
   isWide: boolean;
   mode?: 'default' | 'large';
+  variant?: 'default' | 'transit';
 }) {
   const { height } = useWindowDimensions();
 
@@ -233,6 +308,7 @@ function DraggableRouteSheet({
       style={[
         styles.draggableSheet,
         isWide && styles.draggableSheetWeb,
+        variant === 'transit' && isWide && styles.draggableTransitSheetWeb,
         { height: clamp(sheetHeight, sheetBounds.min, sheetBounds.max) },
       ]}
     >
@@ -623,7 +699,7 @@ function RouteSetupPanel({
             </View>
 
             {stops.length ? (
-              stops.map(stop => <StopListItem key={stop.id} stop={stop} />)
+              stops.map((stop: any) => <StopListItem key={stop.id} stop={stop} />)
             ) : (
               <View style={styles.noStopsCard}>
                 <Text style={styles.noStopsTitle}>No stops added yet</Text>
@@ -779,7 +855,7 @@ function ConfirmedRoutePanel({
               <Text style={styles.sectionMeta}>{durationLabel}</Text>
             </View>
 
-            {stops.map((stop) => (
+            {stops.map((stop: any) => (
               <StopListItem key={stop.id} stop={stop} />
             ))}
           </View>
@@ -823,34 +899,314 @@ function ConfirmedRoutePanel({
   );
 }
 
+
+function CompletionTimelineItem({
+  time,
+  title,
+  subtitle,
+  marker,
+  isLast,
+  status,
+}: {
+  time: string;
+  title: string;
+  subtitle: string;
+  marker: string;
+  isLast?: boolean;
+  status?: 'delivered' | 'failed' | 'start' | 'end';
+}) {
+  const isDelivered = status === 'delivered';
+  const isFailed = status === 'failed';
+  const isStart = status === 'start';
+  const isEnd = status === 'end';
+
+  return (
+    <View style={styles.completionTimelineItem}>
+      <View style={styles.completionTimeBox}>
+        <Text style={[styles.completionTimeText, isLast && styles.completionTimeActiveText]}>
+          {time}
+        </Text>
+      </View>
+
+      <View style={styles.completionMarkerColumn}>
+        <View
+          style={[
+            styles.completionMarker,
+            isDelivered && styles.completionMarkerSuccess,
+            isFailed && styles.completionMarkerDanger,
+            isStart && styles.completionMarkerStart,
+            isEnd && styles.completionMarkerEnd,
+          ]}
+        >
+          {isDelivered ? (
+            <Feather name="check" size={13} color="#FFFFFF" />
+          ) : isFailed ? (
+            <Feather name="x" size={13} color="#FFFFFF" />
+          ) : isEnd ? (
+            <MaterialCommunityIcons name="flag" size={14} color="#FFFFFF" />
+          ) : (
+            <Text style={styles.completionMarkerText}>{marker}</Text>
+          )}
+        </View>
+
+        {!isLast ? <View style={styles.completionMarkerLine} /> : null}
+      </View>
+
+      <View style={[styles.completionTimelineCard, isLast && styles.completionTimelineCardActive]}>
+        <View style={styles.completionTimelineTextBox}>
+          <Text
+            style={[styles.completionTimelineTitle, isLast && styles.completionTimelineTitleActive]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          <Text style={styles.completionTimelineSubtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        </View>
+
+        {isDelivered || isFailed ? (
+          <View
+            style={[
+              styles.completionStatusBadge,
+              isDelivered ? styles.completionStatusSuccess : styles.completionStatusFailed,
+            ]}
+          >
+            <Text
+              style={[
+                styles.completionStatusText,
+                isDelivered ? styles.completionStatusSuccessText : styles.completionStatusFailedText,
+              ]}
+            >
+              {isDelivered ? 'Done' : 'Failed'}
+            </Text>
+          </View>
+        ) : isEnd ? (
+          <View style={styles.completionEndIconBox}>
+            <MaterialCommunityIcons name="flag" size={21} color="#2563EB" />
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function RouteCompletionPromptPanel({
+  isWide,
+  routeName,
+  start,
+  end,
+  stops,
+  startTime,
+  durationLabel,
+  distanceLabel,
+  isCompletingRoute,
+  onOpenSearch,
+  onMarkRouteCompleted,
+}: Pick<
+  RoutePreviewPanelProps,
+  | 'routeName'
+  | 'start'
+  | 'end'
+  | 'stops'
+  | 'startTime'
+  | 'durationLabel'
+  | 'distanceLabel'
+  | 'isCompletingRoute'
+  | 'onOpenSearch'
+  | 'onMarkRouteCompleted'
+> & { isWide: boolean }) {
+  const insets = useSafeAreaInsets();
+  const routeStops = Array.isArray(stops) ? stops : [];
+  const stats = countStopsByStatus(routeStops);
+  const pendingCount = routeStops.length > 0 && stats.resolved === 0 ? 0 : stats.pending;
+  const finishMeta = `Finish route • ${formatStopCount(pendingCount)} pending • ${distanceLabel || '0 km'}`;
+  const buttonDisabled = Boolean(isCompletingRoute || !onMarkRouteCompleted);
+
+  return (
+    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
+      <View style={styles.completionTopBar}>
+        <View style={styles.completionTopTextBox}>
+          <Text style={styles.completionTopTitle} numberOfLines={1}>
+            {finishMeta}
+          </Text>
+          <Text style={styles.completionTopSubtitle} numberOfLines={1}>
+            {routeName || 'All route stops are finished'}
+          </Text>
+        </View>
+
+        <Pressable style={styles.completionIconButton} onPress={onOpenSearch}>
+          <Feather name="search" size={25} color="#64748B" />
+        </Pressable>
+
+        <Pressable style={styles.completionIconButton}>
+          <Feather name="more-vertical" size={25} color="#64748B" />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.completionContent,
+          { paddingBottom: Math.max(insets.bottom + 18, 28) },
+        ]}
+      >
+        <View style={styles.completionTimelineBlock}>
+          <CompletionTimelineItem
+            time={startTime || 'Start'}
+            title="Start location"
+            subtitle={start.description || start.title || 'Used GPS position when optimizing'}
+            marker="•"
+            status="start"
+          />
+
+          {routeStops.map((stop: any, index: number) => {
+            const delivered = isDeliveredStop(stop);
+            const failed = isFailedStop(stop);
+            const stopStatus = delivered ? 'delivered' : failed ? 'failed' : undefined;
+            const marker = String(stop.sequence || index + 1).padStart(2, '0');
+
+            return (
+              <CompletionTimelineItem
+                key={stop.id || stop.backendOrderId || `${index}`}
+                time={stop.eta || stop.time || marker}
+                title={getStopTitle(stop, `Stop ${index + 1}`)}
+                subtitle={getStopSubtitle(stop)}
+                marker={marker}
+                status={stopStatus}
+              />
+            );
+          })}
+
+          <CompletionTimelineItem
+            time={durationLabel || 'End'}
+            title={end.title || 'End location'}
+            subtitle={end.description || 'Route is ready to be closed'}
+            marker="✓"
+            status="end"
+            isLast
+          />
+        </View>
+
+        <Pressable
+          style={[styles.markRouteCompletedButton, buttonDisabled && styles.buttonDisabled]}
+          onPress={onMarkRouteCompleted}
+          disabled={buttonDisabled}
+        >
+          <Feather name="check" size={23} color="#2563EB" />
+          <Text style={styles.markRouteCompletedText}>
+            {isCompletingRoute ? 'Completing route...' : 'Mark route as completed'}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </DraggableRouteSheet>
+  );
+}
+
+function RouteCompletedPanel({
+  isWide,
+  routeName,
+  stops,
+  distanceLabel,
+  durationLabel,
+  onCopyStopsToNewRoute,
+  onCreateNewRoute,
+}: RoutePreviewPanelProps & { isWide: boolean }) {
+  const insets = useSafeAreaInsets();
+  const routeStops = Array.isArray(stops) ? stops : [];
+  const stats = countStopsByStatus(routeStops);
+  const statusText = stats.failed > 0
+    ? `${stats.delivered} delivered • ${stats.failed} failed`
+    : 'All successful';
+
+  return (
+    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.routeCompletedContent,
+          { paddingBottom: Math.max(insets.bottom + 20, 30) },
+        ]}
+      >
+        <View style={styles.routeCompletedHeroCard}>
+          <View style={styles.routeCompletedIconBox}>
+            <Feather name="check" size={28} color="#FFFFFF" />
+          </View>
+
+          <Text style={styles.routeCompletedTitle}>Route completed!</Text>
+
+          <Text style={styles.routeCompletedSubtitle} numberOfLines={1}>
+            {routeName || `${distanceLabel || 'Route'} • ${durationLabel || 'Done'}`}
+          </Text>
+
+          <View style={styles.routeCompletedStatsRow}>
+            <View style={styles.routeCompletedStatsLeft}>
+              <MaterialCommunityIcons name="map-marker-check-outline" size={27} color="#475569" />
+              <Text style={styles.routeCompletedStatsText}>{formatStopCount(routeStops.length)}</Text>
+            </View>
+
+            <Text style={styles.routeCompletedStatusText}>{statusText}</Text>
+          </View>
+        </View>
+
+        <Pressable
+          style={[styles.copyRouteButton, !onCopyStopsToNewRoute && styles.buttonDisabled]}
+          onPress={onCopyStopsToNewRoute}
+          disabled={!onCopyStopsToNewRoute}
+        >
+          <MaterialCommunityIcons name="map-marker-plus-outline" size={28} color="#2563EB" />
+          <Text style={styles.copyRouteButtonText}>Copy stops to a new route</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.createRouteButton, styles.buttonDisabled]}
+          onPress={onCreateNewRoute}
+        >
+          <Text style={styles.createRouteButtonText}>Create new route</Text>
+        </Pressable>
+      </ScrollView>
+    </DraggableRouteSheet>
+  );
+}
+
 function TransitStopPanel({
   isWide,
+  routeName,
+  start,
+  end,
+  stops,
+  startTime,
+  durationLabel,
+  distanceLabel,
   activeStop,
   activeStopIndex = 0,
   totalActiveStops = 0,
   isUpdatingStopStatus,
+  isCompletingRoute,
+  onOpenSearch,
   onNavigateActiveStop,
   onMarkStopDelivered,
   onMarkStopFailed,
+  onMarkRouteCompleted,
 }: RoutePreviewPanelProps & { isWide: boolean }) {
   const insets = useSafeAreaInsets();
   const stop: any = activeStop || null;
 
   if (!stop) {
     return (
-      <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
-        <View style={styles.transitCompleteCard}>
-          <View style={styles.transitCompleteIconBox}>
-            <Feather name="check" size={32} color="#16A34A" />
-          </View>
-
-          <Text style={styles.transitCompleteTitle}>All orders completed</Text>
-
-          <Text style={styles.transitCompleteText}>
-            There are no pending stops left in this route.
-          </Text>
-        </View>
-      </DraggableRouteSheet>
+      <RouteCompletionPromptPanel
+        isWide={isWide}
+        routeName={routeName}
+        start={start}
+        end={end}
+        stops={stops}
+        startTime={startTime}
+        durationLabel={durationLabel}
+        distanceLabel={distanceLabel}
+        isCompletingRoute={isCompletingRoute}
+        onOpenSearch={onOpenSearch}
+        onMarkRouteCompleted={onMarkRouteCompleted}
+      />
     );
   }
 
@@ -1192,10 +1548,13 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const normalizedStatus = normalizeRouteStatus(props.routeStatus);
+
+  if (isRouteCompletedStatus(normalizedStatus)) {
+    return <RouteCompletedPanel {...props} isWide={isWide} />;
+  }
+
   const resolvedMode: PanelMode =
-    props.mode === 'transit' ||
-    normalizedStatus === 'in_transit' ||
-    normalizedStatus === 'completed'
+    props.mode === 'transit' || normalizedStatus === 'in_transit'
       ? 'transit'
       : props.mode;
 
@@ -1225,6 +1584,348 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
 export default RoutePreviewPanel;
 
 const styles = StyleSheet.create({
+completionTopBar: {
+  minHeight: 72,
+  borderBottomWidth: 1,
+  borderBottomColor: '#E2E8F0',
+  paddingHorizontal: 30,
+  paddingBottom: 14,
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 12,
+  backgroundColor: '#FFFFFF',
+},
+
+completionTopTextBox: {
+  flex: 1,
+  minWidth: 0,
+},
+
+completionTopTitle: {
+  fontSize: 18,
+  lineHeight: 24,
+  fontWeight: '500',
+  color: '#334155',
+},
+
+completionTopSubtitle: {
+  marginTop: 2,
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: '400',
+  color: '#94A3B8',
+},
+
+completionIconButton: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+completionContent: {
+  paddingHorizontal: 30,
+  paddingTop: 0,
+  backgroundColor: '#F8FAFC',
+},
+
+completionTimelineBlock: {
+  backgroundColor: '#FFFFFF',
+  marginHorizontal: -30,
+  paddingHorizontal: 30,
+  paddingTop: 2,
+  paddingBottom: 18,
+  borderBottomWidth: 1,
+  borderBottomColor: '#E2E8F0',
+},
+
+completionTimelineItem: {
+  minHeight: 78,
+  flexDirection: 'row',
+  alignItems: 'stretch',
+},
+
+completionTimeBox: {
+  width: 58,
+  paddingTop: 22,
+  alignItems: 'flex-start',
+},
+
+completionTimeText: {
+  fontSize: 15,
+  lineHeight: 20,
+  fontWeight: '400',
+  color: '#64748B',
+},
+
+completionTimeActiveText: {
+  color: '#2563EB',
+  fontWeight: '500',
+},
+
+completionMarkerColumn: {
+  width: 28,
+  alignItems: 'center',
+},
+
+completionMarker: {
+  width: 19,
+  height: 19,
+  borderRadius: 10,
+  marginTop: 22,
+  backgroundColor: '#93C5FD',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 2,
+},
+
+completionMarkerStart: {
+  width: 13,
+  height: 13,
+  borderRadius: 7,
+  backgroundColor: '#BFDBFE',
+},
+
+completionMarkerEnd: {
+  width: 28,
+  height: 28,
+  borderRadius: 9,
+  marginTop: 17,
+  backgroundColor: '#2563EB',
+},
+
+completionMarkerSuccess: {
+  backgroundColor: '#22C55E',
+},
+
+completionMarkerDanger: {
+  backgroundColor: '#EF4444',
+},
+
+completionMarkerText: {
+  fontSize: 10,
+  lineHeight: 13,
+  fontWeight: '600',
+  color: '#FFFFFF',
+},
+
+completionMarkerLine: {
+  flex: 1,
+  width: 3,
+  marginTop: 0,
+  backgroundColor: '#BFDBFE',
+},
+
+completionTimelineCard: {
+  flex: 1,
+  minHeight: 72,
+  marginLeft: 18,
+  paddingVertical: 12,
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderBottomWidth: 1,
+  borderBottomColor: '#EEF2F7',
+},
+
+completionTimelineCardActive: {
+  borderBottomWidth: 0,
+},
+
+completionTimelineTextBox: {
+  flex: 1,
+  minWidth: 0,
+},
+
+completionTimelineTitle: {
+  fontSize: 19,
+  lineHeight: 25,
+  fontWeight: '500',
+  color: '#94A3B8',
+},
+
+completionTimelineTitleActive: {
+  color: '#111827',
+},
+
+completionTimelineSubtitle: {
+  marginTop: 2,
+  fontSize: 15,
+  lineHeight: 21,
+  fontWeight: '400',
+  color: '#64748B',
+},
+
+completionStatusBadge: {
+  minWidth: 70,
+  height: 38,
+  borderRadius: 12,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 10,
+},
+
+completionStatusSuccess: {
+  backgroundColor: '#F0FDF4',
+},
+
+completionStatusFailed: {
+  backgroundColor: '#FEF2F2',
+},
+
+completionStatusText: {
+  fontSize: 14,
+  lineHeight: 20,
+  fontWeight: '500',
+},
+
+completionStatusSuccessText: {
+  color: '#16A34A',
+},
+
+completionStatusFailedText: {
+  color: '#DC2626',
+},
+
+completionEndIconBox: {
+  width: 48,
+  height: 48,
+  borderRadius: 14,
+  backgroundColor: '#EFF6FF',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+markRouteCompletedButton: {
+  marginTop: 24,
+  height: 58,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#E2E8F0',
+  backgroundColor: '#FFFFFF',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 12,
+},
+
+markRouteCompletedText: {
+  fontSize: 18,
+  lineHeight: 24,
+  fontWeight: '500',
+  color: '#2563EB',
+},
+
+routeCompletedContent: {
+  paddingHorizontal: 30,
+  paddingTop: 22,
+  backgroundColor: '#FFFFFF',
+},
+
+routeCompletedHeroCard: {
+  borderRadius: 12,
+  backgroundColor: '#F1F5F9',
+  paddingHorizontal: 24,
+  paddingTop: 28,
+  paddingBottom: 22,
+  alignItems: 'center',
+},
+
+routeCompletedIconBox: {
+  width: 46,
+  height: 46,
+  borderRadius: 23,
+  backgroundColor: '#22C55E',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBottom: 16,
+},
+
+routeCompletedTitle: {
+  fontSize: 27,
+  lineHeight: 34,
+  fontWeight: '500',
+  color: '#111827',
+  textAlign: 'center',
+},
+
+routeCompletedSubtitle: {
+  marginTop: 6,
+  fontSize: 14,
+  lineHeight: 20,
+  fontWeight: '400',
+  color: '#94A3B8',
+  textAlign: 'center',
+},
+
+routeCompletedStatsRow: {
+  width: '100%',
+  marginTop: 28,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+},
+
+routeCompletedStatsLeft: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 14,
+},
+
+routeCompletedStatsText: {
+  fontSize: 17,
+  lineHeight: 24,
+  fontWeight: '500',
+  color: '#334155',
+},
+
+routeCompletedStatusText: {
+  fontSize: 17,
+  lineHeight: 24,
+  fontWeight: '400',
+  color: '#94A3B8',
+},
+
+copyRouteButton: {
+  marginTop: 32,
+  minHeight: 60,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#E2E8F0',
+  backgroundColor: '#FFFFFF',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 16,
+  gap: 12,
+},
+
+copyRouteButtonText: {
+  fontSize: 20,
+  lineHeight: 26,
+  fontWeight: '500',
+  color: '#2563EB',
+  textAlign: 'center',
+},
+
+createRouteButton: {
+  marginTop: 14,
+  minHeight: 64,
+  borderRadius: 12,
+  backgroundColor: '#2F76F6',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingHorizontal: 16,
+},
+
+createRouteButtonText: {
+  fontSize: 20,
+  lineHeight: 27,
+  fontWeight: '500',
+  color: '#FFFFFF',
+},
+
 draggableTransitSheetWeb: {
   left: 24,
   right: undefined,
