@@ -43,9 +43,14 @@ type SidebarUser = {
 };
 
 type BackendRoute = {
-  route_id?: string;
+  id?: string | number;
+  route_id?: string | number;
+  routeId?: string | number;
   name?: string;
+  route_name?: string;
+  start_datetime?: string;
   created_at?: string;
+  routeDate?: string;
 };
 
 type RouteHistoryItem = {
@@ -56,25 +61,11 @@ type RouteHistoryItem = {
 
 const getUserFromToken = (token: string): SidebarUser => {
   const decoded = jwtDecode<TokenUserPayload>(token);
-
   const tokenUser = decoded.user || decoded;
 
-  console.log('Decoded token user:', tokenUser);
-
-  const name =
-    tokenUser.fullName ||
-    tokenUser.name ||
-    'Driver';
-
-  const email =
-    tokenUser.email ||
-    'driver@routeflow.com';
-
-  const phone =
-    tokenUser.phone ||
-    tokenUser.mobile ||
-    '';
-
+  const name = tokenUser.fullName || tokenUser.name || 'Driver';
+  const email = tokenUser.email || 'driver@routeflow.com';
+  const phone = tokenUser.phone || tokenUser.mobile || '';
   const initial = name.trim().charAt(0).toUpperCase() || 'D';
 
   return {
@@ -89,7 +80,6 @@ const formatRouteDate = (value?: string) => {
   if (!value) return '';
 
   const date = new Date(value);
-
   if (Number.isNaN(date.getTime())) return '';
 
   return date.toLocaleDateString('en-IN', {
@@ -101,22 +91,18 @@ const formatRouteDate = (value?: string) => {
 const normalizeRoutes = (response: any): RouteHistoryItem[] => {
   const list: BackendRoute[] = Array.isArray(response)
     ? response
-    : response?.routes ||
-      response?.data?.routes ||
-      response?.data ||
-      [];
+    : response?.routes || response?.data?.routes || response?.data || [];
 
   if (!Array.isArray(list)) return [];
 
   return list.map((route, index) => {
-    const id = route.route_id ||  String(index);
+    const id = route.route_id ?? route.routeId ?? route.id ?? index;
+    const dateSource = route.start_datetime || route.routeDate || route.created_at;
 
     return {
-      id,
-      title: route.name || `Route ${index + 1}`,
-      date: formatRouteDate(
-        route.created_at
-      ),
+      id: String(id),
+      title: route.name || route.route_name || `Route ${index + 1}`,
+      date: formatRouteDate(dateSource),
     };
   });
 };
@@ -141,11 +127,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [routeError, setRouteError] = useState('');
 
   const sidebarWidth = useMemo(() => {
-    return Math.min(width * 0.82, 310);
+    const mobileWidth = width * 0.92;
+    const webWidth = width * 0.32;
+    const calculatedWidth = width < 640 ? mobileWidth : webWidth;
+
+    return Math.min(Math.max(calculatedWidth, 292), 360);
   }, [width]);
 
   useEffect(() => {
-    // Sync the selected highlight with the current route ID in the URL
     setSelectedRouteId((params.id as string) || null);
   }, [params.id]);
 
@@ -160,8 +149,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         const token = await restoreAuthToken();
 
         if (token) {
-          const decodedUser = getUserFromToken(token);
-          setUser(decodedUser);
+          setUser(getUserFromToken(token));
         }
 
         if (!token) {
@@ -169,15 +157,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           return;
         }
 
-        // Using the routesService to fetch the last 20 routes
         const response = await routesService.getRoutes(20, 0);
 
         if (!response.success) {
           throw new Error(response.error || 'Unable to fetch routes');
         }
-        const routeList = normalizeRoutes(response.data);
 
-        setRoutes(routeList);
+        setRoutes(normalizeRoutes(response.data));
       } catch (error) {
         console.log('Sidebar load error:', error);
         setRouteError('Unable to load routes');
@@ -212,10 +198,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const handleRoutePress = (routeId: string) => {
-    // Close sidebar before navigating to ensure smooth transition
     onClose();
 
-    // Navigate to the preview screen
     router.push({
       pathname: '/route-preview',
       params: {
@@ -229,6 +213,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     onClose();
   };
 
+  const renderQuickAction = (
+    icon: string,
+    label: string,
+    onPress: () => void,
+  ) => (
+    <Pressable style={styles.quickActionButton} onPress={onPress}>
+      <Text style={styles.quickActionIcon}>{icon}</Text>
+      <Text numberOfLines={1} style={styles.quickActionText}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+
   return (
     <>
       <Pressable style={styles.overlay} onPress={onClose} />
@@ -238,8 +235,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           styles.sidebar,
           {
             width: sidebarWidth,
-            paddingTop: insets.top + 14,
-            paddingBottom: Math.max(insets.bottom + 8, 18),
+            paddingTop: insets.top + 16,
+            paddingBottom: Math.max(insets.bottom + 10, 18),
           },
         ]}>
         <View style={styles.profileRow}>
@@ -274,28 +271,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Text style={styles.planSubtitle}>No subscription</Text>
           </View>
 
-          <View style={styles.planChevronBox}>
-            <Text style={styles.planChevron}>⌃</Text>
-            <Text style={styles.planChevron}>⌄</Text>
-          </View>
+          <Text style={styles.planChevron}>⌄</Text>
         </View>
 
         <Pressable style={styles.subscribeButton}>
-          <Text style={styles.subscribeText}>⚡  Subscribe</Text>
+          <Text style={styles.subscribeIcon}>⚡</Text>
+          <Text style={styles.subscribeText}>Subscribe</Text>
         </Pressable>
 
         <View style={styles.quickActions}>
-          <Pressable style={styles.quickActionButton} onPress={handleHome}>
-            <Text style={styles.quickActionText}>🏠 Home</Text>
-          </Pressable>
-
-          <Pressable style={styles.quickActionButton} onPress={handleSettings}>
-            <Text style={styles.quickActionText}>⚙ Settings</Text>
-          </Pressable>
-
-          <Pressable style={styles.quickActionButton} onPress={handleSupport}>
-            <Text style={styles.quickActionText}>💬 Support</Text>
-          </Pressable>
+          {renderQuickAction('⌂', 'Home', handleHome)}
+          {renderQuickAction('⚙', 'Settings', handleSettings)}
+          {renderQuickAction('?', 'Support', handleSupport)}
         </View>
 
         <View style={styles.sectionHeader}>
@@ -308,7 +295,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           contentContainerStyle={styles.routeListContent}>
           {isLoadingRoutes ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color="#2F76F6" />
+              <ActivityIndicator size="small" color="#2563EB" />
               <Text style={styles.loadingText}>Loading routes...</Text>
             </View>
           ) : null}
@@ -322,7 +309,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           ) : null}
 
           {!isLoadingRoutes &&
-            routes.map((route, index) => (
+            routes.map((route) => (
               <Pressable
                 key={route.id}
                 style={[
@@ -331,6 +318,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 ]}
                 onPress={() => handleRoutePress(route.id)}>
                 <Text
+                  numberOfLines={1}
                   style={[
                     styles.routeDate,
                     selectedRouteId === route.id && styles.activeRouteDate,
@@ -354,7 +342,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         <View style={styles.footer}>
           <Pressable style={styles.createRouteButton} onPress={handleCreateRoute}>
-            <Text style={styles.createRouteText}>＋  Create route</Text>
+            <Text style={styles.createRouteIcon}>＋</Text>
+            <Text style={styles.createRouteText}>Create route</Text>
           </Pressable>
 
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
@@ -374,7 +363,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 200,
-    backgroundColor: 'rgba(15, 23, 42, 0.32)',
+    backgroundColor: 'rgba(15, 23, 42, 0.28)',
   },
 
   sidebar: {
@@ -384,45 +373,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 210,
     backgroundColor: '#FFFFFF',
+    borderTopRightRadius: 18,
+    borderBottomRightRadius: 18,
     borderRightWidth: 1,
-    borderRightColor: '#E8EEF7',
-    elevation: 22,
-    shadowColor: '#000000',
+    borderRightColor: '#E5EAF3',
+    elevation: 18,
+    shadowColor: '#0F172A',
     shadowOffset: {
       width: 8,
       height: 0,
     },
-    shadowOpacity: 0.16,
-    shadowRadius: 20,
-  },
-
-  topActions: {
-    height: 30,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 12,
-  },
-
-  topIconButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  topIconText: {
-    fontSize: 17,
-    lineHeight: 22,
-    color: '#52637A',
-    fontWeight: '700',
+    shadowOpacity: 0.14,
+    shadowRadius: 22,
   },
 
   profileRow: {
-    marginTop: 18,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -431,157 +397,174 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#C9340B',
+    backgroundColor: '#C9320A',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 13,
+    marginRight: 12,
   },
 
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 25,
+    lineHeight: 30,
     fontWeight: '600',
   },
 
   profileTextBox: {
     flex: 1,
+    minWidth: 0,
   },
 
   userName: {
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '600',
     color: '#111827',
   },
 
   userEmail: {
     marginTop: 2,
-    fontSize: 11.5,
-    lineHeight: 15,
-    fontWeight: '500',
-    color: '#475467',
+    fontSize: 12.5,
+    lineHeight: 16,
+    fontWeight: '400',
+    color: '#64748B',
   },
 
   userPhone: {
-    marginTop: 1,
-    fontSize: 11.5,
+    marginTop: 2,
+    fontSize: 12,
     lineHeight: 15,
-    fontWeight: '500',
-    color: '#667085',
+    fontWeight: '400',
+    color: '#64748B',
   },
 
   planCard: {
-    marginTop: 18,
-    marginHorizontal: 12,
-    height: 48,
-    borderRadius: 8,
+    marginTop: 24,
+    marginHorizontal: 14,
+    minHeight: 58,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#DDE6F2',
+    borderColor: '#DCE6F4',
     backgroundColor: '#F8FBFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
 
   planIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#DDEBFF',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E8F0FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 11,
   },
 
   planIcon: {
-    fontSize: 14,
+    fontSize: 16,
+    lineHeight: 20,
   },
 
   planTextBox: {
     flex: 1,
+    minWidth: 0,
   },
 
   planTitle: {
-    fontSize: 13,
-    lineHeight: 16,
-    fontWeight: '700',
-    color: '#2875F0',
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#2563EB',
   },
 
   planSubtitle: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-
-  planChevronBox: {
-    width: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '400',
+    color: '#64748B',
   },
 
   planChevron: {
-    fontSize: 10,
-    lineHeight: 9,
-    color: '#9AA6B8',
+    width: 20,
+    textAlign: 'right',
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#94A3B8',
   },
 
   subscribeButton: {
-    height: 32,
-    marginTop: 12,
-    marginHorizontal: 12,
-    borderRadius: 6,
+    height: 42,
+    marginTop: 14,
+    marginHorizontal: 14,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#DDE6F2',
+    borderColor: '#DCE6F4',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+  },
+
+  subscribeIcon: {
+    fontSize: 14,
+    lineHeight: 18,
+    marginRight: 7,
   },
 
   subscribeText: {
-    fontSize: 13,
-    lineHeight: 16,
-    fontWeight: '600',
-    color: '#2475F0',
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '500',
+    color: '#2563EB',
   },
 
   quickActions: {
-    marginTop: 12,
-    marginHorizontal: 12,
+    marginTop: 14,
+    marginHorizontal: 14,
     flexDirection: 'row',
     gap: 8,
   },
 
   quickActionButton: {
     flex: 1,
-    height: 34,
-    borderRadius: 7,
-    backgroundColor: '#F3F7FF',
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: '#F4F7FC',
     borderWidth: 1,
-    borderColor: '#E3EBF8',
+    borderColor: '#E1E8F2',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 6,
+  },
+
+  quickActionIcon: {
+    fontSize: 13,
+    lineHeight: 17,
+    color: '#475569',
+    marginRight: 5,
   },
 
   quickActionText: {
-    fontSize: 12.5,
-    lineHeight: 16,
-    fontWeight: '700',
-    color: '#344054',
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '600',
+    color: '#334155',
   },
 
   sectionHeader: {
-    marginTop: 24,
-    paddingHorizontal: 12,
+    marginTop: 26,
+    paddingHorizontal: 16,
     marginBottom: 8,
   },
 
   sectionTitle: {
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: '700',
+    fontSize: 12.5,
+    lineHeight: 16,
+    fontWeight: '600',
     color: '#94A3B8',
   },
 
@@ -590,111 +573,124 @@ const styles = StyleSheet.create({
   },
 
   routeListContent: {
-    paddingHorizontal: 12,
-    paddingBottom: 16,
+    paddingHorizontal: 10,
+    paddingBottom: 14,
   },
 
   routeItem: {
-    height: 40,
+    minHeight: 46,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     marginBottom: 4,
   },
 
   activeRouteItem: {
-    backgroundColor: '#EAF3FF',
+    backgroundColor: '#EEF6FF',
   },
 
   routeDate: {
     width: 58,
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 12.5,
+    lineHeight: 16,
     fontWeight: '500',
     color: '#8A97AA',
   },
 
   activeRouteDate: {
-    color: '#6FA3F7',
+    color: '#2563EB',
   },
 
   routeTitle: {
     flex: 1,
-    fontSize: 13.5,
-    lineHeight: 18,
-    fontWeight: '600',
+    minWidth: 0,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '500',
     color: '#111827',
   },
 
   activeRouteTitle: {
-    color: '#2475F0',
+    color: '#1D4ED8',
+    fontWeight: '600',
   },
 
   routeMore: {
-    width: 20,
+    width: 22,
     textAlign: 'right',
-    fontSize: 19,
+    fontSize: 22,
     lineHeight: 22,
-    color: '#2F76F6',
-    fontWeight: '700',
+    color: '#2563EB',
+    fontWeight: '500',
   },
 
   loadingBox: {
-    height: 48,
+    minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 8,
   },
 
   loadingText: {
+    marginLeft: 8,
     fontSize: 12.5,
-    color: '#667085',
-    fontWeight: '500',
+    lineHeight: 17,
+    color: '#64748B',
+    fontWeight: '400',
   },
 
   emptyText: {
     fontSize: 13,
     lineHeight: 18,
-    color: '#667085',
+    color: '#64748B',
     paddingHorizontal: 8,
     marginTop: 6,
   },
 
   footer: {
-    paddingHorizontal: 12,
-    paddingTop: 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
   },
 
   createRouteButton: {
-    height: 38,
-    borderRadius: 6,
+    height: 46,
+    borderRadius: 9,
     backgroundColor: '#2F76F6',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+  },
+
+  createRouteIcon: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '600',
+    marginRight: 8,
   },
 
   createRouteText: {
     color: '#FFFFFF',
-    fontSize: 13.5,
+    fontSize: 14,
     lineHeight: 18,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   logoutButton: {
-    height: 34,
-    borderRadius: 6,
+    height: 40,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
   },
 
   logoutText: {
-    color: '#475467',
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: '600',
+    color: '#475569',
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontWeight: '500',
   },
 });

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { PanResponder, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { PanResponder, Platform, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../styles';
 import { clamp } from '../utils';
@@ -19,7 +19,7 @@ export function DraggableRouteSheet({
 
   const sheetBounds = useMemo(() => {
     const topSafeGap = isWide ? 72 : 62;
-    const maxHeight = height - topSafeGap;
+    const maxHeight = Math.max(260, height - topSafeGap);
 
     if (mode === 'large') {
       return {
@@ -36,46 +36,54 @@ export function DraggableRouteSheet({
     };
   }, [height, isWide, mode]);
 
-  const [sheetHeight, setSheetHeight] = useState(sheetBounds.initial);
+  const [sheetHeight, setSheetHeight] = useState(() => sheetBounds.initial);
   const gestureStartHeight = useRef(sheetBounds.initial);
+  const currentHeightRef = useRef(sheetBounds.initial);
+
+  const setClampedSheetHeight = useCallback(
+    (nextHeight: number) => {
+      const nextClampedHeight = clamp(nextHeight, sheetBounds.min, sheetBounds.max);
+      currentHeightRef.current = nextClampedHeight;
+      setSheetHeight(nextClampedHeight);
+    },
+    [sheetBounds.max, sheetBounds.min],
+  );
 
   useEffect(() => {
-    setSheetHeight(currentHeight => clamp(currentHeight, sheetBounds.min, sheetBounds.max));
+    setSheetHeight(currentHeight => {
+      const nextClampedHeight = clamp(currentHeight, sheetBounds.min, sheetBounds.max);
+      currentHeightRef.current = nextClampedHeight;
+      return nextClampedHeight;
+    });
   }, [sheetBounds.max, sheetBounds.min]);
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 3,
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 2,
+        onMoveShouldSetPanResponderCapture: (_, gestureState) => Math.abs(gestureState.dy) > 2,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+
         onPanResponderGrant: () => {
-          gestureStartHeight.current = sheetHeight;
+          gestureStartHeight.current = currentHeightRef.current;
         },
+
         onPanResponderMove: (_, gestureState) => {
-          const nextHeight = gestureStartHeight.current - gestureState.dy;
-          setSheetHeight(clamp(nextHeight, sheetBounds.min, sheetBounds.max));
+          setClampedSheetHeight(gestureStartHeight.current - gestureState.dy);
         },
+
         onPanResponderRelease: (_, gestureState) => {
-          const currentHeight = clamp(
-            gestureStartHeight.current - gestureState.dy,
-            sheetBounds.min,
-            sheetBounds.max,
-          );
+          setClampedSheetHeight(gestureStartHeight.current - gestureState.dy);
+        },
 
-          const midpoint = (sheetBounds.min + sheetBounds.max) / 2;
-          const shouldExpand = gestureState.vy < -0.45 || currentHeight > midpoint;
-          const shouldCollapse = gestureState.vy > 0.45 || currentHeight <= midpoint;
-
-          if (shouldExpand) {
-            setSheetHeight(sheetBounds.max);
-          } else if (shouldCollapse) {
-            setSheetHeight(sheetBounds.initial);
-          } else {
-            setSheetHeight(currentHeight);
-          }
+        onPanResponderTerminate: (_, gestureState) => {
+          setClampedSheetHeight(gestureStartHeight.current - gestureState.dy);
         },
       }),
-    [sheetBounds.initial, sheetBounds.max, sheetBounds.min, sheetHeight],
+    [setClampedSheetHeight],
   );
 
   return (
@@ -87,7 +95,20 @@ export function DraggableRouteSheet({
         { height: clamp(sheetHeight, sheetBounds.min, sheetBounds.max) },
       ]}
     >
-      <View style={styles.dragHandleZone} {...panResponder.panHandlers}>
+      <View
+        collapsable={false}
+        style={[
+          styles.dragHandleZone,
+          { minHeight: 42 },
+          Platform.OS === 'web' &&
+            ({
+              cursor: 'ns-resize',
+              touchAction: 'none',
+              userSelect: 'none',
+            } as any),
+        ]}
+        {...panResponder.panHandlers}
+      >
         <View style={styles.dragHandle} />
       </View>
 

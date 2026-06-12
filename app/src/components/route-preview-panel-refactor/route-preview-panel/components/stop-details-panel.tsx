@@ -2,6 +2,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { styles } from '../styles';
 import type { RoutePreviewPanelProps, StopDetails } from '../types';
+import { DraggableRouteSheet } from './draggable-route-sheet';
 import { OptionSegment, Tag } from './shared';
 
 export function StopDetailsPanel({
@@ -22,9 +23,7 @@ export function StopDetailsPanel({
   };
 
   return (
-    <View style={[styles.panelLarge, isWide && styles.panelDetailsWeb]}>
-      <View style={styles.dragHandle} />
-
+    <DraggableRouteSheet isWide={isWide} mode="large">
       <View style={styles.searchHeader}>
         <Pressable style={styles.searchInputBox} onPress={onOpenSearch}>
           <Text style={styles.searchIcon}>⌕</Text>
@@ -154,6 +153,6 @@ export function StopDetailsPanel({
           </Text>
         </Pressable>
       </ScrollView>
-    </View>
+    </DraggableRouteSheet>
   );
 }

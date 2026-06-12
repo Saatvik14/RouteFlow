@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { styles } from '../styles';
 import type { RoutePreviewPanelProps } from '../types';
+import { DraggableRouteSheet } from './draggable-route-sheet';
 
 export function EmptyStopsPanel({
   isWide,
@@ -11,9 +12,7 @@ export function EmptyStopsPanel({
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.panel, isWide && styles.panelWeb]}>
-      <View style={styles.dragHandle} />
-
+    <DraggableRouteSheet isWide={isWide}>
       <Pressable style={styles.searchRow} onPress={onOpenSearch}>
         <Text style={styles.searchIcon}>⌕</Text>
         <Text style={styles.searchPlaceholder}>Tap to add stops</Text>
@@ -38,6 +37,6 @@ export function EmptyStopsPanel({
           <Text style={styles.secondaryFullButtonText}>Copy stops from a past route</Text>
         </Pressable>
       </View>
-    </View>
+    </DraggableRouteSheet>
   );
 }

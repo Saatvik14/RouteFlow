@@ -2,6 +2,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput,
 
 import { styles } from '../styles';
 import type { RoutePreviewPanelProps } from '../types';
+import { DraggableRouteSheet } from './draggable-route-sheet';
 import { QuickAction } from './shared';
 
 export function SearchPanel({
@@ -13,12 +14,11 @@ export function SearchPanel({
   onSelectSuggestion,
 }: RoutePreviewPanelProps & { isWide: boolean }) {
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={[styles.panelLarge, isWide && styles.panelSearchWeb]}
-    >
-      <View style={styles.dragHandle} />
-
+    <DraggableRouteSheet isWide={isWide} mode="large">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
       <View style={styles.searchHeader}>
         <View style={[styles.searchInputBox, styles.searchFocused]}>
           <Text style={styles.searchIcon}>⌕</Text>
@@ -104,6 +104,7 @@ export function SearchPanel({
           </Pressable>
         </ScrollView>
       )}
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </DraggableRouteSheet>
   );
 }

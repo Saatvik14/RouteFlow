@@ -5,14 +5,31 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
 import { useAuth } from '../_layout';
+
+const DESIGN_WIDTH = 390;
+const DESIGN_HEIGHT = 820;
+
+function GoogleMark() {
+  return (
+    <View style={styles.googleMark}>
+      <View style={[styles.googleArc, styles.googleBlue]} />
+      <View style={[styles.googleArc, styles.googleRed]} />
+      <View style={[styles.googleArc, styles.googleYellow]} />
+      <View style={[styles.googleArc, styles.googleGreen]} />
+      <View style={styles.googleHole} />
+      <View style={styles.googleCut} />
+      <View style={styles.googleBar} />
+    </View>
+  );
+}
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -21,245 +38,220 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const { height, width } = useWindowDimensions();
   const { login } = useAuth();
   const router = useRouter();
 
+  const isWeb = Platform.OS === 'web';
 
-    const handleLogin = async () => {
-      if (!phone || !password) {
-        setError('Please fill in all fields');
-        return;
+  const scale = Math.min(
+    1,
+    (width - (isWeb ? 32 : 0)) / DESIGN_WIDTH,
+    (height - (isWeb ? 32 : 0)) / DESIGN_HEIGHT,
+  );
+
+  const screenScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+
+  const handleLogin = async () => {
+    if (!phone.trim() || !password.trim()) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await authService.login({
+        identifier: phone.trim(),
+        password,
+      });
+
+      if (response.success && response.data?.accessToken) {
+        await setAuthToken(response.data.accessToken);
+        login();
+        router.replace('/');
+      } else {
+        setError(response.error || 'Login failed. Please try again.');
       }
-  
-      setError('');
-      setLoading(true);
-  
-      try {
-        // Call signup API
-        const response = await authService.login({
-          identifier: phone,
-          password
-        });
-  
-        setLoading(false);
-        console.log('Login response:', response);
-  
-        if (response.success && response.data?.accessToken) {
-          // Save token for future requests
-          await setAuthToken(response.data.accessToken);
-          console.log(1)
-          // Update auth context first
-          login();
-          // Route to Home screen
-          router.replace('/');
-        } else {
-          // Show error message from API
-          setError(response.error || 'Login failed. Please try again.');
-        }
-      } catch (err: any) {
-        setLoading(false);
-        setError('An unexpected error occurred. Please try again.');
-        console.error('Login error:', err);
-      }
-    };
-  
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}>
-        <View style={styles.screenCard}>
-          {/* HERO SECTION */}
-          <View style={styles.heroSection}>
-            <View style={styles.logoTruckWrap}>
-              <Text style={styles.logoTruck}>🚚</Text>
-            </View>
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.bgTop} />
+      <View style={styles.bgLeft} />
+      <View style={styles.bgRight} />
 
-            <View style={styles.logoRow}>
-              <Text style={styles.logoDark}>Route</Text>
-              <Text style={styles.logoBlue}>Flow</Text>
-            </View>
-
-            <Text style={styles.heading}>
-              Smart Route{'\n'}Navigation
-            </Text>
-
-            <Text style={styles.subtitle}>
-              Optimize deliveries, track orders and{'\n'}complete routes faster.
-            </Text>
-
-            {/* ILLUSTRATION */}
-            <View style={styles.illustration}>
-              <View style={[styles.cloud, styles.cloudLeft]} />
-              <View style={[styles.cloudSmall, styles.cloudLeftSmall]} />
-              <View style={[styles.cloud, styles.cloudRight]} />
-              <View style={[styles.cloudSmall, styles.cloudRightSmall]} />
-
-              <View style={styles.cityLayer}>
-                <View style={[styles.building, styles.buildingOne]}>
-                  <View style={styles.window} />
-                  <View style={styles.window} />
-                </View>
-                <View style={[styles.building, styles.buildingTwo]}>
-                  <View style={styles.window} />
-                  <View style={styles.window} />
-                  <View style={styles.window} />
-                </View>
-                <View style={[styles.building, styles.buildingThree]}>
-                  <View style={styles.window} />
-                  <View style={styles.window} />
-                </View>
-                <View style={[styles.building, styles.buildingFour]}>
-                  <View style={styles.window} />
-                  <View style={styles.window} />
-                  <View style={styles.window} />
-                </View>
-              </View>
-
-              <View style={styles.ground} />
-
-              <View style={styles.routePathOne} />
-              <View style={styles.routePathTwo} />
-              <View style={styles.routePathThree} />
-
-              <View style={[styles.pin, styles.pinBlue]}>
-                <View style={styles.pinInner} />
-              </View>
-
-              <View style={[styles.pin, styles.pinGreen]}>
-                <View style={styles.pinInner} />
-              </View>
-
-              <View style={styles.packageBox}>
-                <Text style={styles.packageIcon}>📦</Text>
-              </View>
-
-              <View style={styles.truckOnRoute}>
-                <Text style={styles.truckIcon}>🚚</Text>
-              </View>
-            </View>
-
-            {/* FEATURE CARDS */}
-            <View style={styles.featureRow}>
-              <View style={styles.featureCard}>
-                <View style={[styles.featureIconCircle, styles.blueCircle]}>
-                  <Text style={styles.featureIcon}>📍</Text>
-                </View>
-                <Text style={styles.featureTitle}>Live Routes</Text>
-                <Text style={styles.featureDesc}>
-                  Real-time route{'\n'}updates
-                </Text>
-              </View>
-
-              <View style={styles.featureCard}>
-                <View style={[styles.featureIconCircle, styles.greenCircle]}>
-                  <Text style={styles.featureIcon}>🛰️</Text>
-                </View>
-                <Text style={styles.featureTitle}>GPS Tracking</Text>
-                <Text style={styles.featureDesc}>
-                  Track every{'\n'}delivery live
-                </Text>
-              </View>
-
-              <View style={styles.featureCard}>
-                <View style={[styles.featureIconCircle, styles.purpleCircle]}>
-                  <Text style={styles.featureIcon}>📦</Text>
-                </View>
-                <Text style={styles.featureTitle}>Deliveries</Text>
-                <Text style={styles.featureDesc}>
-                  Manage orders{'\n'}efficiently
-                </Text>
-              </View>
-            </View>
+      <View
+        style={[
+          styles.screen,
+          {
+            transform: [{ scale: screenScale }],
+          },
+        ]}
+      >
+        <View style={styles.brandRow}>
+          <View style={styles.logoBox}>
+            <Text style={styles.logoArrow}>↗</Text>
           </View>
 
-          {/* LOGIN CARD */}
-          <View style={styles.loginCard}>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <Text style={styles.brandText}>
+            Route<Text style={styles.brandBlue}>Flow</Text>
+          </Text>
+        </View>
 
-            <View style={styles.labelRow}>
-              <Text style={styles.labelIcon}>▯</Text>
-              <Text style={styles.label}>Phone Number</Text>
+        <Text style={styles.title}>Smart Route Navigation</Text>
+
+        <Text style={styles.subtitle}>
+          Manage deliveries, track routes and finish faster.
+        </Text>
+
+        <View style={styles.hero}>
+          <View style={styles.mapLayer} />
+
+          <View style={[styles.mapRoad, styles.mapRoadOne]} />
+          <View style={[styles.mapRoad, styles.mapRoadTwo]} />
+          <View style={[styles.mapRoad, styles.mapRoadThree]} />
+          <View style={[styles.mapRoad, styles.mapRoadFour]} />
+          <View style={[styles.mapRoadVertical, styles.mapRoadVerticalOne]} />
+          <View style={[styles.mapRoadVertical, styles.mapRoadVerticalTwo]} />
+
+          <View style={[styles.mapPatch, styles.mapPatchOne]} />
+          <View style={[styles.mapPatch, styles.mapPatchTwo]} />
+
+          <View style={[styles.routeLine, styles.routeLineOne]} />
+          <View style={[styles.routeLine, styles.routeLineTwo]} />
+          <View style={[styles.routeLine, styles.routeLineThree]} />
+
+          <View style={[styles.pinShadow, styles.pinShadowBlue]} />
+          <View style={[styles.pinShadow, styles.pinShadowGreen]} />
+
+          <View style={[styles.pin, styles.pinBlue]}>
+            <View style={styles.pinHole} />
+          </View>
+
+          <View style={[styles.pin, styles.pinGreen]}>
+            <View style={styles.pinHole} />
+          </View>
+
+          <View style={styles.packageCard}>
+            <View style={styles.boxTop} />
+            <View style={styles.boxBody}>
+              <View style={styles.boxTape} />
             </View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Enter phone number"
-              placeholderTextColor="#9AA8BD"
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-            />
-
-            <View style={styles.labelRow}>
-              <Text style={styles.labelIcon}>🔒</Text>
-              <Text style={styles.label}>Password</Text>
-            </View>
-
-            <View style={styles.passwordInputWrap}>
-              <TextInput
-                          style={[
-                            styles.passwordInput,
-                            Platform.OS === 'web' &&
-                            ({
-                              outlineStyle: 'none',
-                              outlineWidth: 0,
-                              outlineColor: 'transparent',
-                            } as any),
-                          ]}
-
-                placeholder="Enter password"
-                placeholderTextColor="#9AA8BD"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-              />
-
-              <Pressable
-                hitSlop={10}
-                onPress={() => setShowPassword(prev => !prev)}
-                style={styles.eyeButton}>
-                <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
-              </Pressable>
-            </View>
-
-            <Link href="/forgot-password" asChild>
-              <Pressable style={styles.forgotWrap}>
-                <Text style={styles.forgotText}>Forgot Password?</Text>
-              </Pressable>
-            </Link>
-
-            <Pressable style={styles.continueButton} onPress={handleLogin}>
-              <Text style={styles.continueText}>Continue</Text>
-              <Text style={styles.arrowText}>→</Text>
-            </Pressable>
-
-            <View style={styles.dividerRow}>
-              <View style={styles.divider} />
-              <Text style={styles.orText}>OR</Text>
-              <View style={styles.divider} />
-            </View>
-
-            <Pressable style={styles.googleButton}>
-              <Text style={styles.googleG}>G</Text>
-              <Text style={styles.googleText}>Continue with Google</Text>
-            </Pressable>
-
-            <View style={styles.signupRow}>
-              <Text style={styles.signupText}>Don&apos;t have an account?</Text>
-              <Link href="/signup" asChild>
-                <Pressable>
-                  <Text style={styles.signupLink}> Sign Up</Text>
-                </Pressable>
-              </Link>
+            <View style={styles.truck}>
+              <View style={styles.truckBody} />
+              <View style={styles.truckCab} />
+              <View style={styles.truckWheel} />
+              <View style={styles.truckWheel} />
             </View>
           </View>
         </View>
-      </ScrollView>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Welcome back</Text>
+
+          <Text style={styles.cardSubtitle}>
+            Login to continue your route.
+          </Text>
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <Text style={styles.label}>Phone Number</Text>
+
+          <View style={styles.inputBox}>
+            <View style={styles.inputIconBox}>
+              <Text style={styles.inputIcon}>☎</Text>
+            </View>
+
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Enter phone number"
+              placeholderTextColor="#A9B5C9"
+              keyboardType="phone-pad"
+              returnKeyType="next"
+              style={[styles.input, isWeb && styles.webInput]}
+            />
+          </View>
+
+          <Text style={styles.label}>Password</Text>
+
+          <View style={styles.inputBox}>
+            <View style={styles.inputIconBox}>
+              <Text style={styles.lockIcon}>▣</Text>
+            </View>
+
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter password"
+              placeholderTextColor="#A9B5C9"
+              secureTextEntry={!showPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+              style={[styles.input, isWeb && styles.webInput]}
+            />
+
+            <Pressable
+              hitSlop={12}
+              onPress={() => setShowPassword(prev => !prev)}
+              style={styles.eyeButton}
+            >
+              <Text style={styles.eyeText}>{showPassword ? '◉' : '◌'}</Text>
+            </Pressable>
+          </View>
+
+          <Link href="/forgot-password" asChild>
+            <Pressable style={styles.forgotButton}>
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </Pressable>
+          </Link>
+
+          <Pressable
+            onPress={handleLogin}
+            disabled={loading}
+            style={[styles.primaryButton, loading && styles.buttonDisabled]}
+          >
+            <Text style={styles.primaryButtonText}>
+              {loading ? 'Please wait...' : 'Continue'}
+            </Text>
+
+            {!loading ? <Text style={styles.primaryArrow}>→</Text> : null}
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.orText}>OR</Text>
+            <View style={styles.divider} />
+          </View>
+
+          <Pressable style={styles.googleButton}>
+            <GoogleMark />
+            <Text style={styles.googleText}>Continue with Google</Text>
+          </Pressable>
+
+          <View style={styles.signupRow}>
+            <Text style={styles.signupText}>Don’t have an account?</Text>
+
+            <Link href="/signup" asChild>
+              <Pressable hitSlop={8}>
+                <Text style={styles.signupLink}> Sign Up</Text>
+              </Pressable>
+            </Link>
+          </View>
+        </View>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -267,555 +259,655 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#EEF5FF',
-  },
-
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-
-  screenCard: {
-    flexGrow: 1,
-    width: '100%',
-    alignSelf: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 34,
+    backgroundColor: '#EEF7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#EAF1FF',
-    shadowColor: '#8BADEB',
-    shadowOffset: {
-      width: 0,
-      height: 18,
-    },
-    shadowOpacity: 0.18,
-    shadowRadius: 32,
+  },
+
+  bgTop: {
+    position: 'absolute',
+    width: 460,
+    height: 460,
+    borderRadius: 230,
+    top: -250,
+    backgroundColor: '#FFFFFF',
+  },
+
+  bgLeft: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    left: -150,
+    top: 70,
+    backgroundColor: '#D9ECFF',
+  },
+
+  bgRight: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    right: -170,
+    top: 230,
+    backgroundColor: '#DFF1FF',
+  },
+
+  screen: {
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
+    paddingHorizontal: 28,
+    paddingTop: 32,
+    paddingBottom: 18,
+  },
+
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  logoBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: '#246BFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+    shadowColor: '#246BFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
     elevation: 8,
   },
 
-  heroSection: {
-    paddingTop: 36,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-
-  logoTruckWrap: {
-    width: 76,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-
-  logoTruck: {
-    fontSize: 44,
-  },
-
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-
-  logoDark: {
-    fontSize: 34,
-    lineHeight: 40,
+  logoArrow: {
+    color: '#FFFFFF',
+    fontSize: 25,
+    lineHeight: 28,
     fontWeight: '700',
-    letterSpacing: -0.6,
-    color: '#1F2A44',
   },
 
-  logoBlue: {
-    fontSize: 34,
-    lineHeight: 40,
+  brandText: {
+    fontSize: 25,
+    lineHeight: 31,
     fontWeight: '700',
-    letterSpacing: -0.6,
-    color: '#2F76F6',
+    color: '#071733',
+    letterSpacing: -0.5,
   },
 
-  heading: {
-    fontSize: 40,
-    lineHeight: 48,
+  brandBlue: {
+    color: '#246BFF',
+  },
+
+  title: {
+    marginTop: 32,
+    fontSize: 25,
+    lineHeight: 31,
     fontWeight: '700',
+    color: '#071733',
     textAlign: 'center',
-    letterSpacing: -0.8,
-    color: '#1B2440',
+    letterSpacing: -0.4,
   },
 
   subtitle: {
-    marginTop: 18,
-    fontSize: 18,
-    lineHeight: 27,
-    fontWeight: '400',
+    marginTop: 9,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#5F6D86',
     textAlign: 'center',
-    color: '#66728A',
+    fontWeight: '400',
   },
 
-  illustration: {
-    width: '100%',
-    height: 230,
-    marginTop: 20,
+  hero: {
+    height: 205,
+    marginTop: 18,
+    marginHorizontal: -28,
     position: 'relative',
+    overflow: 'visible',
   },
 
-  cloud: {
+  mapLayer: {
     position: 'absolute',
-    width: 84,
-    height: 38,
-    borderRadius: 28,
-    backgroundColor: '#EDF5FF',
-  },
-
-  cloudSmall: {
-    position: 'absolute',
-    width: 54,
-    height: 28,
-    borderRadius: 22,
-    backgroundColor: '#EDF5FF',
-  },
-
-  cloudLeft: {
-    left: -30,
-    top: 22,
-  },
-
-  cloudLeftSmall: {
-    left: 36,
-    top: 42,
-  },
-
-  cloudRight: {
-    right: -10,
-    top: 44,
-  },
-
-  cloudRightSmall: {
-    right: 64,
-    top: 64,
-  },
-
-  cityLayer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 28,
-    height: 92,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    opacity: 0.65,
-  },
-
-  building: {
-    width: 34,
-    borderRadius: 8,
-    backgroundColor: '#EAF3FF',
-    alignItems: 'center',
-    paddingTop: 10,
-  },
-
-  buildingOne: {
-    height: 54,
-    marginLeft: 18,
-  },
-
-  buildingTwo: {
-    height: 84,
-  },
-
-  buildingThree: {
-    height: 66,
-  },
-
-  buildingFour: {
-    height: 92,
-    marginRight: 18,
-  },
-
-  window: {
-    width: 8,
-    height: 12,
-    borderRadius: 2,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 8,
-  },
-
-  ground: {
-    position: 'absolute',
-    left: -45,
-    right: -45,
+    left: -20,
+    right: -20,
     bottom: 0,
-    height: 118,
-    borderTopLeftRadius: 180,
-    borderTopRightRadius: 180,
-    backgroundColor: '#EAF4FF',
+    height: 175,
+    backgroundColor: 'rgba(231,242,255,0.92)',
+    transform: [{ skewY: '-6deg' }],
   },
 
-  routePathOne: {
+  mapRoad: {
     position: 'absolute',
-    left: 66,
-    top: 104,
-    width: 165,
-    height: 70,
-    borderLeftWidth: 7,
-    borderBottomWidth: 7,
-    borderColor: '#7BAEFF',
-    borderBottomLeftRadius: 90,
-    opacity: 0.95,
+    height: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.98)',
+  },
+
+  mapRoadOne: {
+    left: -30,
+    right: 115,
+    top: 80,
+    transform: [{ rotate: '15deg' }],
+  },
+
+  mapRoadTwo: {
+    left: 100,
+    right: -25,
+    top: 76,
+    transform: [{ rotate: '-17deg' }],
+  },
+
+  mapRoadThree: {
+    left: -24,
+    right: 85,
+    top: 135,
+    transform: [{ rotate: '-20deg' }],
+  },
+
+  mapRoadFour: {
+    left: 70,
+    right: -28,
+    top: 153,
+    transform: [{ rotate: '18deg' }],
+  },
+
+  mapRoadVertical: {
+    position: 'absolute',
+    width: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+  },
+
+  mapRoadVerticalOne: {
+    height: 170,
+    left: 142,
+    top: 50,
+    transform: [{ rotate: '25deg' }],
+  },
+
+  mapRoadVerticalTwo: {
+    height: 160,
+    right: 116,
+    top: 52,
+    transform: [{ rotate: '25deg' }],
+  },
+
+  mapPatch: {
+    position: 'absolute',
+    width: 70,
+    height: 42,
+    borderRadius: 18,
+    opacity: 0.55,
+  },
+
+  mapPatchOne: {
+    left: 34,
+    bottom: 46,
+    backgroundColor: '#D8F6EF',
+    transform: [{ rotate: '-16deg' }],
+  },
+
+  mapPatchTwo: {
+    right: 34,
+    top: 76,
+    backgroundColor: '#E5EEF9',
+    transform: [{ rotate: '18deg' }],
+  },
+
+  routeLine: {
+    position: 'absolute',
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#216BFF',
+    shadowColor: '#216BFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+
+  routeLineOne: {
+    width: 120,
+    left: 98,
+    top: 128,
+    transform: [{ rotate: '29deg' }],
+  },
+
+  routeLineTwo: {
+    width: 105,
+    left: 146,
+    top: 162,
     transform: [{ rotate: '-8deg' }],
   },
 
-  routePathTwo: {
-    position: 'absolute',
-    right: 62,
-    top: 108,
-    width: 175,
-    height: 72,
-    borderRightWidth: 7,
-    borderBottomWidth: 7,
-    borderColor: '#2F76F6',
-    borderBottomRightRadius: 90,
-    opacity: 0.95,
-    transform: [{ rotate: '7deg' }],
+  routeLineThree: {
+    width: 118,
+    right: 76,
+    top: 137,
+    transform: [{ rotate: '-27deg' }],
   },
 
-  routePathThree: {
+  pinShadow: {
     position: 'absolute',
-    left: 150,
-    right: 138,
-    bottom: 40,
-    height: 7,
+    width: 52,
+    height: 17,
     borderRadius: 999,
-    backgroundColor: '#2F76F6',
-    opacity: 0.9,
+    opacity: 0.22,
+  },
+
+  pinShadowBlue: {
+    left: 82,
+    top: 125,
+    backgroundColor: '#216BFF',
+  },
+
+  pinShadowGreen: {
+    right: 75,
+    top: 128,
+    backgroundColor: '#2DBE68',
   },
 
   pin: {
     position: 'absolute',
-    width: 42,
-    height: 42,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderBottomRightRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2F76F6',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    elevation: 5,
+    transform: [{ rotate: '45deg' }],
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
   },
 
   pinBlue: {
-    left: 52,
-    top: 82,
-    backgroundColor: '#2F76F6',
+    left: 79,
+    top: 67,
+    backgroundColor: '#216BFF',
+    shadowColor: '#216BFF',
   },
 
   pinGreen: {
-    right: 52,
-    top: 94,
-    backgroundColor: '#45C978',
+    right: 73,
+    top: 70,
+    backgroundColor: '#32BF67',
+    shadowColor: '#32BF67',
   },
 
-  pinInner: {
-    width: 13,
-    height: 13,
+  pinHole: {
+    width: 19,
+    height: 19,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
   },
 
-  packageBox: {
+  packageCard: {
     position: 'absolute',
-    top: 105,
+    top: 86,
     alignSelf: 'center',
-  },
-
-  packageIcon: {
-    fontSize: 34,
-  },
-
-  truckOnRoute: {
-    position: 'absolute',
-    left: '42%',
-    bottom: 26,
-  },
-
-  truckIcon: {
-    fontSize: 48,
-  },
-
-  featureRow: {
-    width: '100%',
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-
-  featureCard: {
-    flex: 1,
-    minHeight: 132,
-    borderRadius: 24,
+    width: 82,
+    height: 82,
+    borderRadius: 23,
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: '#EEF3FB',
-    shadowColor: '#7E9BCB',
-    shadowOffset: {
-      width: 0,
-      height: 12,
-    },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 4,
-  },
-
-  featureIconCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 32,
+    borderColor: '#E6EEF8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    shadowColor: '#8EA5C8',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.2,
+    shadowRadius: 22,
+    elevation: 10,
   },
 
-  blueCircle: {
-    backgroundColor: '#EAF2FF',
+  boxTop: {
+    width: 38,
+    height: 17,
+    borderRadius: 3,
+    backgroundColor: '#E8B06B',
+    transform: [{ rotate: '-28deg' }],
   },
 
-  greenCircle: {
-    backgroundColor: '#E9F9EF',
+  boxBody: {
+    width: 42,
+    height: 31,
+    marginTop: -5,
+    borderRadius: 5,
+    backgroundColor: '#C98B4D',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingRight: 7,
   },
 
-  purpleCircle: {
-    backgroundColor: '#F2EAFF',
+  boxTape: {
+    width: 9,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: '#F3D0A1',
   },
 
-  featureIcon: {
+  truck: {
+    marginTop: 5,
+    height: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+
+  truckBody: {
+    width: 18,
+    height: 10,
+    borderRadius: 2,
+    backgroundColor: '#216BFF',
+  },
+
+  truckCab: {
+    width: 12,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: '#216BFF',
+    marginLeft: 2,
+  },
+
+  truckWheel: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#0D3FA8',
+    marginLeft: 3,
+  },
+
+  card: {
+    marginTop: -30,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 27,
+    paddingHorizontal: 20,
+    paddingTop: 23,
+    paddingBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E8F0FB',
+    shadowColor: '#8EAAD1',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.15,
+    shadowRadius: 30,
+    elevation: 12,
+  },
+
+  cardTitle: {
     fontSize: 25,
+    lineHeight: 31,
+    fontWeight: '700',
+    color: '#071733',
+    letterSpacing: -0.4,
   },
 
-  featureTitle: {
-    fontSize: 15,
-    lineHeight: 19,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: '#1B2440',
-  },
-
-  featureDesc: {
-    marginTop: 8,
+  cardSubtitle: {
+    marginTop: 5,
+    marginBottom: 15,
     fontSize: 13,
     lineHeight: 18,
+    color: '#60708B',
     fontWeight: '400',
-    textAlign: 'center',
-    color: '#717D96',
   },
 
-  loginCard: {
-    marginTop: 22,
-    marginHorizontal: 18,
-    marginBottom: 18,
-    paddingHorizontal: 22,
-    paddingTop: 26,
-    paddingBottom: 24,
-    borderRadius: 28,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EEF3FB',
-    shadowColor: '#7E9BCB',
-    shadowOffset: {
-      width: 0,
-      height: 14,
-    },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    elevation: 5,
-  },
-
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  errorText: {
+    marginTop: -5,
     marginBottom: 10,
-  },
-
-  labelIcon: {
-    width: 26,
-    fontSize: 20,
-    color: '#2F76F6',
-    marginRight: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#EF4444',
+    fontWeight: '500',
   },
 
   label: {
-    fontSize: 17,
-    lineHeight: 22,
+    marginBottom: 7,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '600',
-    color: '#1B2440',
+    color: '#071733',
+  },
+
+  inputBox: {
+    height: 48,
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderColor: '#DCE6F2',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 15,
+  },
+
+  inputIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: '#EEF5FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  inputIcon: {
+    fontSize: 17,
+    lineHeight: 20,
+    color: '#216BFF',
+    fontWeight: '700',
+  },
+
+  lockIcon: {
+    fontSize: 17,
+    lineHeight: 20,
+    color: '#216BFF',
+    fontWeight: '700',
   },
 
   input: {
-    height: 58,
-    borderRadius: 18,
-    borderWidth: 1.4,
-    borderColor: '#DDE5F0',
-    paddingHorizontal: 18,
-    fontSize: 17,
-    fontWeight: '400',
-    color: '#1B2440',
-    backgroundColor: '#FFFFFF',
-    marginBottom: 22,
-  },
-
-  passwordInputWrap: {
-    height: 58,
-    borderRadius: 18,
-    borderWidth: 1.4,
-    borderColor: '#DDE5F0',
-    paddingLeft: 18,
-    paddingRight: 54,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 10,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-
-  passwordInput: {
-    fontSize: 17,
-    fontWeight: '400',
-    color: '#1B2440',
+    flex: 1,
+    height: '100%',
     paddingVertical: 0,
+    fontSize: 13,
+    color: '#071733',
+    fontWeight: '400',
   },
+
+  webInput: {
+    outlineStyle: 'none',
+    outlineWidth: 0,
+  } as any,
 
   eyeButton: {
-    position: 'absolute',
-    right: 16,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
+    width: 28,
+    height: 28,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 5,
   },
 
-  eyeIcon: {
-    fontSize: 22,
-    color: '#7C879A',
+  eyeText: {
+    fontSize: 18,
+    lineHeight: 22,
+    color: '#7B879A',
+    fontWeight: '500',
   },
 
-  forgotWrap: {
+  forgotButton: {
     alignSelf: 'flex-end',
-    paddingVertical: 6,
-    marginBottom: 14,
+    marginTop: -7,
+    marginBottom: 15,
+    paddingVertical: 3,
   },
 
   forgotText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#1D6DF2',
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#1069FF',
+    fontWeight: '600',
   },
 
-  continueButton: {
-    height: 62,
-    borderRadius: 18,
-    backgroundColor: '#2F76F6',
+  primaryButton: {
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: '#126BFF',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    shadowColor: '#2F76F6',
-    shadowOffset: {
-      width: 0,
-      height: 12,
-    },
-    shadowOpacity: 0.28,
+    shadowColor: '#126BFF',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.25,
     shadowRadius: 18,
-    elevation: 5,
+    elevation: 8,
   },
 
-  continueText: {
-    fontSize: 20,
-    fontWeight: '600',
+  buttonDisabled: {
+    opacity: 0.65,
+  },
+
+  primaryButtonText: {
+    fontSize: 14,
+    lineHeight: 19,
     color: '#FFFFFF',
+    fontWeight: '700',
   },
 
-  arrowText: {
-    marginLeft: 14,
-    fontSize: 30,
-    lineHeight: 32,
+  primaryArrow: {
+    marginLeft: 13,
+    fontSize: 22,
+    lineHeight: 24,
+    color: '#FFFFFF',
     fontWeight: '400',
-    color: '#FFFFFF',
   },
 
   dividerRow: {
+    marginVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 26,
   },
 
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E1E8F2',
+    backgroundColor: '#DFE8F4',
   },
 
   orText: {
-    marginHorizontal: 18,
-    fontSize: 14,
+    marginHorizontal: 15,
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#8490A3',
     fontWeight: '600',
-    color: '#7A8496',
   },
 
   googleButton: {
-    height: 58,
-    borderRadius: 18,
-    borderWidth: 1.4,
-    borderColor: '#DDE5F0',
+    height: 49,
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderColor: '#DCE6F2',
     backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-  },
-
-  googleG: {
-    fontSize: 25,
-    fontWeight: '700',
-    color: '#4285F4',
-    marginRight: 18,
   },
 
   googleText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1B2440',
+    marginLeft: 13,
+    fontSize: 14,
+    lineHeight: 19,
+    color: '#071733',
+    fontWeight: '500',
   },
 
   signupRow: {
-    marginTop: 20,
+    marginTop: 15,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
 
   signupText: {
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#5D6A82',
     fontWeight: '400',
-    color: '#717D96',
   },
 
   signupLink: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1D6DF2',
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#1069FF',
+    fontWeight: '700',
   },
 
-  errorText: {
-    color: '#EF4444',
-    textAlign: 'center',
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 16,
+  googleMark: {
+    width: 21,
+    height: 21,
+    position: 'relative',
+  },
+
+  googleArc: {
+    position: 'absolute',
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    borderWidth: 4,
+    borderColor: 'transparent',
+  },
+
+  googleBlue: {
+    borderTopColor: '#4285F4',
+    borderRightColor: '#4285F4',
+    transform: [{ rotate: '8deg' }],
+  },
+
+  googleRed: {
+    borderTopColor: '#EA4335',
+    borderLeftColor: '#EA4335',
+    transform: [{ rotate: '-18deg' }],
+  },
+
+  googleYellow: {
+    borderLeftColor: '#FBBC05',
+    borderBottomColor: '#FBBC05',
+    transform: [{ rotate: '-8deg' }],
+  },
+
+  googleGreen: {
+    borderBottomColor: '#34A853',
+    borderRightColor: '#34A853',
+    transform: [{ rotate: '-8deg' }],
+  },
+
+  googleHole: {
+    position: 'absolute',
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    left: 5,
+    top: 5,
+  },
+
+  googleCut: {
+    position: 'absolute',
+    width: 9,
+    height: 9,
+    backgroundColor: '#FFFFFF',
+    right: -1,
+    top: 6,
+  },
+
+  googleBar: {
+    position: 'absolute',
+    width: 10,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: '#4285F4',
+    right: 0,
+    top: 9,
   },
 });
