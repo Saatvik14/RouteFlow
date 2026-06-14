@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 
-import { authService, setAuthToken } from '@/services/api';
+import { authService, setAuthToken } from './../../services/api';
 import { useAuth } from './../_layout';
 
 export default function SignupScreen() {

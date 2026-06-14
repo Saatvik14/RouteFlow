@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 
-import type { RouteStop } from '@/app/(MapScreen)/MapScreen';
+import type { RouteStop } from '../../../maps/RouteMap.native';
 
 import { styles } from '../styles';
 

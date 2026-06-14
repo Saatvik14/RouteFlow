@@ -1,7 +1,4 @@
-import { ROUTE_STATUS } from "@/constants/api";
-import { ordersService } from "@/services/api/orders";
-import { routesService } from "@/services/api/routes";
-import {router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,14 +10,17 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ROUTE_STATUS } from "./../../constants/api";
+import { ordersService } from "./../../services/api/orders";
+import { routesService } from "./../../services/api/routes";
 
-import { RoutePreviewPanel } from "@/components/route-preview-panel-refactor/route-preview-panel";
-import { Sidebar } from "@/components/sidebar";
 import MapScreen, {
   type ConfirmedRoute,
   type RouteMapType,
   type RoutePoint,
-} from "../(MapScreen)/MapScreen";
+} from "../../components/maps/RouteMap";
+import { RoutePreviewPanel } from "./../../components/route-preview-panel-refactor/route-preview-panel";
+import { Sidebar } from "./../../components/sidebar";
 
 type PanelMode =
   | "empty"
@@ -1923,7 +1923,7 @@ const styles = StyleSheet.create({
   },
 
   optimizingOverlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     zIndex: 200,
     backgroundColor: "rgba(15, 23, 42, 0.45)",
     alignItems: "center",

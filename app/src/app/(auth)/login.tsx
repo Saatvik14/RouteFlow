@@ -1,4 +1,4 @@
-import { authService, setAuthToken } from '@/services/api';
+import { authService, setAuthToken } from './../../services/api';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {

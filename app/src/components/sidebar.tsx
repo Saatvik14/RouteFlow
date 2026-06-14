@@ -1,6 +1,6 @@
-import { useAuth } from '@/app/_layout';
-import { restoreAuthToken } from '@/services/api';
-import { routesService } from '@/services/api/routes';
+import { useAuth } from './../app/_layout';
+import { restoreAuthToken } from './../services/api';
+import { routesService } from './../services/api/routes';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { jwtDecode } from 'jwt-decode';
 import { useEffect, useMemo, useState } from 'react';

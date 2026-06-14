@@ -1,7 +1,7 @@
-import { useAuth } from '@/app/_layout';
-import { restoreAuthToken } from '@/services/api';
-import { routesService } from '@/services/api/routes';
-import { isTokenValid } from '@/services/auth/jwtUtils';
+import { useAuth } from './../_layout';
+import { restoreAuthToken } from './../../services/api';
+import { routesService } from './../../services/api/routes';
+import { isTokenValid } from './../../services/auth/jwtUtils';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -1434,7 +1434,7 @@ const styles = StyleSheet.create({
   },
 
   modalBackdrop: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
 

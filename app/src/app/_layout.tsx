@@ -1,9 +1,14 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import {
+  ThemeProvider,
+  DarkTheme,
+  DefaultTheme,
+} from '@react-navigation/native';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { restoreAuthToken, setAuthToken } from '@/services/api';
+import { AnimatedSplashOverlay } from './../components/animated-icon';
+import { restoreAuthToken, setAuthToken } from './../services/api';
 
 // Simple Auth Context for demonstration
 const AuthContext = createContext({

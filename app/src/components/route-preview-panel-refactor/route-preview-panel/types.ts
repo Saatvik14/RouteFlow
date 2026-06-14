@@ -1,4 +1,4 @@
-import type { RoutePoint } from '@/app/(MapScreen)/MapScreen';
+import type { RoutePoint } from '../../maps/RouteMap.native';
 
 export type PanelMode =
   | 'empty'

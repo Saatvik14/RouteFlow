@@ -2,10 +2,10 @@ import { Link } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { ThemedText } from './../../components/themed-text';
+import { ThemedView } from './../../components/themed-view';
+import { Spacing } from './../../constants/theme';
+import { useTheme } from './../../hooks/use-theme';
 
 export default function ForgotPasswordScreen() {
   const [phone, setPhone] = useState('');

@@ -1,22 +1,68 @@
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
 /**
  * API Configuration Constants
  * Centralized configuration for backend connectivity
  */
 
-// Backend URL - Change this to switch environments instantly
+const BACKEND_PORT = '5000';
+
+function getExpoDevHost() {
+  const constants = Constants as any;
+
+  const hostUri =
+    constants?.expoConfig?.hostUri ||
+    constants?.manifest2?.extra?.expoClient?.hostUri ||
+    constants?.manifest?.debuggerHost ||
+    constants?.manifest?.hostUri ||
+    '';
+
+  if (!hostUri) return null;
+
+  return String(hostUri)
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .split(':')[0];
+}
+
+function getWebHost() {
+  if (typeof window === 'undefined') return null;
+  return window.location.hostname;
+}
+
+function getDevelopmentBaseUrl() {
+  const host = getExpoDevHost() || getWebHost();
+
+  if (!host) {
+    if (Platform.OS === 'android') {
+      return `http://10.0.2.2:${BACKEND_PORT}`;
+    }
+
+    return `http://localhost:${BACKEND_PORT}`;
+  }
+
+  const normalizedHost =
+    Platform.OS === 'android' && (host === 'localhost' || host === '127.0.0.1')
+      ? '10.0.2.2'
+      : host;
+
+  return `http://${normalizedHost}:${BACKEND_PORT}`;
+}
+
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  (__DEV__
+    ? getDevelopmentBaseUrl()
+    : 'https://api.yourdomain.com');
+
 export const API_CONFIG = {
-  // Development, Staging, Production URLs
-  BASE_URL: 'http://localhost:5000',
-  // BASE_URL: 'https://api-staging.yourdomain.com',
-  // BASE_URL: 'https://api.yourdomain.com',
-  
+  BASE_URL,
   API_VERSION: 'v1',
-  TIMEOUT: 30000, // 30 seconds
+  TIMEOUT: 30000,
 };
 
-// Construct full API base URL with version
-export const API_BASE_URL = `${API_CONFIG.BASE_URL}`;
-
+export const API_BASE_URL = API_CONFIG.BASE_URL;
 /**
  * API Endpoints categorized by resource
  */

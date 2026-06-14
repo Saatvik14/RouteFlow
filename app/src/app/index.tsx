@@ -3,9 +3,9 @@ import { Pressable, StyleSheet, View, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RoutePanel } from '@/components/route-panel';
-import { Sidebar } from '@/components/sidebar';
-import MapScreen from './(MapScreen)/MapScreen';
+import MapScreen from '../components/maps/RouteMap';
+import { RoutePanel } from './../components/route-panel';
+import { Sidebar } from './../components/sidebar';
 
 export default function Index() {
   const insets = useSafeAreaInsets();
