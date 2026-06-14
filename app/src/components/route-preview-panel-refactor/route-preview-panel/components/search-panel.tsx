@@ -14,7 +14,7 @@ export function SearchPanel({
   onSelectSuggestion,
 }: RoutePreviewPanelProps & { isWide: boolean }) {
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large">
+    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}

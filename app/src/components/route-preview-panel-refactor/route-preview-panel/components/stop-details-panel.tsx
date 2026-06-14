@@ -23,7 +23,7 @@ export function StopDetailsPanel({
   };
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large">
+    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
       <View style={styles.searchHeader}>
         <Pressable style={styles.searchInputBox} onPress={onOpenSearch}>
           <Text style={styles.searchIcon}>⌕</Text>

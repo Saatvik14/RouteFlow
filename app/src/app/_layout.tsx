@@ -20,6 +20,8 @@ const AuthContext = createContext({
 
 export const useAuth = () => useContext(AuthContext);
 
+const PUBLIC_ROUTES = ['login', 'signup', 'forgot-password'];
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -58,7 +60,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Check if the current route is an auth screen
-    const inAuthGroup = segments[0] === 'login' || segments[0] === 'signup' || segments[0] === 'forgot-password';
+    const currentRoute = segments[1] ?? '';
+    const inAuthGroup = PUBLIC_ROUTES.includes(currentRoute);
+    // console.log('Current route:', segments[1], 'In auth group:', inAuthGroup);
 
     if (!isLoading && !isLoggedIn && !inAuthGroup) {
       // If not logged in and not on an auth screen, redirect to login
@@ -89,9 +93,9 @@ export default function RootLayout() {
           </Stack>
         ) : (
           <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="login" />
-            <Stack.Screen name="signup" />
-            <Stack.Screen name="forgot-password" />
+            <Stack.Screen name="(auth)/login" />
+            <Stack.Screen name="(auth)/signup" />
+            <Stack.Screen name="(auth)/forgot-password" />
           </Stack>
         )}
       </ThemeProvider>

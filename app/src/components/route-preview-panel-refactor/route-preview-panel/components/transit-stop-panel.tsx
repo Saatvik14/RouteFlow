@@ -72,7 +72,7 @@ export function TransitStopPanel({
     }`;
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
+    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit" initialSnap="top">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[

@@ -130,7 +130,7 @@ export function RouteCompletionPromptPanel({
   const buttonDisabled = Boolean(isCompletingRoute || !onMarkRouteCompleted);
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
+    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit" initialSnap="top">
       <View style={styles.completionTopBar}>
         <View style={styles.completionTopTextBox}>
           <Text style={styles.completionTopTitle} numberOfLines={1}>
@@ -225,7 +225,7 @@ export function RouteCompletedPanel({
     : 'All successful';
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit">
+    <DraggableRouteSheet isWide={isWide} mode="large" variant="transit" initialSnap="top">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[

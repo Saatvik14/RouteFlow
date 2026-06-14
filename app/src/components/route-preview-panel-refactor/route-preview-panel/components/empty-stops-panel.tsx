@@ -12,7 +12,7 @@ export function EmptyStopsPanel({
   const insets = useSafeAreaInsets();
 
   return (
-    <DraggableRouteSheet isWide={isWide}>
+    <DraggableRouteSheet isWide={isWide} initialSnap="bottom">
       <Pressable style={styles.searchRow} onPress={onOpenSearch}>
         <Text style={styles.searchIcon}>⌕</Text>
         <Text style={styles.searchPlaceholder}>Tap to add stops</Text>

@@ -115,7 +115,12 @@ export default function LoginScreen() {
           Manage deliveries, track routes and finish faster.
         </Text>
 
-        <View style={styles.hero}>
+        {/* Added pointerEvents="none" to ensure decorative elements don't block clicks on the card below */}
+        <View 
+          style={styles.hero} 
+          pointerEvents="none"
+          importantForAccessibility="no-hide-descendants"
+        >
           <View style={styles.mapLayer} />
 
           <View style={[styles.mapRoad, styles.mapRoadOne]} />
@@ -245,9 +250,13 @@ export default function LoginScreen() {
             <Text style={styles.signupText}>Don’t have an account?</Text>
 
             <Link href="/signup" asChild>
-              <Pressable hitSlop={8}>
-                <Text style={styles.signupLink}> Sign Up</Text>
-              </Pressable>
+<Pressable
+  hitSlop={20}
+  style={styles.signupLinkPressable}
+  onPress={() => router.push('/signup')}
+>
+  <Text style={styles.signupLink}> Sign Up</Text>
+</Pressable>
             </Link>
           </View>
         </View>
@@ -834,6 +843,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: '#5D6A82',
     fontWeight: '400',
+  },
+
+  // Increased padding to provide a much larger hit area on all platforms
+  signupLinkPressable: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginRight: -10, // Offset padding to keep visual alignment
   },
 
   signupLink: {

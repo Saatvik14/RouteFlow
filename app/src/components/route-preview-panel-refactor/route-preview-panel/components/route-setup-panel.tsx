@@ -22,7 +22,7 @@ export function RouteSetupPanel({
   const stopLabel = `${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}`;
 
   return (
-    <DraggableRouteSheet isWide={isWide}>
+    <DraggableRouteSheet isWide={isWide} initialSnap="middle">
       <View style={styles.previewHeader}>
         <View style={styles.routeIconBox}>
           <Text style={styles.routeIconText}>↝</Text>

@@ -51,7 +51,7 @@ export function ConfirmedRoutePanel({
     : 'Confirm route';
 
   return (
-    <DraggableRouteSheet isWide={isWide}>
+    <DraggableRouteSheet isWide={isWide} initialSnap="middle">
       <View style={styles.previewHeader}>
         <View style={styles.routeIconBox}>
           <Text style={styles.routeIconText}>✓</Text>
