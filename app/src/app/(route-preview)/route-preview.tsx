@@ -19,6 +19,7 @@ import MapScreen, {
   type RouteMapType,
   type RoutePoint,
 } from "../../components/maps/RouteMap";
+import { RoutePanel } from "./../../components/route-panel";
 import { RoutePreviewPanel } from "./../../components/route-preview-panel-refactor/route-preview-panel";
 import { Sidebar } from "./../../components/sidebar";
 
@@ -789,32 +790,32 @@ function parsePlaceSuggestion(
   const latitude = toNumberOrNull(
     properties.latitude ??
       properties.lat ??
-      item?.latitude ??
       item?.lat ??
-      geometryCoordinates?.[1],
+      item?.latitude ??
+      (Array.isArray(geometryCoordinates) ? geometryCoordinates[1] : undefined),
   );
   const longitude = toNumberOrNull(
     properties.longitude ??
-      properties.lon ??
       properties.lng ??
-      item?.longitude ??
-      item?.lon ??
+      properties.lon ??
       item?.lng ??
-      geometryCoordinates?.[0],
+      item?.lon ??
+      item?.longitude ??
+      (Array.isArray(geometryCoordinates) ? geometryCoordinates[0] : undefined),
   );
 
   if (!isValidCoordinate(latitude, longitude)) return null;
 
   const fullAddress = String(
-    properties.fullAddress ||
-      properties.full_address ||
-      properties.formatted ||
-      properties.address ||
-      properties.display_name ||
-      item?.fullAddress ||
-      item?.full_address ||
-      item?.address ||
-      item?.display_name ||
+    properties.fullAddress ??
+      properties.full_address ??
+      properties.formatted ??
+      properties.address ??
+      properties.display_name ??
+      item?.fullAddress ??
+      item?.full_address ??
+      item?.address ??
+      item?.display_name ??
       fallbackQuery,
   );
   const title = String(
@@ -1131,16 +1132,34 @@ export default function RoutePreviewScreen() {
       setIsInitialLoading(true);
       setErrorMessage("");
 
-      if (!routeId) {
-        setRoute(null);
-        setErrorMessage("Route id is missing.");
+      let targetRouteId = routeId;
+
+      // If no routeId is in params, try to find the latest route (Home page mode)
+      if (!targetRouteId) {
+        try {
+          const resp: any = await routesService.getRoutes(1, 0);
+          const rawData = resp?.data ?? resp;
+          const routesList = Array.isArray(rawData) ? rawData : rawData?.routes || [];
+          
+          if (routesList.length > 0) {
+            const latest = routesList[0];
+            targetRouteId = String(latest.route_id || latest.id || latest.routeId);
+          }
+        } catch (err) {
+          console.log("Error auto-fetching latest route for home:", err);
+        }
+      }
+
+      if (!targetRouteId) {
+        if (!mounted) return;
+        setRoute(null); // Signal to show RoutePanel (Create First Route)
         setIsInitialLoading(false);
         return;
       }
 
       try {
-        const response = await routesService.getRoute(routeId);
-        const result = await buildRouteFromBackendResponse(response, routeId);
+        const response = await routesService.getRoute(targetRouteId);
+        const result = await buildRouteFromBackendResponse(response, targetRouteId);
 
         let nextRoute = result.route;
         let nextRouteMeta = result.routeMeta;
@@ -1651,18 +1670,6 @@ const handleCreateNewRoute = () => {
         </View>
       </Pressable>
 
-      <Pressable
-        style={[
-          styles.homeButton,
-          {
-            top: insets.top + 16,
-          },
-        ]}
-        onPress={() => router.replace("/")}
-      >
-        <Text style={styles.homeIcon}>🏠</Text>
-      </Pressable>
-
       <View
         style={[
           styles.mapControls,
@@ -1714,7 +1721,9 @@ const handleCreateNewRoute = () => {
         </View>
       ) : null}
 
-      {!isInitialLoading && route ? (
+      {!isInitialLoading && !route ? (
+        <RoutePanel />
+      ) : !isInitialLoading && route ? (
 <RoutePreviewPanel
   mode={resolvedPanelMode}
   routeName={routeTitle}
@@ -1812,26 +1821,6 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 999,
     backgroundColor: "#111827",
-  },
-
-  homeButton: {
-    position: "absolute",
-    left: 94,
-    zIndex: 80,
-    elevation: 12,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-  },
-  homeIcon: {
-    fontSize: 24,
   },
 
   mapControls: {

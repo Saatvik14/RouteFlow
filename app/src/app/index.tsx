@@ -1,52 +1,81 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View, useColorScheme } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { routesService } from '../services/api/routes';
 import MapScreen from '../components/maps/RouteMap';
-import { RoutePanel } from './../components/route-panel';
-import { Sidebar } from './../components/sidebar';
+import { RoutePanel } from '../components/route-panel';
+import { Sidebar } from '../components/sidebar';
 
 export default function Index() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  // const isDark = colorScheme === 'dark';
-  const isDark = false
+  const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const colors = {
-    buttonBg: isDark ? '#151A21' : '#FFFFFF',
-    buttonBorder: isDark ? '#2A3340' : '#E5EAF2',
-    icon: isDark ? '#FFFFFF' : '#111827',
-    shadow: isDark ? '#000000' : '#8BADEB',
-  };
+  useEffect(() => {
+    async function checkUserRoute() {
+      try {
+        const resp: any = await routesService.getRoutes(1, 0);
+        const rawData = resp?.data ?? resp;
+        const routesList = Array.isArray(rawData) ? rawData : (rawData?.routes || []);
+        
+        if (routesList && routesList.length > 0) {
+          const latest = routesList[0];
+          const routeId = latest.route_id || latest.id || latest.routeId;
+          
+          // Redirect to the last created route's preview page
+          router.replace({
+            pathname: '/route-preview',
+            params: { id: String(routeId) }
+          } as any);
+        } else {
+          // No routes found, stop loading and show onboarding on Home
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error("Home initialization route check failed:", error);
+        setIsLoading(false);
+      }
+    }
 
+    checkUserRoute();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2F76F6" />
+      </View>
+    );
+  }
+
+  // Fallback UI for when no route exists - show the "Create your first route" panel
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <MapScreen />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.root}>
+        <MapScreen />
+        
+        <Pressable
+          style={[styles.menuButton, { top: insets.top + 16 }]}
+          onPress={() => setIsSidebarOpen(true)}
+        >
+          <View style={styles.hamburger}>
+            <View style={styles.bar} />
+            <View style={styles.bar} />
+            <View style={styles.bar} />
+          </View>
+        </Pressable>
 
-      <Pressable
-        style={[
-          styles.menuButton,
-          {
-            top: insets.top + 16,
-            left: 20,
-            backgroundColor: colors.buttonBg,
-            borderColor: colors.buttonBorder,
-            shadowColor: colors.shadow,
-          },
-        ]}
-        onPress={() => setIsSidebarOpen(true)}>
-        <View style={styles.hamburger}>
-          <View style={[styles.bar, { backgroundColor: colors.icon }]} />
-          <View style={[styles.bar, { backgroundColor: colors.icon }]} />
-          <View style={[styles.bar, { backgroundColor: colors.icon }]} />
-        </View>
-      </Pressable>
-
-      <RoutePanel />
-
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <RoutePanel />
+        
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)} 
+        />
+      </View>
     </GestureHandlerRootView>
   );
 }
@@ -54,34 +83,38 @@ export default function Index() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: '#F8FAFC',
   },
-
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
   menuButton: {
-    position: 'absolute',
+    position: "absolute",
+    left: 24,
     zIndex: 80,
     elevation: 12,
     width: 58,
     height: 58,
     borderRadius: 29,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.25,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
     shadowRadius: 14,
   },
-
   hamburger: {
     width: 24,
     gap: 5,
   },
-
   bar: {
     width: 24,
     height: 3,
     borderRadius: 999,
+    backgroundColor: "#111827",
   },
 });
