@@ -1,10 +1,12 @@
 import { authService, setAuthToken } from './../../services/api';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,8 +16,12 @@ import {
 
 import { useAuth } from '../_layout';
 
-const DESIGN_WIDTH = 390;
-const DESIGN_HEIGHT = 820;
+const APP_FONT = Platform.select({
+  ios: 'System',
+  android: 'sans-serif',
+  web: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  default: undefined,
+});
 
 function GoogleMark() {
   return (
@@ -32,7 +38,7 @@ function GoogleMark() {
 }
 
 export default function LoginScreen() {
-  const [phone, setPhone] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -43,17 +49,13 @@ export default function LoginScreen() {
   const router = useRouter();
 
   const isWeb = Platform.OS === 'web';
-
-  const scale = Math.min(
-    1,
-    (width - (isWeb ? 32 : 0)) / DESIGN_WIDTH,
-    (height - (isWeb ? 32 : 0)) / DESIGN_HEIGHT,
-  );
-
-  const screenScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const isWide = width >= 768;
+  const isMobile = width < 480;
 
   const handleLogin = async () => {
-    if (!phone.trim() || !password.trim()) {
+    const trimmedIdentifier = identifier.trim();
+
+    if (!trimmedIdentifier || !password.trim()) {
       setError('Please fill in all fields');
       return;
     }
@@ -63,7 +65,7 @@ export default function LoginScreen() {
 
     try {
       const response = await authService.login({
-        identifier: phone.trim(),
+        identifier: trimmedIdentifier,
         password,
       });
 
@@ -83,232 +85,332 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <View style={styles.bgTop} />
-      <View style={styles.bgLeft} />
-      <View style={styles.bgRight} />
-
-      <View
-        style={[
-          styles.screen,
-          {
-            transform: [{ scale: screenScale }],
-          },
-        ]}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.keyboardRoot}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
-        <View style={styles.brandRow}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoArrow}>↗</Text>
-          </View>
-
-          <Text style={styles.brandText}>
-            Route<Text style={styles.brandBlue}>Flow</Text>
-          </Text>
+        <View style={styles.backgroundLayer} pointerEvents="none">
+          <View style={styles.bgGlowTop} />
+          <View style={styles.bgGlowBottom} />
         </View>
 
-        <Text style={styles.title}>Smart Route Navigation</Text>
-
-        <Text style={styles.subtitle}>
-          Manage deliveries, track routes and finish faster.
-        </Text>
-
-        {/* Added pointerEvents="none" to ensure decorative elements don't block clicks on the card below */}
-        <View 
-          style={styles.hero} 
-          pointerEvents="none"
-          importantForAccessibility="no-hide-descendants"
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[
+            styles.scrollContent,
+            { minHeight: height },
+            isWide && styles.scrollContentWide,
+          ]}
         >
-          <View style={styles.mapLayer} />
+          <View style={[styles.container, isWide && styles.containerWide]}>
+            <View style={[styles.card, isMobile && styles.cardMobile]}>
+              <View style={styles.brandRow}>
+                <View style={[styles.logoBox, isMobile && styles.logoBoxMobile]}>
+                  <Text style={styles.logoArrow}>↗</Text>
+                </View>
 
-          <View style={[styles.mapRoad, styles.mapRoadOne]} />
-          <View style={[styles.mapRoad, styles.mapRoadTwo]} />
-          <View style={[styles.mapRoad, styles.mapRoadThree]} />
-          <View style={[styles.mapRoad, styles.mapRoadFour]} />
-          <View style={[styles.mapRoadVertical, styles.mapRoadVerticalOne]} />
-          <View style={[styles.mapRoadVertical, styles.mapRoadVerticalTwo]} />
+                <Text style={[styles.brandText, isMobile && styles.brandTextMobile]}>
+                  Route<Text style={styles.brandBlue}>Flow</Text>
+                </Text>
+              </View>
 
-          <View style={[styles.mapPatch, styles.mapPatchOne]} />
-          <View style={[styles.mapPatch, styles.mapPatchTwo]} />
+              <View style={[styles.routeIntroBlock, isMobile && styles.routeIntroBlockMobile]}>
+                <Text style={[styles.routeIntroTitle, isMobile && styles.routeIntroTitleMobile]}>
+                  Smart Route Navigation
+                </Text>
+                <Text style={[styles.routeIntroSubtitle, isMobile && styles.routeIntroSubtitleMobile]}>
+                  Plan routes, track deliveries and finish faster.
+                </Text>
+              </View>
 
-          <View style={[styles.routeLine, styles.routeLineOne]} />
-          <View style={[styles.routeLine, styles.routeLineTwo]} />
-          <View style={[styles.routeLine, styles.routeLineThree]} />
+              <View style={[styles.headerBlock, isMobile && styles.headerBlockMobile]}>
+                <Text style={[styles.title, isMobile && styles.titleMobile]}>Welcome back</Text>
+                <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>
+                  Sign in to manage routes and deliveries.
+                </Text>
+              </View>
 
-          <View style={[styles.pinShadow, styles.pinShadowBlue]} />
-          <View style={[styles.pinShadow, styles.pinShadowGreen]} />
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <View style={[styles.pin, styles.pinBlue]}>
-            <View style={styles.pinHole} />
-          </View>
+              <Text style={[styles.label, isMobile && styles.labelMobile]}>
+                Email or Phone Number
+              </Text>
+              <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
+                <TextInput
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                  placeholder="Enter email or phone number"
+                  placeholderTextColor="#98A6BA"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  textContentType="username"
+                  editable={!loading}
+                  style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
+                />
+              </View>
 
-          <View style={[styles.pin, styles.pinGreen]}>
-            <View style={styles.pinHole} />
-          </View>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, isMobile && styles.labelMobile]}>Password</Text>
+                <Pressable
+                  hitSlop={10}
+                  onPress={() => router.push('/forgot-password')}
+                  style={({ pressed }) => pressed && styles.pressed}
+                >
+                  <Text style={styles.forgotText}>Forgot Password?</Text>
+                </Pressable>
+              </View>
 
-          <View style={styles.packageCard}>
-            <View style={styles.boxTop} />
-            <View style={styles.boxBody}>
-              <View style={styles.boxTape} />
+              <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter password"
+                  placeholderTextColor="#98A6BA"
+                  secureTextEntry={!showPassword}
+                  returnKeyType="done"
+                  textContentType="password"
+                  autoCapitalize="none"
+                  editable={!loading}
+                  onSubmitEditing={handleLogin}
+                  style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
+                />
+
+                <Pressable
+                  hitSlop={12}
+                  onPress={() => setShowPassword(prev => !prev)}
+                  disabled={loading}
+                  style={({ pressed }) => [
+                    styles.showButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.showButtonText}>
+                    {showPassword ? 'Hide' : 'Show'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Pressable
+                onPress={handleLogin}
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  isMobile && styles.primaryButtonMobile,
+                  loading && styles.buttonDisabled,
+                  pressed && !loading && styles.primaryButtonPressed,
+                ]}
+              >
+                <Text style={[styles.primaryButtonText, isMobile && styles.primaryButtonTextMobile]}>
+                  {loading ? 'Please wait...' : 'Continue'}
+                </Text>
+              </Pressable>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.divider} />
+                <Text style={styles.orText}>OR</Text>
+                <View style={styles.divider} />
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.googleButton,
+                  isMobile && styles.googleButtonMobile,
+                  pressed && styles.googleButtonPressed,
+                ]}
+              >
+                <GoogleMark />
+                <Text style={styles.googleText}>Continue with Google</Text>
+              </Pressable>
+
+              <View style={styles.signupRow}>
+                <Text style={styles.signupText}>Don’t have an account?</Text>
+
+                <Pressable
+                  hitSlop={18}
+                  onPress={() => router.push('/signup')}
+                  style={({ pressed }) => [
+                    styles.signupPressable,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.signupLink}>Sign Up</Text>
+                </Pressable>
+              </View>
             </View>
-
-            <View style={styles.truck}>
-              <View style={styles.truckBody} />
-              <View style={styles.truckCab} />
-              <View style={styles.truckWheel} />
-              <View style={styles.truckWheel} />
-            </View>
           </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Welcome back</Text>
-
-          <Text style={styles.cardSubtitle}>
-            Login to continue your route.
-          </Text>
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <Text style={styles.label}>Phone Number</Text>
-
-          <View style={styles.inputBox}>
-            <View style={styles.inputIconBox}>
-              <Text style={styles.inputIcon}>☎</Text>
-            </View>
-
-            <TextInput
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="Enter phone number"
-              placeholderTextColor="#A9B5C9"
-              keyboardType="phone-pad"
-              returnKeyType="next"
-              style={[styles.input, isWeb && styles.webInput]}
-            />
-          </View>
-
-          <Text style={styles.label}>Password</Text>
-
-          <View style={styles.inputBox}>
-            <View style={styles.inputIconBox}>
-              <Text style={styles.lockIcon}>▣</Text>
-            </View>
-
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter password"
-              placeholderTextColor="#A9B5C9"
-              secureTextEntry={!showPassword}
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
-              style={[styles.input, isWeb && styles.webInput]}
-            />
-
-            <Pressable
-              hitSlop={12}
-              onPress={() => setShowPassword(prev => !prev)}
-              style={styles.eyeButton}
-            >
-              <Text style={styles.eyeText}>{showPassword ? '◉' : '◌'}</Text>
-            </Pressable>
-          </View>
-
-          <Link href="/forgot-password" asChild>
-            <Pressable style={styles.forgotButton}>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </Pressable>
-          </Link>
-
-          <Pressable
-            onPress={handleLogin}
-            disabled={loading}
-            style={[styles.primaryButton, loading && styles.buttonDisabled]}
-          >
-            <Text style={styles.primaryButtonText}>
-              {loading ? 'Please wait...' : 'Continue'}
-            </Text>
-
-            {!loading ? <Text style={styles.primaryArrow}>→</Text> : null}
-          </Pressable>
-
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.orText}>OR</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <Pressable style={styles.googleButton}>
-            <GoogleMark />
-            <Text style={styles.googleText}>Continue with Google</Text>
-          </Pressable>
-
-          <View style={styles.signupRow}>
-            <Text style={styles.signupText}>Don’t have an account?</Text>
-
-            <Link href="/signup" asChild>
-<Pressable
-  hitSlop={20}
-  style={styles.signupLinkPressable}
-  onPress={() => router.push('/signup')}
->
-  <Text style={styles.signupLink}> Sign Up</Text>
-</Pressable>
-            </Link>
-          </View>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  cardMobile: {
+    paddingHorizontal: 28,
+    paddingTop: 34,
+    paddingBottom: 26,
+    borderRadius: 28,
+  },
+
+  logoBoxMobile: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    marginRight: 11,
+  },
+
+  brandTextMobile: {
+    fontSize: 27,
+    lineHeight: 34,
+    fontWeight: '700',
+    letterSpacing: -0.45,
+  },
+
+  routeIntroBlockMobile: {
+    marginTop: 32,
+    marginBottom: 34,
+  },
+
+  routeIntroTitleMobile: {
+    fontSize: 26,
+    lineHeight: 33,
+    fontWeight: '700',
+    letterSpacing: -0.45,
+  },
+
+  routeIntroSubtitleMobile: {
+    marginTop: 9,
+    maxWidth: 320,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+
+  headerBlockMobile: {
+    marginBottom: 26,
+  },
+
+  titleMobile: {
+    fontSize: 31,
+    lineHeight: 38,
+    fontWeight: '700',
+    letterSpacing: -0.55,
+  },
+
+  subtitleMobile: {
+    marginTop: 9,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+
+  labelMobile: {
+    marginBottom: 9,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+
+  inputBoxMobile: {
+    height: 58,
+    borderRadius: 17,
+    marginBottom: 20,
+  },
+
+  inputMobile: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+
+  primaryButtonMobile: {
+    height: 58,
+    borderRadius: 17,
+  },
+
+  primaryButtonTextMobile: {
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: '600',
+  },
+
+  googleButtonMobile: {
+    height: 56,
+    borderRadius: 17,
+  },
+
+  safeArea: {
     flex: 1,
-    backgroundColor: '#EEF7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#F4F8FC',
+  },
+
+  keyboardRoot: {
+    flex: 1,
+  },
+
+  backgroundLayer: {
+    ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
   },
 
-  bgTop: {
-    position: 'absolute',
-    width: 460,
-    height: 460,
-    borderRadius: 230,
-    top: -250,
-    backgroundColor: '#FFFFFF',
-  },
-
-  bgLeft: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    left: -150,
-    top: 70,
-    backgroundColor: '#D9ECFF',
-  },
-
-  bgRight: {
+  bgGlowTop: {
     position: 'absolute',
     width: 320,
     height: 320,
     borderRadius: 160,
-    right: -170,
-    top: 230,
-    backgroundColor: '#DFF1FF',
+    top: -150,
+    right: -110,
+    backgroundColor: '#DDEEFF',
   },
 
-  screen: {
-    width: DESIGN_WIDTH,
-    height: DESIGN_HEIGHT,
-    paddingHorizontal: 28,
-    paddingTop: 32,
-    paddingBottom: 18,
+  bgGlowBottom: {
+    position: 'absolute',
+    width: 330,
+    height: 330,
+    borderRadius: 165,
+    left: -150,
+    bottom: -150,
+    backgroundColor: '#E9F4FF',
+  },
+
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 32,
+    justifyContent: 'center',
+  },
+
+  scrollContentWide: {
+    paddingVertical: 40,
+  },
+
+  container: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+  },
+
+  containerWide: {
+    maxWidth: 430,
+  },
+
+  card: {
+    width: '100%',
+    borderRadius: 26,
+    paddingHorizontal: 24,
+    paddingTop: 30,
+    paddingBottom: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4ECF5',
+    shadowColor: '#6B8EB8',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.12,
+    shadowRadius: 26,
+    elevation: 8,
   },
 
   brandRow: {
@@ -318,411 +420,140 @@ const styles = StyleSheet.create({
   },
 
   logoBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    backgroundColor: '#246BFF',
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: '#176BFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 9,
-    shadowColor: '#246BFF',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 8,
+    marginRight: 10,
+    shadowColor: '#176BFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 6,
   },
 
   logoArrow: {
     color: '#FFFFFF',
-    fontSize: 25,
-    lineHeight: 28,
-    fontWeight: '700',
+    fontSize: 21,
+    lineHeight: 24,
+    fontWeight: '600',
+    fontFamily: APP_FONT,
   },
 
   brandText: {
+    color: '#0B1830',
     fontSize: 25,
     lineHeight: 31,
-    fontWeight: '700',
-    color: '#071733',
-    letterSpacing: -0.5,
+    fontWeight: '600',
+    letterSpacing: -0.35,
+    fontFamily: APP_FONT,
   },
 
   brandBlue: {
-    color: '#246BFF',
+    color: '#176BFF',
+  },
+
+  routeIntroBlock: {
+    marginTop: 28,
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+
+  routeIntroTitle: {
+    color: '#0B1830',
+    fontSize: 25,
+    lineHeight: 31,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: -0.35,
+    fontFamily: APP_FONT,
+  },
+
+  routeIntroSubtitle: {
+    marginTop: 8,
+    color: '#66758C',
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '400',
+    textAlign: 'center',
+    fontFamily: APP_FONT,
+  },
+
+  headerBlock: {
+    marginTop: 0,
+    marginBottom: 24,
   },
 
   title: {
-    marginTop: 32,
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: '700',
-    color: '#071733',
-    textAlign: 'center',
-    letterSpacing: -0.4,
+    color: '#0B1830',
+    fontSize: 29,
+    lineHeight: 36,
+    fontWeight: '600',
+    letterSpacing: -0.45,
+    fontFamily: APP_FONT,
   },
 
   subtitle: {
-    marginTop: 9,
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#5F6D86',
-    textAlign: 'center',
+    marginTop: 8,
+    color: '#66758C',
+    fontSize: 15,
+    lineHeight: 22,
     fontWeight: '400',
-  },
-
-  hero: {
-    height: 205,
-    marginTop: 18,
-    marginHorizontal: -28,
-    position: 'relative',
-    overflow: 'visible',
-  },
-
-  mapLayer: {
-    position: 'absolute',
-    left: -20,
-    right: -20,
-    bottom: 0,
-    height: 175,
-    backgroundColor: 'rgba(231,242,255,0.92)',
-    transform: [{ skewY: '-6deg' }],
-  },
-
-  mapRoad: {
-    position: 'absolute',
-    height: 6,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.98)',
-  },
-
-  mapRoadOne: {
-    left: -30,
-    right: 115,
-    top: 80,
-    transform: [{ rotate: '15deg' }],
-  },
-
-  mapRoadTwo: {
-    left: 100,
-    right: -25,
-    top: 76,
-    transform: [{ rotate: '-17deg' }],
-  },
-
-  mapRoadThree: {
-    left: -24,
-    right: 85,
-    top: 135,
-    transform: [{ rotate: '-20deg' }],
-  },
-
-  mapRoadFour: {
-    left: 70,
-    right: -28,
-    top: 153,
-    transform: [{ rotate: '18deg' }],
-  },
-
-  mapRoadVertical: {
-    position: 'absolute',
-    width: 6,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.94)',
-  },
-
-  mapRoadVerticalOne: {
-    height: 170,
-    left: 142,
-    top: 50,
-    transform: [{ rotate: '25deg' }],
-  },
-
-  mapRoadVerticalTwo: {
-    height: 160,
-    right: 116,
-    top: 52,
-    transform: [{ rotate: '25deg' }],
-  },
-
-  mapPatch: {
-    position: 'absolute',
-    width: 70,
-    height: 42,
-    borderRadius: 18,
-    opacity: 0.55,
-  },
-
-  mapPatchOne: {
-    left: 34,
-    bottom: 46,
-    backgroundColor: '#D8F6EF',
-    transform: [{ rotate: '-16deg' }],
-  },
-
-  mapPatchTwo: {
-    right: 34,
-    top: 76,
-    backgroundColor: '#E5EEF9',
-    transform: [{ rotate: '18deg' }],
-  },
-
-  routeLine: {
-    position: 'absolute',
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: '#216BFF',
-    shadowColor: '#216BFF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-
-  routeLineOne: {
-    width: 120,
-    left: 98,
-    top: 128,
-    transform: [{ rotate: '29deg' }],
-  },
-
-  routeLineTwo: {
-    width: 105,
-    left: 146,
-    top: 162,
-    transform: [{ rotate: '-8deg' }],
-  },
-
-  routeLineThree: {
-    width: 118,
-    right: 76,
-    top: 137,
-    transform: [{ rotate: '-27deg' }],
-  },
-
-  pinShadow: {
-    position: 'absolute',
-    width: 52,
-    height: 17,
-    borderRadius: 999,
-    opacity: 0.22,
-  },
-
-  pinShadowBlue: {
-    left: 82,
-    top: 125,
-    backgroundColor: '#216BFF',
-  },
-
-  pinShadowGreen: {
-    right: 75,
-    top: 128,
-    backgroundColor: '#2DBE68',
-  },
-
-  pin: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderBottomRightRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '45deg' }],
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-
-  pinBlue: {
-    left: 79,
-    top: 67,
-    backgroundColor: '#216BFF',
-    shadowColor: '#216BFF',
-  },
-
-  pinGreen: {
-    right: 73,
-    top: 70,
-    backgroundColor: '#32BF67',
-    shadowColor: '#32BF67',
-  },
-
-  pinHole: {
-    width: 19,
-    height: 19,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-  },
-
-  packageCard: {
-    position: 'absolute',
-    top: 86,
-    alignSelf: 'center',
-    width: 82,
-    height: 82,
-    borderRadius: 23,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E6EEF8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#8EA5C8',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.2,
-    shadowRadius: 22,
-    elevation: 10,
-  },
-
-  boxTop: {
-    width: 38,
-    height: 17,
-    borderRadius: 3,
-    backgroundColor: '#E8B06B',
-    transform: [{ rotate: '-28deg' }],
-  },
-
-  boxBody: {
-    width: 42,
-    height: 31,
-    marginTop: -5,
-    borderRadius: 5,
-    backgroundColor: '#C98B4D',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingRight: 7,
-  },
-
-  boxTape: {
-    width: 9,
-    height: 12,
-    borderRadius: 2,
-    backgroundColor: '#F3D0A1',
-  },
-
-  truck: {
-    marginTop: 5,
-    height: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-
-  truckBody: {
-    width: 18,
-    height: 10,
-    borderRadius: 2,
-    backgroundColor: '#216BFF',
-  },
-
-  truckCab: {
-    width: 12,
-    height: 8,
-    borderRadius: 2,
-    backgroundColor: '#216BFF',
-    marginLeft: 2,
-  },
-
-  truckWheel: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#0D3FA8',
-    marginLeft: 3,
-  },
-
-  card: {
-    marginTop: -30,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 27,
-    paddingHorizontal: 20,
-    paddingTop: 23,
-    paddingBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E8F0FB',
-    shadowColor: '#8EAAD1',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.15,
-    shadowRadius: 30,
-    elevation: 12,
-  },
-
-  cardTitle: {
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: '700',
-    color: '#071733',
-    letterSpacing: -0.4,
-  },
-
-  cardSubtitle: {
-    marginTop: 5,
-    marginBottom: 15,
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#60708B',
-    fontWeight: '400',
+    fontFamily: APP_FONT,
   },
 
   errorText: {
-    marginTop: -5,
-    marginBottom: 10,
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#EF4444',
-    fontWeight: '500',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 13,
+    backgroundColor: '#FEF2F2',
+    color: '#DC2626',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+    fontFamily: APP_FONT,
+  },
+
+  labelRow: {
+    marginTop: 2,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   label: {
-    marginBottom: 7,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
-    color: '#071733',
+    marginBottom: 8,
+    color: '#17243B',
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '500',
+    fontFamily: APP_FONT,
   },
 
   inputBox: {
-    height: 48,
-    borderRadius: 15,
+    height: 56,
+    borderRadius: 16,
     borderWidth: 1.2,
-    borderColor: '#DCE6F2',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#D9E3EF',
+    backgroundColor: '#FBFDFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    marginBottom: 15,
-  },
-
-  inputIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: '#EEF5FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-
-  inputIcon: {
-    fontSize: 17,
-    lineHeight: 20,
-    color: '#216BFF',
-    fontWeight: '700',
-  },
-
-  lockIcon: {
-    fontSize: 17,
-    lineHeight: 20,
-    color: '#216BFF',
-    fontWeight: '700',
+    paddingHorizontal: 16,
+    marginBottom: 18,
   },
 
   input: {
     flex: 1,
     height: '100%',
     paddingVertical: 0,
-    fontSize: 13,
-    color: '#071733',
+    color: '#0B1830',
+    fontSize: 16,
     fontWeight: '400',
+    fontFamily: APP_FONT,
   },
 
   webInput: {
@@ -730,47 +561,46 @@ const styles = StyleSheet.create({
     outlineWidth: 0,
   } as any,
 
-  eyeButton: {
-    width: 28,
-    height: 28,
+  forgotText: {
+    color: '#176BFF',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+    fontFamily: APP_FONT,
+  },
+
+  showButton: {
+    minWidth: 48,
+    height: 36,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 5,
+    marginLeft: 8,
   },
 
-  eyeText: {
-    fontSize: 18,
-    lineHeight: 22,
-    color: '#7B879A',
+  showButtonText: {
+    color: '#64748B',
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '500',
-  },
-
-  forgotButton: {
-    alignSelf: 'flex-end',
-    marginTop: -7,
-    marginBottom: 15,
-    paddingVertical: 3,
-  },
-
-  forgotText: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#1069FF',
-    fontWeight: '600',
+    fontFamily: APP_FONT,
   },
 
   primaryButton: {
-    height: 48,
-    borderRadius: 15,
-    backgroundColor: '#126BFF',
-    flexDirection: 'row',
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#176BFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#126BFF',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.25,
-    shadowRadius: 18,
-    elevation: 8,
+    shadowColor: '#176BFF',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+
+  primaryButtonPressed: {
+    transform: [{ translateY: 1 }],
   },
 
   buttonDisabled: {
@@ -778,22 +608,15 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
-    fontSize: 14,
-    lineHeight: 19,
     color: '#FFFFFF',
-    fontWeight: '700',
-  },
-
-  primaryArrow: {
-    marginLeft: 13,
-    fontSize: 22,
-    lineHeight: 24,
-    color: '#FFFFFF',
-    fontWeight: '400',
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '600',
+    fontFamily: APP_FONT,
   },
 
   dividerRow: {
-    marginVertical: 16,
+    marginVertical: 20,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -801,62 +624,112 @@ const styles = StyleSheet.create({
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: '#DFE8F4',
+    backgroundColor: '#E1EAF3',
   },
 
   orText: {
-    marginHorizontal: 15,
-    fontSize: 11,
-    lineHeight: 15,
-    color: '#8490A3',
-    fontWeight: '600',
-  },
-
-  googleButton: {
-    height: 49,
-    borderRadius: 15,
-    borderWidth: 1.2,
-    borderColor: '#DCE6F2',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  googleText: {
-    marginLeft: 13,
-    fontSize: 14,
-    lineHeight: 19,
-    color: '#071733',
+    marginHorizontal: 14,
+    color: '#8B98AA',
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '500',
+    fontFamily: APP_FONT,
   },
+
+  googleMarkText: {
+    color: '#4285F4',
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '600',
+    fontFamily: APP_FONT,
+  },
+
 
   signupRow: {
-    marginTop: 15,
+    marginTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   signupText: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#5D6A82',
+    color: '#66758C',
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: '400',
+    fontFamily: APP_FONT,
   },
 
-  // Increased padding to provide a much larger hit area on all platforms
-  signupLinkPressable: {
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    marginRight: -10, // Offset padding to keep visual alignment
+  signupPressable: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    marginLeft: 3,
+    borderRadius: 10,
   },
 
   signupLink: {
+    color: '#176BFF',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+    fontFamily: APP_FONT,
+  },
+
+  pressed: {
+    opacity: 0.72,
+  },
+    googleButton: {
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: '#D8E4F1',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  googleButtonPressed: {
+    backgroundColor: '#F8FAFC',
+  },
+
+  googleText: {
+    marginLeft: 12,
+    color: '#14213D',
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: '500',
+    fontFamily: APP_FONT,
+  },
+
+  loginRow: {
+    marginTop: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loginText: {
+    color: '#64748B',
     fontSize: 13,
     lineHeight: 18,
-    color: '#1069FF',
-    fontWeight: '700',
+    fontWeight: '400',
+    fontFamily: APP_FONT,
+  },
+
+  loginLinkButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    marginLeft: 2,
+    borderRadius: 10,
+  },
+
+  loginLink: {
+    color: '#176BFF',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    fontFamily: APP_FONT,
   },
 
   googleMark: {
