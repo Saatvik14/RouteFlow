@@ -1,9 +1,10 @@
 import { useAuth } from './../app/_layout';
 import { restoreAuthToken } from './../services/api';
 import { routesService } from './../services/api/routes';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { jwtDecode } from 'jwt-decode';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -48,15 +49,24 @@ type BackendRoute = {
   routeId?: string | number;
   name?: string;
   route_name?: string;
+  status?: string;
+  route_status?: string;
+  state?: string;
   start_datetime?: string;
   created_at?: string;
+  updated_at?: string;
   routeDate?: string;
 };
+
+type RouteStatusTone = 'blue' | 'green' | 'amber' | 'purple' | 'red' | 'slate';
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
 type RouteHistoryItem = {
   id: string;
   title: string;
   date: string;
+  statusLabel: string;
+  statusTone: RouteStatusTone;
 };
 
 const getUserFromToken = (token: string): SidebarUser => {
@@ -88,6 +98,39 @@ const formatRouteDate = (value?: string) => {
   });
 };
 
+const toTitleCase = (value: string) =>
+  value
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, char => char.toUpperCase());
+
+const getRouteStatusMeta = (status?: string): { label: string; tone: RouteStatusTone } => {
+  const normalized = String(status || 'draft').toLowerCase().trim();
+
+  if (['completed', 'complete', 'done', 'closed'].includes(normalized)) {
+    return { label: 'Completed', tone: 'green' };
+  }
+
+  if (['active', 'in_transit', 'in-transit', 'started', 'running'].includes(normalized)) {
+    return { label: normalized.includes('transit') ? 'In transit' : 'Active', tone: 'blue' };
+  }
+
+  if (['optimized', 'optimised', 'ready'].includes(normalized)) {
+    return { label: 'Optimized', tone: 'purple' };
+  }
+
+  if (['pending', 'new', 'created', 'scheduled'].includes(normalized)) {
+    return { label: toTitleCase(normalized), tone: 'amber' };
+  }
+
+  if (['failed', 'cancelled', 'canceled', 'error'].includes(normalized)) {
+    return { label: toTitleCase(normalized), tone: 'red' };
+  }
+
+  return { label: toTitleCase(normalized || 'Draft'), tone: 'slate' };
+};
+
 const normalizeRoutes = (response: any): RouteHistoryItem[] => {
   const list: BackendRoute[] = Array.isArray(response)
     ? response
@@ -96,16 +139,55 @@ const normalizeRoutes = (response: any): RouteHistoryItem[] => {
   if (!Array.isArray(list)) return [];
 
   return list.map((route, index) => {
-    const id = route.route_id ?? route.routeId ?? route.id ?? index;
-    const dateSource = route.start_datetime || route.routeDate || route.created_at;
+    const id = route.route_id ?? route.routeId ?? route.id ?? index + 1;
+    const dateSource = route.start_datetime || route.routeDate || route.created_at || route.updated_at;
+    const status = route.status || route.route_status || route.state;
+    const statusMeta = getRouteStatusMeta(status);
 
     return {
       id: String(id),
       title: route.name || route.route_name || `Route ${index + 1}`,
       date: formatRouteDate(dateSource),
+      statusLabel: statusMeta.label,
+      statusTone: statusMeta.tone,
     };
   });
 };
+
+
+function getStatusBadgeStyle(tone: RouteStatusTone) {
+  switch (tone) {
+    case 'blue':
+      return styles.statusBadge_blue;
+    case 'green':
+      return styles.statusBadge_green;
+    case 'amber':
+      return styles.statusBadge_amber;
+    case 'purple':
+      return styles.statusBadge_purple;
+    case 'red':
+      return styles.statusBadge_red;
+    default:
+      return styles.statusBadge_slate;
+  }
+}
+
+function getStatusTextStyle(tone: RouteStatusTone) {
+  switch (tone) {
+    case 'blue':
+      return styles.statusText_blue;
+    case 'green':
+      return styles.statusText_green;
+    case 'amber':
+      return styles.statusText_amber;
+    case 'purple':
+      return styles.statusText_purple;
+    case 'red':
+      return styles.statusText_red;
+    default:
+      return styles.statusText_slate;
+  }
+}
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
@@ -127,11 +209,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [routeError, setRouteError] = useState('');
 
   const sidebarWidth = useMemo(() => {
-    const mobileWidth = width * 0.92;
-    const webWidth = width * 0.32;
-    const calculatedWidth = width < 640 ? mobileWidth : webWidth;
+    if (width < 640) {
+      return Math.min(Math.max(width * 0.94, 320), 420);
+    }
 
-    return Math.min(Math.max(calculatedWidth, 292), 360);
+    return Math.min(Math.max(width * 0.3, 330), 390);
   }, [width]);
 
   useEffect(() => {
@@ -214,17 +296,57 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const renderQuickAction = (
-    icon: string,
+    icon: FeatherIconName,
     label: string,
     onPress: () => void,
   ) => (
     <Pressable style={styles.quickActionButton} onPress={onPress}>
-      <Text style={styles.quickActionIcon}>{icon}</Text>
+      <View style={styles.quickActionIconBox}>
+        <Feather name={icon} size={16} color="#334155" />
+      </View>
       <Text numberOfLines={1} style={styles.quickActionText}>
         {label}
       </Text>
     </Pressable>
   );
+
+  const renderRouteItem = (route: RouteHistoryItem) => {
+    const isActive = selectedRouteId === route.id;
+
+    return (
+      <Pressable
+        key={route.id}
+        style={[styles.routeItem, isActive && styles.activeRouteItem]}
+        onPress={() => handleRoutePress(route.id)}>
+        <View style={[styles.routeDatePill, isActive && styles.activeRouteDatePill]}>
+          <Text style={[styles.routeDate, isActive && styles.activeRouteDate]}>
+            {route.date || '--'}
+          </Text>
+        </View>
+
+        <View style={styles.routeInfoBox}>
+          <Text numberOfLines={1} style={[styles.routeTitle, isActive && styles.activeRouteTitle]}>
+            {route.title}
+          </Text>
+
+          <View style={styles.routeMetaRow}>
+            <Text numberOfLines={1} style={styles.routeIdText}>
+              ID #{route.id}
+            </Text>
+            <View style={[styles.statusBadge, getStatusBadgeStyle(route.statusTone)]}>
+              <Text style={[styles.statusBadgeText, getStatusTextStyle(route.statusTone)]}>
+                {route.statusLabel}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.routeMoreButton}>
+          <Feather name="more-vertical" size={18} color={isActive ? '#2563EB' : '#94A3B8'} />
+        </View>
+      </Pressable>
+    );
+  };
 
   return (
     <>
@@ -235,11 +357,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           styles.sidebar,
           {
             width: sidebarWidth,
-            paddingTop: insets.top + 16,
+            paddingTop: insets.top + 14,
             paddingBottom: Math.max(insets.bottom + 10, 18),
           },
         ]}>
-        <View style={styles.profileRow}>
+        <View style={styles.headerRow}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{user.initial}</Text>
           </View>
@@ -259,11 +381,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </Text>
             ) : null}
           </View>
+
+          <Pressable style={styles.closeButton} onPress={onClose} hitSlop={8}>
+            <Feather name="x" size={18} color="#64748B" />
+          </Pressable>
         </View>
 
         <View style={styles.planCard}>
           <View style={styles.planIconCircle}>
-            <Text style={styles.planIcon}>👤</Text>
+            <Feather name="user" size={17} color="#2563EB" />
           </View>
 
           <View style={styles.planTextBox}>
@@ -271,22 +397,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Text style={styles.planSubtitle}>No subscription</Text>
           </View>
 
-          <Text style={styles.planChevron}>⌄</Text>
+          <View style={styles.planRouteCountPill}>
+            <Text style={styles.planRouteCountText}>{routes.length} routes</Text>
+          </View>
         </View>
 
         <Pressable style={styles.subscribeButton}>
-          <Text style={styles.subscribeIcon}>⚡</Text>
-          <Text style={styles.subscribeText}>Subscribe</Text>
+          <View style={styles.subscribeIconBox}>
+            <MaterialCommunityIcons name="lightning-bolt" size={15} color="#F59E0B" />
+          </View>
+          <Text style={styles.subscribeText}>Upgrade subscription</Text>
         </Pressable>
 
         <View style={styles.quickActions}>
-          {renderQuickAction('⌂', 'Home', handleHome)}
-          {renderQuickAction('⚙', 'Settings', handleSettings)}
-          {renderQuickAction('?', 'Support', handleSupport)}
+          {renderQuickAction('home', 'Home', handleHome)}
+          {renderQuickAction('settings', 'Settings', handleSettings)}
+          {renderQuickAction('help-circle', 'Support', handleSupport)}
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Earlier this week</Text>
+          <View>
+            <Text style={styles.sectionEyebrow}>Routes</Text>
+            <Text style={styles.sectionTitle}>Recent activity</Text>
+          </View>
+          <Text style={styles.sectionCount}>{routes.length}</Text>
         </View>
 
         <ScrollView
@@ -301,52 +435,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           ) : null}
 
           {!isLoadingRoutes && routeError ? (
-            <Text style={styles.emptyText}>{routeError}</Text>
+            <View style={styles.emptyCard}>
+              <Feather name="alert-circle" size={19} color="#EF4444" />
+              <Text style={styles.emptyText}>{routeError}</Text>
+            </View>
           ) : null}
 
           {!isLoadingRoutes && !routeError && routes.length === 0 ? (
-            <Text style={styles.emptyText}>No routes created yet.</Text>
+            <View style={styles.emptyCard}>
+              <Feather name="map" size={19} color="#64748B" />
+              <Text style={styles.emptyText}>No routes created yet.</Text>
+            </View>
           ) : null}
 
-          {!isLoadingRoutes &&
-            routes.map((route) => (
-              <Pressable
-                key={route.id}
-                style={[
-                  styles.routeItem,
-                  selectedRouteId === route.id && styles.activeRouteItem,
-                ]}
-                onPress={() => handleRoutePress(route.id)}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.routeDate,
-                    selectedRouteId === route.id && styles.activeRouteDate,
-                  ]}>
-                  {route.date || '--'}
-                </Text>
-
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.routeTitle,
-                    selectedRouteId === route.id && styles.activeRouteTitle,
-                  ]}>
-                  {route.title}
-                </Text>
-
-                <Text style={styles.routeMore}>⋮</Text>
-              </Pressable>
-            ))}
+          {!isLoadingRoutes && routes.map(renderRouteItem)}
         </ScrollView>
 
         <View style={styles.footer}>
           <Pressable style={styles.createRouteButton} onPress={handleCreateRoute}>
-            <Text style={styles.createRouteIcon}>＋</Text>
+            <Feather name="plus" size={19} color="#FFFFFF" />
             <Text style={styles.createRouteText}>Create route</Text>
           </Pressable>
 
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
+            <Feather name="log-out" size={16} color="#64748B" />
             <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
         </View>
@@ -363,7 +475,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 200,
-    backgroundColor: 'rgba(15, 23, 42, 0.28)',
+    backgroundColor: 'rgba(15, 23, 42, 0.32)',
   },
 
   sidebar: {
@@ -373,39 +485,47 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 210,
     backgroundColor: '#FFFFFF',
-    borderTopRightRadius: 18,
-    borderBottomRightRadius: 18,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
     borderRightWidth: 1,
-    borderRightColor: '#E5EAF3',
-    elevation: 18,
+    borderRightColor: '#E7EDF6',
+    elevation: 20,
     shadowColor: '#0F172A',
     shadowOffset: {
-      width: 8,
+      width: 10,
       height: 0,
     },
-    shadowOpacity: 0.14,
-    shadowRadius: 22,
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
   },
 
-  profileRow: {
-    paddingHorizontal: 16,
+  headerRow: {
+    paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
   },
 
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#C9320A',
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#EA580C',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    shadowColor: '#EA580C',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 5,
   },
 
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 25,
+    fontSize: 24,
     lineHeight: 30,
     fontWeight: '600',
   },
@@ -417,15 +537,16 @@ const styles = StyleSheet.create({
 
   userName: {
     fontSize: 16,
-    lineHeight: 21,
+    lineHeight: 22,
     fontWeight: '600',
     color: '#111827',
+    letterSpacing: -0.2,
   },
 
   userEmail: {
     marginTop: 2,
-    fontSize: 12.5,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: '400',
     color: '#64748B',
   },
@@ -433,38 +554,45 @@ const styles = StyleSheet.create({
   userPhone: {
     marginTop: 2,
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 16,
     fontWeight: '400',
     color: '#64748B',
   },
 
-  planCard: {
-    marginTop: 24,
-    marginHorizontal: 14,
-    minHeight: 58,
-    borderRadius: 12,
+  closeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#DCE6F4',
+    borderColor: '#E5EAF3',
+    marginLeft: 8,
+  },
+
+  planCard: {
+    marginTop: 22,
+    marginHorizontal: 18,
+    minHeight: 62,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#DDE8F7',
     backgroundColor: '#F8FBFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
   },
 
   planIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E8F0FF',
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 11,
-  },
-
-  planIcon: {
-    fontSize: 16,
-    lineHeight: 20,
   },
 
   planTextBox: {
@@ -476,30 +604,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     fontWeight: '600',
-    color: '#2563EB',
+    color: '#1D4ED8',
   },
 
   planSubtitle: {
-    marginTop: 1,
-    fontSize: 12,
+    marginTop: 2,
+    fontSize: 12.5,
     lineHeight: 16,
     fontWeight: '400',
     color: '#64748B',
   },
 
-  planChevron: {
-    width: 20,
-    textAlign: 'right',
-    fontSize: 14,
-    lineHeight: 18,
-    color: '#94A3B8',
+  planRouteCountPill: {
+    minHeight: 26,
+    borderRadius: 13,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E1E8F2',
+  },
+
+  planRouteCountText: {
+    fontSize: 11.5,
+    lineHeight: 15,
+    fontWeight: '600',
+    color: '#64748B',
   },
 
   subscribeButton: {
-    height: 42,
-    marginTop: 14,
-    marginHorizontal: 14,
-    borderRadius: 10,
+    height: 44,
+    marginTop: 12,
+    marginHorizontal: 18,
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: '#DCE6F4',
     backgroundColor: '#FFFFFF',
@@ -508,64 +646,95 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
 
-  subscribeIcon: {
-    fontSize: 14,
-    lineHeight: 18,
-    marginRight: 7,
+  subscribeIconBox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF7ED',
+    marginRight: 8,
   },
 
   subscribeText: {
     fontSize: 14,
     lineHeight: 18,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#2563EB',
   },
 
   quickActions: {
     marginTop: 14,
-    marginHorizontal: 14,
+    marginHorizontal: 18,
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
   },
 
   quickActionButton: {
-    flex: 1,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: '#F4F7FC',
+    width: '31.5%',
+    minHeight: 56,
+    borderRadius: 16,
+    backgroundColor: '#F7FAFE',
     borderWidth: 1,
     borderColor: '#E1E8F2',
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
     paddingHorizontal: 6,
   },
 
-  quickActionIcon: {
-    fontSize: 13,
-    lineHeight: 17,
-    color: '#475569',
-    marginRight: 5,
+  quickActionIconBox: {
+    width: 26,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 3,
   },
 
   quickActionText: {
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 12.5,
+    lineHeight: 16,
     fontWeight: '600',
     color: '#334155',
   },
 
   sectionHeader: {
-    marginTop: 26,
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    marginTop: 24,
+    paddingHorizontal: 18,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+
+  sectionEyebrow: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
 
   sectionTitle: {
-    fontSize: 12.5,
-    lineHeight: 16,
+    marginTop: 2,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#1E293B',
+  },
+
+  sectionCount: {
+    minWidth: 28,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    color: '#2563EB',
+    backgroundColor: '#EEF6FF',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    overflow: 'hidden',
   },
 
   routeList: {
@@ -573,124 +742,252 @@ const styles = StyleSheet.create({
   },
 
   routeListContent: {
-    paddingHorizontal: 10,
-    paddingBottom: 14,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
   },
 
   routeItem: {
-    minHeight: 46,
-    borderRadius: 10,
+    minHeight: 70,
+    borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 9,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
   },
 
   activeRouteItem: {
-    backgroundColor: '#EEF6FF',
+    backgroundColor: '#EFF6FF',
+    borderColor: '#CFE2FF',
+  },
+
+  routeDatePill: {
+    width: 54,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E7EDF6',
+    marginRight: 11,
+  },
+
+  activeRouteDatePill: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#BFDBFE',
   },
 
   routeDate: {
-    width: 58,
-    fontSize: 12.5,
+    fontSize: 12,
     lineHeight: 16,
-    fontWeight: '500',
-    color: '#8A97AA',
+    fontWeight: '700',
+    color: '#64748B',
   },
 
   activeRouteDate: {
-    color: '#2563EB',
+    color: '#1D4ED8',
+  },
+
+  routeInfoBox: {
+    flex: 1,
+    minWidth: 0,
   },
 
   routeTitle: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 14,
+    fontSize: 14.5,
     lineHeight: 19,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#111827',
+    letterSpacing: -0.15,
   },
 
   activeRouteTitle: {
     color: '#1D4ED8',
-    fontWeight: '600',
   },
 
-  routeMore: {
-    width: 22,
-    textAlign: 'right',
-    fontSize: 22,
-    lineHeight: 22,
+  routeMetaRow: {
+    marginTop: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  routeIdText: {
+    fontSize: 11.5,
+    lineHeight: 15,
+    fontWeight: '600',
+    color: '#64748B',
+    marginRight: 7,
+  },
+
+  statusBadge: {
+    minHeight: 21,
+    borderRadius: 11,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+
+  statusBadgeText: {
+    fontSize: 10.5,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+
+  statusBadge_blue: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+
+  statusText_blue: {
     color: '#2563EB',
-    fontWeight: '500',
+  },
+
+  statusBadge_green: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#BBF7D0',
+  },
+
+  statusText_green: {
+    color: '#16A34A',
+  },
+
+  statusBadge_amber: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+
+  statusText_amber: {
+    color: '#D97706',
+  },
+
+  statusBadge_purple: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+  },
+
+  statusText_purple: {
+    color: '#7C3AED',
+  },
+
+  statusBadge_red: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+
+  statusText_red: {
+    color: '#DC2626',
+  },
+
+  statusBadge_slate: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+
+  statusText_slate: {
+    color: '#64748B',
+  },
+
+  routeMoreButton: {
+    width: 30,
+    height: 42,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    marginLeft: 6,
   },
 
   loadingBox: {
-    minHeight: 54,
+    minHeight: 72,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E7EDF6',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    marginBottom: 10,
   },
 
   loadingText: {
     marginLeft: 8,
-    fontSize: 12.5,
-    lineHeight: 17,
-    color: '#64748B',
-    fontWeight: '400',
-  },
-
-  emptyText: {
     fontSize: 13,
     lineHeight: 18,
     color: '#64748B',
-    paddingHorizontal: 8,
-    marginTop: 6,
+    fontWeight: '500',
+  },
+
+  emptyCard: {
+    minHeight: 68,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E7EDF6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+  },
+
+  emptyText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#64748B',
+    fontWeight: '500',
+    marginLeft: 8,
   },
 
   footer: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 18,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
+    backgroundColor: '#FFFFFF',
   },
 
   createRouteButton: {
-    height: 46,
-    borderRadius: 9,
+    height: 50,
+    borderRadius: 16,
     backgroundColor: '#2F76F6',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-  },
-
-  createRouteIcon: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    lineHeight: 19,
-    fontWeight: '600',
-    marginRight: 8,
+    shadowColor: '#2563EB',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
   },
 
   createRouteText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '600',
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '700',
+    marginLeft: 8,
   },
 
   logoutButton: {
-    height: 40,
-    borderRadius: 9,
+    height: 42,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     marginTop: 8,
   },
 
   logoutText: {
-    color: '#475569',
+    color: '#64748B',
     fontSize: 13.5,
     lineHeight: 18,
-    fontWeight: '500',
+    fontWeight: '600',
+    marginLeft: 7,
   },
 });

@@ -37,12 +37,14 @@ export function DraggableRouteSheet({
   mode = 'default',
   variant = 'default',
   initialSnap,
+  bottomSnapHeight,
 }: {
   children?: ReactNode;
   isWide: boolean;
   mode?: 'default' | 'large';
   variant?: 'default' | 'transit';
   initialSnap?: SheetSnapPoint;
+  bottomSnapHeight?: number;
 }) {
   const { height } = useWindowDimensions();
   const resolvedInitialSnap: SheetSnapPoint = initialSnap || (mode === 'large' ? 'top' : 'middle');
@@ -52,7 +54,9 @@ export function DraggableRouteSheet({
     const maxHeight = Math.max(260, height - topSafeGap);
 
     if (isWide) {
-      const bottom = Math.min(mode === 'large' ? 420 : 360, maxHeight);
+      const defaultBottom = mode === 'large' ? 420 : 360;
+      const requestedBottom = typeof bottomSnapHeight === 'number' ? bottomSnapHeight : defaultBottom;
+      const bottom = Math.min(Math.max(requestedBottom, 72), maxHeight);
       const middle = Math.min(mode === 'large' ? 620 : 540, maxHeight);
       const top = Math.min(mode === 'large' ? maxHeight : 760, maxHeight);
 
@@ -63,7 +67,9 @@ export function DraggableRouteSheet({
       };
     }
 
-    const bottom = Math.min(Math.max(height * 0.13, 112), maxHeight);
+    const defaultBottom = Math.max(height * 0.13, 112);
+    const requestedBottom = typeof bottomSnapHeight === 'number' ? bottomSnapHeight : defaultBottom;
+    const bottom = Math.min(Math.max(requestedBottom, 72), maxHeight);
     const middleRatio = mode === 'large' ? 0.58 : 0.5;
     const middle = Math.min(Math.max(height * middleRatio, bottom + 150), maxHeight);
     const top = maxHeight;
@@ -73,7 +79,7 @@ export function DraggableRouteSheet({
       middle: clamp(middle, bottom, top),
       top,
     };
-  }, [height, isWide, mode]);
+  }, [bottomSnapHeight, height, isWide, mode]);
 
   const initialHeight = getSnapHeight(sheetBounds, resolvedInitialSnap);
   const animatedHeight = useRef(new Animated.Value(initialHeight)).current;
