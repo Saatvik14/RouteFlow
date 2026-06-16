@@ -8,12 +8,13 @@ import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming, FadeIn, FadeOut } from 'react-native-reanimated';
+import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type SidebarProps = {
@@ -208,6 +209,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [routeError, setRouteError] = useState('');
 
+  const [mounted, setMounted] = useState(isOpen);
+  const translateX = useSharedValue(-450);
+  const opacity = useSharedValue(0);
+
+  // Action Panel State
+  const [menuRouteId, setMenuRouteId] = useState<string | null>(null);
+  const actionSheetTranslateY = useSharedValue(300);
+
   const sidebarWidth = useMemo(() => {
     if (width < 640) {
       return Math.min(Math.max(width * 0.94, 320), 420);
@@ -257,7 +266,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     loadSidebarData();
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      setMounted(true);
+      translateX.value = withTiming(0, { duration: 300 });
+      opacity.value = withTiming(1, { duration: 300 });
+    } else {
+      opacity.value = withTiming(0, { duration: 250 });
+      translateX.value = withTiming(-sidebarWidth, { duration: 300 }, (finished) => {
+        if (finished) {
+          runOnJS(setMounted)(false);
+        }
+      });
+    }
+  }, [isOpen, sidebarWidth]);
+
+  const animatedSidebarStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const animatedOverlayStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+
 
   const handleHome = () => {
     onClose();
@@ -277,6 +309,36 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const handleSupport = () => {
     onClose();
     router.push('/support' as never);
+  };
+
+  const openRouteMenu = (routeId: string) => {
+    setMenuRouteId(routeId);
+    actionSheetTranslateY.value = withTiming(0, { duration: 300 });
+  };
+
+  const closeRouteMenu = () => {
+    actionSheetTranslateY.value = withTiming(300, { duration: 250 }, (finished) => {
+      if (finished) runOnJS(setMenuRouteId)(null);
+    });
+  };
+
+  const performDelete = async () => {
+    if (!menuRouteId) return;
+    
+    try {
+      const response = await routesService.deleteRoute(menuRouteId);
+      if (response.success) {
+        setRoutes(prev => prev.filter(r => r.id !== menuRouteId));
+        if (selectedRouteId === menuRouteId) {
+          router.replace('/' as any);
+        }
+        closeRouteMenu();
+      } else {
+        setRouteError('Could not delete route');
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+    }
   };
 
   const handleRoutePress = (routeId: string) => {
@@ -341,20 +403,35 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </View>
         </View>
 
-        <View style={styles.routeMoreButton}>
+        <Pressable
+          style={styles.routeMoreButton}
+          hitSlop={12}
+          onPress={(e) => {
+            e.stopPropagation();
+            openRouteMenu(route.id);
+          }}>
           <Feather name="more-vertical" size={18} color={isActive ? '#2563EB' : '#94A3B8'} />
-        </View>
+        </Pressable>
       </Pressable>
     );
   };
 
+  const actionSheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: actionSheetTranslateY.value }],
+  }));
+
+  if (!mounted) return null;
+
   return (
     <>
-      <Pressable style={styles.overlay} onPress={onClose} />
+      <Animated.View style={[styles.overlay, animatedOverlayStyle]}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+      </Animated.View>
 
-      <View
+      <Animated.View
         style={[
           styles.sidebar,
+          animatedSidebarStyle,
           {
             width: sidebarWidth,
             paddingTop: insets.top + 14,
@@ -462,7 +539,36 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
         </View>
-      </View>
+
+        {/* Route Action Panel (Internal Action Sheet) */}
+        {menuRouteId && (
+          <>
+            <Animated.View 
+              entering={FadeIn.duration(200)} 
+              exiting={FadeOut.duration(200)}
+              style={styles.menuOverlay}
+            >
+              <Pressable style={{ flex: 1 }} onPress={closeRouteMenu} />
+            </Animated.View>
+            
+            <Animated.View style={[styles.actionSheet, actionSheetStyle]}>
+              <View style={styles.actionSheetHandle} />
+              <Text style={styles.actionSheetTitle}>Route Actions</Text>
+              
+              <Pressable style={styles.actionButton} onPress={performDelete}>
+                <View style={[styles.actionIconBox, { backgroundColor: '#FEF2F2' }]}>
+                  <Feather name="trash-2" size={18} color="#EF4444" />
+                </View>
+                <Text style={styles.actionButtonTextDanger}>Delete Route History</Text>
+              </Pressable>
+
+              <Pressable style={styles.actionCancelButton} onPress={closeRouteMenu}>
+                <Text style={styles.actionCancelText}>Cancel</Text>
+              </Pressable>
+            </Animated.View>
+          </>
+        )}
+      </Animated.View>
     </>
   );
 }
@@ -497,6 +603,89 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.16,
     shadowRadius: 24,
+  },
+
+  menuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
+    zIndex: 250,
+  },
+
+  actionSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    zIndex: 260,
+    elevation: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+
+  actionSheetTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+
+  actionIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+
+  actionButtonTextDanger: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+
+  actionCancelButton: {
+    marginTop: 12,
+    height: 50,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  actionCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748B',
   },
 
   headerRow: {
