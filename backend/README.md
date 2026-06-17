@@ -157,4 +157,3 @@ http://localhost:5000/api
 # Author
 
 Saatvik Rawat
-Vaibhav Garg

@@ -1,3 +1,4 @@
+import { useConfigStore } from '@/src/store/useConfigStore';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {

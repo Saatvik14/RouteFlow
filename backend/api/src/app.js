@@ -9,6 +9,7 @@ const { PORT } = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
 const routeRoutes = require('./routes/routeRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const configurationRoutes = require('./routes/configurationRoutes');
 
 const app = express();
 
@@ -49,5 +50,6 @@ app.get('/', (req, res) => {
 app.use('/users', authRoutes);
 app.use('/route', routeRoutes);
 app.use('/order', orderRoutes);
+app.use('/config', configurationRoutes);
 
 module.exports = app;

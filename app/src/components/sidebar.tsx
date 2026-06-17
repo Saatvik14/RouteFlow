@@ -16,6 +16,7 @@ import {
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming, FadeIn, FadeOut } from 'react-native-reanimated';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ROUTE_STATUS_IN_ARCHIVE } from '../app/(route-preview)/route-preview';
 
 type SidebarProps = {
   isOpen: boolean;
@@ -326,7 +327,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     if (!menuRouteId) return;
     
     try {
-      const response = await routesService.deleteRoute(menuRouteId);
+       const response = await routesService.updateRoute({
+         route_id: menuRouteId,
+         status: ROUTE_STATUS_IN_ARCHIVE
+       });
       if (response.success) {
         setRoutes(prev => prev.filter(r => r.id !== menuRouteId));
         if (selectedRouteId === menuRouteId) {

@@ -103,6 +103,10 @@ const ROUTE_STATUS_IN_TRANSIT =
 const ROUTE_STATUS_COMPLETED =
   (ROUTE_STATUS as Record<string, string>).COMPLETED || "completed";
 
+export const ROUTE_STATUS_IN_ARCHIVE =
+  (ROUTE_STATUS as Record<string, string>).COMPLETED || "archived";
+
+
 
 const ORDER_STATUS_DELIVERED = "delivered";
 const ORDER_STATUS_FAILED = "failed";

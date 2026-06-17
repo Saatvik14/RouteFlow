@@ -114,18 +114,10 @@ export const API_ENDPOINTS = {
   },
 
   // Search endpoints
-  SEARCH: {
-    SEARCH_ROUTES: '/search/routes',
-    SEARCH_USERS: '/search/users',
-    SEARCH_LOCATIONS: '/search/locations',
+  CONFIG: {
+    FETCH_CONFIG: '/config/fetch-config'
   },
 
-  // File upload endpoints
-  FILES: {
-    UPLOAD_IMAGE: '/files/upload/image',
-    UPLOAD_DOCUMENT: '/files/upload/document',
-    DELETE_FILE: (id: string) => `/files/${id}`,
-  },
 };
 
 /**

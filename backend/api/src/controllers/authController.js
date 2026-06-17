@@ -71,6 +71,14 @@ const signup = async (req, res) => {
 
     const newUser = newUserResult.rows[0];
 
+    // Create default configuration entry for the new user
+    await runQuery(
+      `INSERT INTO config_model (user_id)
+       VALUES ($1)
+       ON CONFLICT (user_id) DO NOTHING`,
+      [newUser.user_id]
+    );
+
     res.status(201).json({
       accessToken: generateAccessToken(newUser.user_id, newUser.email, newUser.role, newUser.name),
       refreshToken: generateRefreshToken(newUser.user_id),

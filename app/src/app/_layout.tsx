@@ -8,7 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from './../components/animated-icon';
-import { restoreAuthToken, setAuthToken } from './../services/api';
+import { fetchAndStoreConfig, restoreAuthToken, setAuthToken } from './../services/api';
 
 // Simple Auth Context for demonstration
 const AuthContext = createContext({
@@ -37,6 +37,7 @@ export default function RootLayout() {
         const token = await restoreAuthToken();
         if (token) {
           setIsLoggedIn(true);
+          await fetchAndStoreConfig();
         }
       } catch (err) {
         console.error('Failed to restore session', err);
@@ -51,8 +52,11 @@ export default function RootLayout() {
   const authContext = useMemo(() => ({
     isLoggedIn,
     isLoading,
-    login: () => setIsLoggedIn(true),
-    logout: async () => {
+    login: () => {
+      setIsLoggedIn(true);
+      fetchAndStoreConfig();
+    },
+      logout: async () => {
       await setAuthToken(null);
       setIsLoggedIn(false);
     },

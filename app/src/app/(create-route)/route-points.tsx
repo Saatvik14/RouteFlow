@@ -5,6 +5,7 @@ import { isTokenValid } from './../../services/auth/jwtUtils';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
+import { useConfigStore } from './../../store/useConfigStore';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
