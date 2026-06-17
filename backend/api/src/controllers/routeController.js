@@ -70,7 +70,8 @@ const createRoute = async (req, res) => {
     end_location, 
     start_datetime, // New: route start datetime
     end_datetime,   // New: route end datetime
-    status          // New: route status (optional)
+    status, // New: route status (optional)
+    saveAddressDefault
   } = req.body;
   const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
   if (!user_id) {
@@ -123,6 +124,18 @@ const createRoute = async (req, res) => {
       end_datetime,
       status || ROUTE_STATUS.PENDING // Default status
     ]);
+    // If saveAddressDefault is true, update the user's default addresses in config_model
+    if (saveAddressDefault) {
+      await runQuery(
+        `
+        UPDATE config_model
+        SET default_start_address = $1, default_end_address = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $3
+        `,
+        [startLocRes.rows[0].location_id, endLocRes.rows[0].location_id, user_id]
+      );
+    }
+
 
     res.status(201).json({
       message: 'Route created successfully',

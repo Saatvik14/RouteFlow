@@ -1,5 +1,5 @@
 import { useAuth } from './../_layout';
-import { restoreAuthToken } from './../../services/api';
+import { fetchAndStoreConfig, restoreAuthToken } from './../../services/api';
 import { routesService } from './../../services/api/routes';
 import { isTokenValid } from './../../services/auth/jwtUtils';
 import * as Location from 'expo-location';
@@ -88,14 +88,6 @@ function formatDisplayTime(date: Date) {
       hour12: true,
     })
     .toLowerCase();
-}
-
-function combineDateTime(dateISO: string, time: string) {
-  return {
-    date: dateISO,
-    time,
-    label: `${dateISO} ${time}`,
-  };
 }
 
 function getReadableAddress(address: Location.LocationGeocodedAddress | undefined) {
@@ -312,12 +304,6 @@ function buildLocationPayload(location: LocationValue | null) {
   };
 }
 
-function addDays(date: Date, days: number) {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-}
-
 function addMonths(date: Date, months: number) {
   const nextDate = new Date(date);
   nextDate.setMonth(nextDate.getMonth() + months);
@@ -446,11 +432,58 @@ export default function RoutePointsScreen() {
     [params.carryPastStops]
   );
 
+  const defaultStartAddress = useConfigStore(
+    (state) => state.config?.defaultStartAddress
+  );
+
+      const defaultEndAddress = useConfigStore(
+    (state) => state.config?.defaultEndAddress
+  );
+
+  useEffect(() => {
+    if (defaultStartAddress) {
+      setStartLocation({
+        mode: 'manual_address',
+        address: defaultStartAddress.fullAddress || defaultStartAddress.name || '',
+        latitude: defaultStartAddress.latitude || null,
+        longitude: defaultStartAddress.longitude || null,
+        selectedFromSuggestion: true,
+        details: {
+          ...emptyAddressDetails(),
+          placeId: String(defaultStartAddress.locationId),
+          addressLine1: defaultStartAddress.name || '',
+          latitude: defaultStartAddress.latitude || null,
+          longitude: defaultStartAddress.longitude || null,
+        },
+      });
+    }
+  }, [defaultStartAddress]);
+
+  useEffect(() => {
+    if (defaultEndAddress) {
+      setEndMode('other_address');
+      setEndLocation({
+        mode: 'manual_address',
+        address: defaultEndAddress.fullAddress || defaultEndAddress.name || '',
+        latitude: defaultEndAddress.latitude || null,
+        longitude: defaultEndAddress.longitude || null,
+        selectedFromSuggestion: true,
+        details: {
+          ...emptyAddressDetails(),
+          placeId: String(defaultEndAddress.locationId),
+          addressLine1: defaultEndAddress.name || '',
+          latitude: defaultEndAddress.latitude || null,
+          longitude: defaultEndAddress.longitude || null,
+        },
+      });
+    }
+  }, [defaultEndAddress]);
+
   const initialDate = useMemo(() => buildDateFromISO(routeDate), [routeDate]);
 
   const [startLocation, setStartLocation] = useState<LocationValue>({
     mode: 'current_location',
-    address: 'Use current location',
+    address: '',
     latitude: null,
     longitude: null,
     selectedFromSuggestion: false,
@@ -498,9 +531,6 @@ export default function RoutePointsScreen() {
         : Boolean(endLocation.address.trim());
 
   const canSubmit = isStartValid && isEndValid && !isSubmitting;
-
-  const startDateTime = combineDateTime(toISODate(startDate), startTime);
-  const endDateTime = combineDateTime(toISODate(endDate), endTime);
 
   const endTitle = useMemo(() => {
     if (endMode === 'round_trip') return 'Round trip';
@@ -674,8 +704,7 @@ export default function RoutePointsScreen() {
   routeDateLabel,
   carryPastStops,
   end_mode: endMode,
-  default: saveAsDefault,
-  isDefault: saveAsDefault,
+  saveAddressDefault: saveAsDefault,
 };
   };
 
@@ -696,7 +725,8 @@ export default function RoutePointsScreen() {
       const responseData = response.data;
       console.log('Route created successfully:', responseData);
 
-
+      await fetchAndStoreConfig();
+      
       router.push({
         pathname: '/route-preview',
         params: {
