@@ -1,11 +1,12 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const { runQuery } = require('../config/db');
 const { 
   JWT_ACCESS_SECRET, 
   JWT_REFRESH_SECRET, 
   JWT_ACCESS_EXPIRES_IN, 
-  JWT_REFRESH_EXPIRES_IN 
+  JWT_REFRESH_EXPIRES_IN,
 } = require('../config/env');
 
 // Helper functions to generate tokens
@@ -189,4 +190,128 @@ const checkHealth = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, refresh, checkHealth };
+// --- Email OTP Logic ---
+
+// Function to generate a random 6-digit numeric OTP
+const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Transporter configuration for Google SMTP
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: process.env.GOOGLE_SMTP_USER,
+      pass: process.env.GOOGLE_SMTP_PASS,
+    },
+  });
+};
+
+// @desc    Send OTP email
+// @route   POST /auth/send-otp
+// @access  Public
+const sendOtpEmail = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required.' });
+  }
+
+  if (!process.env.GOOGLE_SMTP_USER || !process.env.GOOGLE_SMTP_PASS) {
+    console.error('SMTP credentials not set in environment variables.');
+    return res.status(500).json({ message: 'Server email configuration error.' });
+  }
+
+  try {
+    const otp = generateOTP();
+    const transporter = createTransporter();
+
+    // Calculate expiration time (5 minutes from now)
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Securely hash the OTP before storing it
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otp, salt);
+
+    // Timely cleanup: Delete expired records globally and old records for this specific user
+    await runQuery('DELETE FROM otps WHERE expires_at < NOW() OR email = $1', [email]);
+
+    // Store hashed OTP in the database
+    await runQuery(
+      `INSERT INTO otps (email, otp_code, expires_at, is_used)
+       VALUES ($1, $2, $3, FALSE)`,
+      [email, hashedOtp, expiresAt]
+    );
+
+    console.log(`Hashed OTP stored safely for ${email} in database, expires at ${expiresAt.toISOString()}`);
+
+    // Send email
+    const mailOptions = {
+      from: `"RouteFlow Team" <${process.env.GOOGLE_SMTP_USER}>`,
+      to: email,
+      subject: `${otp} is your RouteFlow verification code`,
+      text: `Hello,\n\nYour One-Time Password (OTP) is: ${otp}\n\nThis code is valid for a limited time. Please do not share it with anyone.\n\nRegards,\nRouteFlow Team`,
+      html: `
+        <p>Hello,</p>
+        <p>Your One-Time Password (OTP) is: <strong>${otp}</strong></p>
+        <p>This OTP is valid for a limited time. Please do not share it with anyone.</p>
+        <p>Regards,<br>RouteFlow Team</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({
+      message: 'OTP email sent successfully.'
+    });
+  } catch (error) {
+    console.error('Error sending OTP email:', error);
+    res.status(500).json({ message: 'Failed to send OTP email.' });
+  }
+};
+
+// @desc    Verify OTP
+// @route   POST /auth/verify-otp
+// @access  Public
+const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ message: 'Email and OTP are required.' });
+  }
+
+  try {
+    // Retrieve the latest active OTP for this email
+    const result = await runQuery(
+      `SELECT id, otp_code, expires_at FROM otps 
+       WHERE email = $1 AND is_used = FALSE AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ message: 'Invalid email or OTP has expired.' });
+    }
+
+    const storedOtpData = result.rows[0];
+
+    // Validate the incoming OTP against the cryptographic hash stored in the database
+    const isMatch = await bcrypt.compare(otp, storedOtpData.otp_code);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid OTP.' });
+    }
+
+    // Invalidate the record to prevent replay attacks
+    await runQuery('UPDATE otps SET is_used = TRUE WHERE id = $1', [storedOtpData.id]);
+
+    res.status(200).json({ message: 'OTP verified successfully.' });
+  } catch (error) {
+    console.error('Database error during OTP verification:', error);
+    return res.status(500).json({ message: 'Server error during OTP verification.' });
+  }
+};
+
+module.exports = { signup, login, refresh, checkHealth, sendOtpEmail, verifyOtp };

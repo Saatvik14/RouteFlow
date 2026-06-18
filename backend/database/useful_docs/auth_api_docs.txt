@@ -93,3 +93,46 @@ HTTP STATUS CODES:
 401: Unauthorized (Invalid credentials or missing/expired access token)
 403: Forbidden (Invalid/Expired refresh token)
 500: Server Error
+
+-------------------------------------------------------------------------------
+5. SEND OTP API
+-------------------------------------------------------------------------------
+Endpoint: POST /auth/send-otp
+Access: Public
+Description: Sends a One-Time Password (OTP) to the provided email address.
+             The OTP is valid for 5 minutes.
+
+Request Body (JSON):
+{
+  "email": "user@example.com"
+}
+
+CURL command:
+curl -X POST http://localhost:5000/auth/send-otp \
+     -H "Content-Type: application/json" \
+     -d "{\"email\": \"test@example.com\"}"
+
+-------------------------------------------------------------------------------
+6. VERIFY OTP API
+-------------------------------------------------------------------------------
+Endpoint: POST /auth/verify-otp
+Access: Public
+Description: Verifies the provided OTP against the email address.
+             If successful, the OTP is marked as used or deleted to prevent replay attacks.
+
+Request Body (JSON):
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+
+CURL command:
+curl -X POST http://localhost:5000/auth/verify-otp \
+     -H "Content-Type: application/json" \
+     -d "{\"email\": \"test@example.com\", \"otp\": \"123456\"}"
+
+-------------------------------------------------------------------------------
+HTTP STATUS CODES:
+200/201: Success
+400: Bad Request (Validation failure, invalid/expired/used OTP)
+500: Server Error

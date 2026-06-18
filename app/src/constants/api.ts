@@ -50,11 +50,10 @@ function getDevelopmentBaseUrl() {
   return `http://${normalizedHost}:${BACKEND_PORT}`;
 }
 
-const BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  (__DEV__
-    ? getDevelopmentBaseUrl()
-    : 'https://api.yourdomain.com');
+// Default backend host (use your Render URL)
+const DEFAULT_BACKEND_URL = 'https://routeflow-t4to.onrender.com';
+
+const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_BACKEND_URL;
 
 export const API_CONFIG = {
   BASE_URL,
@@ -71,6 +70,8 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/users/login',
     SIGNUP: '/users/signup',
+    SEND_OTP: '/users/send-otp',
+    VERIFY_OTP: '/users/verify-otp',
     LOGOUT: '/auth/logout',
     REFRESH_TOKEN: '/refresh',
     FORGOT_PASSWORD: '/auth/forgot-password',

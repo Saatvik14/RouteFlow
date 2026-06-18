@@ -40,6 +40,21 @@ export interface SignupRequest {
 }
 
 /**
+ * Send OTP request
+ */
+export interface SendOtpRequest {
+  email: string;
+}
+
+/**
+ * Verify OTP request
+ */
+export interface VerifyOtpRequest {
+  email: string;
+  otp: string;
+}
+
+/**
  * Password reset request
  */
 export interface PasswordResetRequest {
@@ -69,6 +84,18 @@ export const authService = {
    */
   signup: (data: SignupRequest) =>
     apiPost<LoginResponse>(API_ENDPOINTS.AUTH.SIGNUP, data),
+
+  /**
+   * Send OTP to email
+   */
+  sendOtp: (data: SendOtpRequest) =>
+    apiPost(API_ENDPOINTS.AUTH.SEND_OTP, data),
+
+  /**
+   * Verify OTP for email
+   */
+  verifyOtp: (data: VerifyOtpRequest) =>
+    apiPost(API_ENDPOINTS.AUTH.VERIFY_OTP, data),
 
   /**
    * Logout user

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -47,6 +48,14 @@ export default function SignupScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // OTP States
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState(''); // New state for OTP modal errors
+
   const { height, width } = useWindowDimensions();
   const router = useRouter();
   const { login } = useAuth();
@@ -78,13 +87,86 @@ export default function SignupScreen() {
     }
 
     setError('');
-    setLoading(true);
 
+    // Require OTP verification tied to the exact email address
+    if (!(otpVerified && verifiedEmail === trimmedEmail)) {
+      await handleSendOtp(trimmedEmail);
+      return;
+    }
+
+    await executeSignup();
+  };
+
+  const handleSendOtp = async (targetEmail: string, isResend = false) => {
+    // Clear previous errors and OTP input before attempting to send OTP
+    setError(''); // Clear main form error
+    setOtpError(''); // Clear OTP modal error
+    setOtp(''); // Clear OTP input field
+
+    setLoading(true);
+    try {
+      const response = await authService.sendOtp({ email: targetEmail });
+
+      if (response.success) {
+        setShowOtpModal(true);
+        if (isResend) {
+          setOtpError('New OTP sent to your email.'); // Success message for resend
+        }
+      } else {
+        const errorMessage = response.error || response.message || 'Failed to send verification code.';
+        if (isResend) {
+          setOtpError(errorMessage); // Show error in modal for resend
+        } else {
+          setError(errorMessage); // Show error on main form for initial send
+        }
+      }
+    } catch (err) {
+      const networkErrorMessage = 'Network error. Please try again.';
+      if (isResend) {
+        setOtpError(networkErrorMessage);
+      } else {
+        setError(networkErrorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otp.length !== 6) {
+      setOtpError('Please enter a 6-digit OTP.'); // Set OTP specific error
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError(''); // Clear previous OTP errors
+    try {
+      const response = await authService.verifyOtp({ email: email.trim(), otp });
+
+      if (response.success) {
+        setOtpVerified(true);
+        setVerifiedEmail(email.trim());
+        setShowOtpModal(false);
+        setOtpError(''); // Clear OTP error on success
+        // Proceed to final signup now that it's verified
+        await executeSignup();
+      } else {
+        const errorMessage = response.error || response.message || 'Invalid OTP code.';
+        setOtpError(errorMessage); // Set OTP specific error
+      }
+    } catch (err) {
+      setOtpError('Verification failed. Please try again.'); // Set OTP specific error
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const executeSignup = async () => {
+    setLoading(true);
     try {
       const response = await authService.signup({
-        name: trimmedName,
-        email: trimmedEmail,
-        phone_no: trimmedPhone,
+        name: name.trim(),
+        email: email.trim(),
+        phone_no: phone.trim(),
         password,
         role: 'DRIVER',
       });
@@ -175,7 +257,14 @@ export default function SignupScreen() {
               <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
                 <TextInput
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(val) => {
+                    setEmail(val);
+                    // If the user changes the email, clear OTP verification for safety
+                    if (val.trim() !== verifiedEmail) {
+                      setOtpVerified(false);
+                      setOtpError('');
+                    }
+                  }}
                   placeholder="Enter your email"
                   placeholderTextColor="#98A6BA"
                   keyboardType="email-address"
@@ -293,6 +382,76 @@ export default function SignupScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showOtpModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowOtpModal(false);
+          setOtpError(''); // Clear OTP error when modal is closed
+          setOtp(''); // Clear OTP input when modal is closed
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Pressable
+              onPress={() => {
+                setShowOtpModal(false);
+                setOtpError(''); // Clear any OTP errors
+                setOtp(''); // Clear OTP input
+              }}
+              hitSlop={10}
+              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </Pressable>
+            <Text style={styles.modalTitle}>Verify Email</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter the 6-digit code sent to{"\n"}
+              <Text style={{ fontWeight: '600', color: '#17243B' }}>{email.trim()}</Text>
+            </Text>
+
+            <Text style={styles.modalHelper}>
+              Please check your Spam or Junk folder if you don't see the email.
+            </Text>
+
+            {otpError ? <Text style={styles.otpErrorText}>{otpError}</Text> : null}
+
+            <View style={styles.otpInputBox}>
+              <TextInput
+                value={otp}
+                onChangeText={setOtp}
+                placeholder="000000"
+                placeholderTextColor="#98A6BA"
+                keyboardType="number-pad"
+                maxLength={6}
+                style={styles.otpInput}
+                autoFocus
+              />
+            </View>
+
+            <Pressable
+              onPress={handleVerifyOtp}
+              disabled={otpLoading || otp.length < 6}
+              style={[styles.primaryButton, (otpLoading || otp.length < 6) && styles.buttonDisabled, { width: '100%' }]}
+            >
+              {otpLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Verify & Create Account</Text>
+              )}
+            </Pressable>
+
+            <Pressable 
+              onPress={() => handleSendOtp(email.trim(), true)} // Pass true for isResend
+              style={styles.resendButton}
+            >
+              <Text style={styles.resendText}>Resend Code</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -803,5 +962,103 @@ const styles = StyleSheet.create({
 
   pressed: {
     opacity: 0.72,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(11, 24, 48, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0B1830',
+    marginBottom: 8,
+    fontFamily: APP_FONT,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: '#66758C',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+    fontFamily: APP_FONT,
+  },
+  modalHelper: {
+    fontSize: 13,
+    color: '#66758C',
+    textAlign: 'center',
+    marginBottom: 12,
+    fontFamily: APP_FONT,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    color: '#64748B',
+    fontSize: 18,
+    fontWeight: '600',
+    fontFamily: APP_FONT,
+  },
+  otpInputBox: {
+    width: '100%',
+    height: 60,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: '#D9E3EF',
+    backgroundColor: '#FBFDFF',
+    marginBottom: 20,
+    justifyContent: 'center',
+  },
+  otpInput: {
+    fontSize: 28,
+    textAlign: 'center',
+    letterSpacing: 8,
+    color: '#176BFF',
+    fontWeight: '700',
+    fontFamily: APP_FONT,
+  },
+  resendButton: {
+    marginTop: 20,
+    padding: 10,
+  },
+  resendText: {
+    color: '#176BFF',
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: APP_FONT,
+  },
+  otpErrorText: {
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 13,
+    backgroundColor: '#FEF2F2',
+    color: '#DC2626',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+    fontFamily: APP_FONT,
   },
 });
