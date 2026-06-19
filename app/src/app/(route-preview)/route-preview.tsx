@@ -29,7 +29,8 @@ type PanelMode =
   | "details"
   | "setup"
   | "confirmed"
-  | "transit";
+  | "transit"
+  | "add";
 
 type RouteStatus = string;
 
@@ -44,12 +45,12 @@ type PlaceSuggestion = {
   longitude: number;
 };
 
-type StopDetails = {
-  packages: number;
-  order: "first" | "auto" | "last";
-  stopType: "delivery" | "pickup";
-  notes: string;
-};
+// type StopDetails = {
+//   packages: number;
+//   order: "first" | "auto" | "last";
+//   stopType: "delivery" | "pickup";
+//   notes: string;
+// };
 
 type RouteStop = RoutePoint & {
   id: string;
@@ -84,7 +85,7 @@ const DEFAULT_POINT: RoutePoint = {
   description: "Delhi",
 };
 
-const DEFAULT_STOP_DETAILS: StopDetails = {
+const DEFAULT_STOP_DETAILS: any = {
   packages: 1,
   order: "auto",
   stopType: "delivery",
@@ -905,7 +906,7 @@ function buildOrderPayload({
   routeId: string;
   sequence: number;
   suggestion: PlaceSuggestion;
-  details: StopDetails;
+  details: any;
 }) {
   const location = {
     mode: "manual_address",
@@ -931,7 +932,6 @@ function buildOrderPayload({
   return {
     route_id: routeId,
     sequence,
-    stopSequence: sequence,
     location,
     address: suggestion.fullAddress,
     title: suggestion.title,
@@ -941,7 +941,6 @@ function buildOrderPayload({
     packages: details.packages,
     order: details.order,
     stopType: details.stopType,
-    stop_type: details.stopType,
     notes: details.notes,
     status: ROUTE_STATUS.PENDING,
   };
@@ -988,6 +987,30 @@ function buildStopFromSavedOrder(savedOrder: any, fallbackStop: RouteStop): Rout
       "delivery",
     notes: savedOrder.notes || savedOrder.note || fallbackStop.notes || "",
     status: savedOrder.status,
+  };
+}
+
+function buildSuggestionFromStop(stop: RouteStop): PlaceSuggestion {
+  const title = String(stop.title || stop.address || "Stop location");
+  const subtitle = String(stop.description || stop.address || "Address details not available");
+  const fullAddress = String(stop.address || stop.description || stop.title || "");
+
+  return {
+    id: String(stop.backendOrderId || stop.orderId || stop.id),
+    title,
+    subtitle,
+    fullAddress,
+    latitude: stop.latitude,
+    longitude: stop.longitude,
+  };
+}
+
+function buildStopDetailsFromStop(stop: RouteStop) {
+  return {
+    packages: Number(stop.packages || 1),
+    order: stop.order || "auto",
+    stopType: stop.stopType || "delivery",
+    notes: stop.notes || "",
   };
 }
 
@@ -1117,7 +1140,8 @@ export default function RoutePreviewScreen() {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] =
     useState<PlaceSuggestion | null>(null);
-  const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
+  const [selectedStop, setSelectedStop] = useState<RouteStop | null>(null);
+  const [stopDetails, setStopDetails] = useState<any>(DEFAULT_STOP_DETAILS);
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
 
   const mapRoute = useMemo(() => {
@@ -1247,6 +1271,7 @@ export default function RoutePreviewScreen() {
     setSearchText("");
     setSuggestions([]);
     setSelectedSuggestion(null);
+    setSelectedStop(null);
     setPanelMode("search");
   };
 
@@ -1254,17 +1279,85 @@ export default function RoutePreviewScreen() {
     setSearchText("");
     setSuggestions([]);
     setSelectedSuggestion(null);
+    setSelectedStop(null);
     setPanelMode(getPanelModeFromStatus(routeStatus, route?.stops?.length || 0));
   };
 
   const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
     setSelectedSuggestion(suggestion);
-    setStopDetails(DEFAULT_STOP_DETAILS);
+    setSelectedStop(null);
+    setStopDetails({ ...DEFAULT_STOP_DETAILS });
+    setPanelMode("details");
+  };
+
+  const handleOpenStopDetails = (stop: RouteStop) => {
+    setSelectedStop(stop);
+    setSelectedSuggestion(buildSuggestionFromStop(stop));
+    setStopDetails(buildStopDetailsFromStop(stop));
+    setSearchText("");
+    setSuggestions([]);
     setPanelMode("details");
   };
 
   const handleConfirmStopDetails = async () => {
     if (!route || !selectedSuggestion || isAddingStop) return;
+
+    if (selectedStop) {
+      const selectedStopKey = getStopIdentity(selectedStop);
+      const orderId = getStopBackendId(selectedStop);
+
+      if (!orderId) {
+        setErrorMessage("Order id is missing. Unable to update stop.");
+        return;
+      }
+
+      setIsAddingStop(true);
+      setErrorMessage("");
+
+      try {
+        const response = await ordersService.editOrder({
+          order_id: orderId,
+          packages: stopDetails.packages,
+          order: stopDetails.order,
+          stopType: stopDetails.stopType,
+          stop_type: stopDetails.stopType,
+          notes: stopDetails.notes,
+        });
+
+        if (!isSuccessResponse(response)) {
+          throw new Error(getResponseErrorMessage(response, "Unable to update stop."));
+        }
+
+        const nextStops = route.stops.map((stop: RouteStop) =>
+          getStopIdentity(stop) === selectedStopKey
+            ? {
+                ...stop,
+                packages: Number(stopDetails.packages || 1),
+                order: stopDetails.order || "auto",
+                stopType: stopDetails.stopType || "delivery",
+                notes: stopDetails.notes || "",
+              }
+            : stop,
+        );
+
+        setRoute({
+          ...route,
+          stops: nextStops,
+        });
+        setSelectedStop(null);
+        setSelectedSuggestion(null);
+        setStopDetails({ ...DEFAULT_STOP_DETAILS });
+        setPanelMode(getPanelModeFromStatus(routeStatus, nextStops.length));
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to update stop.",
+        );
+      } finally {
+        setIsAddingStop(false);
+      }
+
+      return;
+    }
 
     if (!routeId) {
       setErrorMessage("Route id is missing. Unable to add stop.");
@@ -1317,10 +1410,11 @@ export default function RoutePreviewScreen() {
       };
 
       setRoute(nextRoute);
+      setSelectedStop(null);
       setSelectedSuggestion(null);
       setSearchText("");
       setSuggestions([]);
-      setStopDetails(DEFAULT_STOP_DETAILS);
+      setStopDetails({ ...DEFAULT_STOP_DETAILS });
       setPanelMode("setup");
       setCenterSignal((prev) => prev + 1);
     } catch (error) {
@@ -1331,6 +1425,7 @@ export default function RoutePreviewScreen() {
       setIsAddingStop(false);
     }
   };
+
 
 
   const handleOptimizeRoute = async () => {
@@ -1636,7 +1731,7 @@ const handleMarkStopFailed = () => {
   return handleUpdateActiveStopStatus(ORDER_STATUS_FAILED);
 };
 
-const resolvedPanelMode = useMemo(() => {
+const resolvedPanelMode:any = useMemo(() => {
   if (isInTransitStatus(routeStatus) || isStatus(routeStatus, ROUTE_STATUS_COMPLETED)) {
     return "transit" as PanelMode;
   }
@@ -1752,6 +1847,9 @@ const handleCreateNewRoute = () => {
   onOpenSearch={handleOpenSearch}
   onCloseSearch={handleCloseSearch}
   onSelectSuggestion={handleSelectSuggestion}
+  onSelectStop={handleOpenStopDetails}
+  onOpenStopDetails={handleOpenStopDetails}
+  onStopPress={handleOpenStopDetails}
   onStopDetailsChange={setStopDetails}
   onConfirmStopDetails={handleConfirmStopDetails}
   onOptimizeRoute={handleOptimizeRoute}

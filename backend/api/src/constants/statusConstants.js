@@ -3,6 +3,7 @@ const ROUTE_STATUS = {
   OPTIMIZED: 'optimized',
   IN_TRANSIT: 'in_transit',
   COMPLETED: 'completed',
+  
   CANCELLED: 'cancelled',
   ARCHIVED: 'archived',
 };
