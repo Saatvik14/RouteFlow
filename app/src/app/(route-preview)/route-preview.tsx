@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ROUTE_STATUS } from "./../../constants/api";
 import { ordersService } from "./../../services/api/orders";
 import { routesService } from "./../../services/api/routes";
+import { MaterialIcons } from "@expo/vector-icons";
 
 import MapScreen, {
   type ConfirmedRoute,
@@ -1773,22 +1774,23 @@ const handleCreateNewRoute = () => {
         style={[
           styles.mapControls,
           {
-            top: insets.top + 132,
+            top: insets.top + 16,
           },
         ]}
       >
-        <Pressable
-          style={styles.mapControlButton}
-          onPress={handleToggleMapType}
-        >
-          <Text style={styles.mapControlIcon}>▱</Text>
+        <Pressable style={styles.mapControlButton} onPress={handleToggleMapType}>
+          <MaterialIcons
+            name={mapType === "satellite" ? "satellite" : "map"}
+            size={26}
+            color="#2F76F6"
+          />
         </Pressable>
 
         <Pressable
           style={styles.mapControlButton}
           onPress={() => setCenterSignal((prev) => prev + 1)}
         >
-          <Text style={styles.mapControlIcon}>⌖</Text>
+          <MaterialIcons name="my-location" size={26} color="#2F76F6" />
         </Pressable>
       </View>
 

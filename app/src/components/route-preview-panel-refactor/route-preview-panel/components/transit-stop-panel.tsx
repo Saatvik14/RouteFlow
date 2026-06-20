@@ -105,7 +105,7 @@ export function TransitStopPanel({
           >
             <MaterialCommunityIcons
               name="navigation-variant"
-              size={35}
+              size={26}
               color="#FFFFFF"
             />
 

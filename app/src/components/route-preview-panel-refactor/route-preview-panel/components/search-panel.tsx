@@ -21,8 +21,6 @@ export function SearchPanel({
       >
       <View style={styles.searchHeader}>
         <View style={[styles.searchInputBox, styles.searchFocused]}>
-          <Text style={styles.searchIcon}>⌕</Text>
-
           <TextInput
             value={searchText}
             onChangeText={onSearchTextChange}
@@ -46,8 +44,8 @@ export function SearchPanel({
             </Pressable>
           ) : (
             <>
-              <Text style={styles.searchSideIcon}>⌗</Text>
-              <Text style={styles.searchSideIcon}>🎙</Text>
+              {/* <Text style={styles.searchSideIcon}>⌗</Text>
+              <Text style={styles.searchSideIcon}>🎙</Text> */}
             </>
           )}
         </View>
@@ -66,11 +64,11 @@ export function SearchPanel({
             </Text>
           </View>
 
-          <View style={styles.quickActions}>
+          {/* <View style={styles.quickActions}>
             <QuickAction icon="▱" label="Map" />
             <QuickAction icon="⌗" label="Scan" />
             <QuickAction icon="🎙" label="Voice" />
-          </View>
+          </View> */}
         </>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>

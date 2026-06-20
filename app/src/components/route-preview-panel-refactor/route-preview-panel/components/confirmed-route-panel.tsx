@@ -93,7 +93,9 @@ export function ConfirmedRoutePanel({
 
       <ScrollView
         style={styles.previewScroll}
-        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
         contentContainerStyle={[
           styles.previewScrollContent,
           { paddingBottom: Math.max(insets.bottom + 104, 118) },
