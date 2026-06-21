@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Animated, PanResponder, Platform, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../styles';
@@ -86,16 +86,6 @@ export function DraggableRouteSheet({
   const gestureStartHeight = useRef(initialHeight);
   const currentHeightRef = useRef(initialHeight);
   const currentSnapRef = useRef<SheetSnapPoint>(resolvedInitialSnap);
-  const [zIndex, setZIndex] = useState<number>(() => {
-    switch (resolvedInitialSnap) {
-      case 'top':
-        return 200;
-      case 'middle':
-        return 150;
-      default:
-        return 90;
-    }
-  });
 
   const snapToHeight = useCallback(
     (nextHeight: number, animated = true) => {
@@ -104,19 +94,6 @@ export function DraggableRouteSheet({
 
       currentSnapRef.current = snapPoint;
       currentHeightRef.current = nextSnapHeight;
-
-      // Update zIndex so expanded/top sheets appear above other sheets
-      switch (snapPoint) {
-        case 'top':
-          setZIndex(200);
-          break;
-        case 'middle':
-          setZIndex(150);
-          break;
-        default:
-          setZIndex(90);
-          break;
-      }
 
       if (!animated) {
         animatedHeight.stopAnimation();
@@ -148,18 +125,6 @@ export function DraggableRouteSheet({
     const nextHeight = getSnapHeight(sheetBounds, currentSnapRef.current || resolvedInitialSnap);
     currentHeightRef.current = nextHeight;
     animatedHeight.setValue(nextHeight);
-    // ensure zIndex follows initial snap on mount/update
-    switch (currentSnapRef.current || resolvedInitialSnap) {
-      case 'top':
-        setZIndex(200);
-        break;
-      case 'middle':
-        setZIndex(150);
-        break;
-      default:
-        setZIndex(90);
-        break;
-    }
   }, [animatedHeight, resolvedInitialSnap, sheetBounds]);
 
   const panResponder = useMemo(
@@ -184,15 +149,6 @@ export function DraggableRouteSheet({
         },
 
         onPanResponderRelease: (_, gestureState) => {
-          // If the sheet is currently at the top snap and the user drags downward,
-          // don't allow it to collapse further — snap back to top. This prevents
-          // the panel from being dragged completely off-screen unintentionally.
-          if (currentSnapRef.current === 'top' && gestureState.dy > 0) {
-            const topHeight = getSnapHeight(sheetBounds, 'top');
-            snapToHeight(topHeight);
-            return;
-          }
-
           // Project the release position a little in the swipe direction so a quick flick
           // feels natural, then settle to one of the 3 fixed points: bottom / middle / top.
           const projectedHeight = gestureStartHeight.current - gestureState.dy - gestureState.vy * 140;
@@ -200,12 +156,6 @@ export function DraggableRouteSheet({
         },
 
         onPanResponderTerminate: (_, gestureState) => {
-          if (currentSnapRef.current === 'top' && gestureState.dy > 0) {
-            const topHeight = getSnapHeight(sheetBounds, 'top');
-            snapToHeight(topHeight);
-            return;
-          }
-
           const projectedHeight = gestureStartHeight.current - gestureState.dy - gestureState.vy * 140;
           snapToHeight(projectedHeight);
         },
@@ -219,7 +169,7 @@ export function DraggableRouteSheet({
         styles.draggableSheet,
         isWide && styles.draggableSheetWeb,
         variant === 'transit' && isWide && styles.draggableTransitSheetWeb,
-        { height: animatedHeight, overflow: 'hidden', zIndex },
+        { height: animatedHeight, overflow: 'hidden' },
       ]}
     >
       <View

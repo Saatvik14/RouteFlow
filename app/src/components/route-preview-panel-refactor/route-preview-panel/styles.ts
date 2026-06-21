@@ -411,20 +411,20 @@ export const styles = StyleSheet.create({
 
   transitActionsRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
+    gap: 14,
+    marginBottom: 26,
   },
 
   transitActionCard: {
     flex: 1,
-    minHeight: 84,
+    minHeight: 108,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#D8E0EC',
     backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
 
   transitNavigateCard: {
@@ -433,10 +433,10 @@ export const styles = StyleSheet.create({
   },
 
   transitActionText: {
-    marginTop: 6,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '600',
+    marginTop: 7,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: '500',
     color: '#111827',
     textAlign: 'center',
   },
@@ -446,8 +446,8 @@ export const styles = StyleSheet.create({
   },
 
   packageActionIconWrap: {
-    width: 34,
-    height: 34,
+    width: 40,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -816,9 +816,6 @@ export const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
     padding: 14,
-  },
-  stopsList: {
-    maxHeight: 360,
   },
   sectionTitleRow: {
     minHeight: 30,

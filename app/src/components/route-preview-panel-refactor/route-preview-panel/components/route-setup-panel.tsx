@@ -264,6 +264,7 @@ export function RouteSetupPanel({
   return (
     <DraggableRouteSheet isWide={isWide} initialSnap="middle">
       <View style={[localStyles.panel, isWide && localStyles.panelWeb]}>
+        <View style={localStyles.dragHandle} />
 
         <HeaderSearchBar onOpenSearch={onOpenSearch} />
 

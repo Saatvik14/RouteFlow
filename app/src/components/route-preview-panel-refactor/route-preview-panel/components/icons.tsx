@@ -40,7 +40,7 @@ export function PackageActionIcon({ type }: { type: 'failed' | 'delivered' }) {
     <View style={styles.packageActionIconWrap}>
       <MaterialCommunityIcons
         name="package-variant-closed"
-        size={24}
+        size={31}
         color="#475569"
       />
 
