@@ -300,7 +300,8 @@ const editRoute = async (req, res) => {
     status,
     distance,
     duration,
-    end_mode 
+    end_mode,
+    is_active
   } = req.body;
 
   const user_id = req.user?.user_id;
@@ -328,6 +329,7 @@ const editRoute = async (req, res) => {
     addField('distance', distance);
     addField('duration', duration);
     addField('end_mode', end_mode);
+    addField('is_active', is_active);
 
     const insertLocQuery = `
       INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
