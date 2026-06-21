@@ -19,6 +19,7 @@ import MapScreen, {
   type RouteMapType,
   type RoutePoint,
 } from "../../components/maps/RouteMap";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { RoutePanel } from "./../../components/route-panel";
 import { RoutePreviewPanel } from "./../../components/route-preview-panel-refactor/route-preview-panel";
 import { Sidebar } from "./../../components/sidebar";
@@ -1773,7 +1774,7 @@ const handleCreateNewRoute = () => {
         style={[
           styles.mapControls,
           {
-            top: insets.top + 132,
+            top: insets.top + 16,
           },
         ]}
       >
@@ -1781,14 +1782,18 @@ const handleCreateNewRoute = () => {
           style={styles.mapControlButton}
           onPress={handleToggleMapType}
         >
-          <Text style={styles.mapControlIcon}>▱</Text>
+          <MaterialCommunityIcons
+            name={mapType === 'standard' ? 'map' : 'satellite'}
+            size={22}
+            color="#2F76F6"
+          />
         </Pressable>
 
         <Pressable
           style={styles.mapControlButton}
           onPress={() => setCenterSignal((prev) => prev + 1)}
         >
-          <Text style={styles.mapControlIcon}>⌖</Text>
+          <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#2F76F6" />
         </Pressable>
       </View>
 
