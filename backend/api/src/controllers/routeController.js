@@ -163,7 +163,7 @@ const fetchAllRoutes = async (req, res) => {
   const user_id = req.user?.user_id;
 
   try {
-    const result = await runQuery('SELECT * FROM routes WHERE user_id = $1 ORDER BY created_at DESC', [user_id]);
+    const result = await runQuery('SELECT * FROM routes WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC', [user_id]);
     res.status(200).json(result.rows);
   } catch (error) {
     res.status(500).json({ message: 'Server error while fetching routes' });

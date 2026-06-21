@@ -12,3 +12,5 @@ CREATE TABLE IF NOT EXISTS routes (
     
     CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+
+ALTER TABLE routes add is_active boolean default true;

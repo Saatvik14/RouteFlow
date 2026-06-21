@@ -329,7 +329,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     try {
        const response = await routesService.updateRoute({
          route_id: menuRouteId,
-         status: ROUTE_STATUS_IN_ARCHIVE
+         is_active: false, 
        });
       if (response.success) {
         setRoutes(prev => prev.filter(r => r.id !== menuRouteId));
