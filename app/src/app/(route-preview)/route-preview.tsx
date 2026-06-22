@@ -13,6 +13,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ROUTE_STATUS } from "./../../constants/api";
 import { ordersService } from "./../../services/api/orders";
 import { routesService } from "./../../services/api/routes";
+import { Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+
+import {
+  getStopAddress,
+  getStopLatLng,
+  getStopOrderId,
+  getStopTitle,
+  saveNavigationSession,
+} from '../../services/navigation-session';
 
 import MapScreen, {
   type ConfirmedRoute,
@@ -1144,6 +1154,7 @@ export default function RoutePreviewScreen() {
   const [selectedStop, setSelectedStop] = useState<RouteStop | null>(null);
   const [stopDetails, setStopDetails] = useState<any>(DEFAULT_STOP_DETAILS);
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
+  const router = useRouter();
 
   const mapRoute = useMemo(() => {
     if (!route) return null;
@@ -1649,17 +1660,55 @@ const handleStartRoute = async () => {
   }
 };
 
+// const handleNavigateActiveStop = async () => {
+//   const activeStop = activeStopInfo.stop;
+
+//   if (!activeStop) return;
+
+//   try {
+//     await Linking.openURL(getMapsNavigationUrl(activeStop));
+//   } catch {
+//     setErrorMessage("Unable to open navigation.");
+//   }
+// };
+
+
 const handleNavigateActiveStop = async () => {
-  const activeStop = activeStopInfo.stop;
+  const stop = activeStopInfo.stop;
 
-  if (!activeStop) return;
-
-  try {
-    await Linking.openURL(getMapsNavigationUrl(activeStop));
-  } catch {
-    setErrorMessage("Unable to open navigation.");
+  if (!stop) {
+    Alert.alert('No active stop', 'There is no stop available for navigation.');
+    return;
   }
+
+  const coordinate = getStopLatLng(stop);
+  console.log('Navigating to stop:', stop, 'Coordinate:', coordinate);
+
+  if (!coordinate) {
+    Alert.alert(
+      'Location missing',
+      'This stop does not have valid latitude and longitude.',
+    );
+    return;
+  }
+
+  await saveNavigationSession({
+    routeName: 'Active route',
+    activeStopIndex: 0,
+    totalStops: 1,
+    destination: {
+      id: stop.id,
+      title: getStopTitle(stop, 'Current stop'),
+      address: getStopAddress(stop),
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      orderId: getStopOrderId(stop, 'A1'),
+    },
+  });
+
+  router.push('/navigation' as any);
 };
+
 
 const handleUpdateActiveStopStatus = async (nextStatus: string) => {
   if (!route || isUpdatingStopStatus) return;

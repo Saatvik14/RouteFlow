@@ -67,6 +67,47 @@ const distanceMeters = (a: LatLng, b: LatLng) => {
   return 2 * earthRadius * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 };
 
+
+const getRoutePreviewNearOrigin = (
+  coordinates: LatLng[],
+  origin: LatLng,
+  maxMeters = 3500,
+) => {
+  if (coordinates.length <= 2) return coordinates;
+
+  let nearestIndex = 0;
+  let nearestDistance = Infinity;
+
+  coordinates.forEach((point, index) => {
+    const distance = distanceMeters(origin, point);
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+
+  const preview: LatLng[] = [origin];
+
+  let travelled = 0;
+
+  for (let index = nearestIndex; index < coordinates.length - 1; index += 1) {
+    const current = coordinates[index];
+    const next = coordinates[index + 1];
+
+    preview.push(current);
+
+    travelled += distanceMeters(current, next);
+
+    if (travelled >= maxMeters) {
+      preview.push(next);
+      break;
+    }
+  }
+
+  return preview.length > 1 ? preview : coordinates.slice(0, 20);
+};
+
 const formatDistance = (meters: number) => {
   if (!Number.isFinite(meters)) return '--';
 
@@ -190,8 +231,15 @@ export default function NavigationScreen() {
   const [remainingDistance, setRemainingDistance] = useState(0);
   const [remainingDuration, setRemainingDuration] = useState(0);
   const [isLoadingRoute, setIsLoadingRoute] = useState(true);
+  const stepsRef = useRef<RouteStep[]>([]);
+    const isFetchingRouteRef = useRef(false);
+    const lastRouteFetchAtRef = useRef(0);
+    const hasFittedInitialRouteRef = useRef(false);
 
   const destination = session?.destination;
+  useEffect(() => {
+  stepsRef.current = steps;
+}, [steps]);
 
   const activeInstruction = useMemo(() => {
     return buildInstruction(steps[currentStepIndex]);
@@ -214,91 +262,216 @@ export default function NavigationScreen() {
     );
   }, []);
 
-  const fetchRoute = useCallback(
-    async (origin: LatLng) => {
-      if (!destination) return;
+//   const fetchRoute = useCallback(
+//     async (origin: LatLng) => {
+//       if (!destination) return;
 
-      try {
+//       try {
+//         setIsLoadingRoute(true);
+
+//         const url =
+//           `https://router.project-osrm.org/route/v1/driving/` +
+//           `${origin.longitude},${origin.latitude};` +
+//           `${destination.longitude},${destination.latitude}` +
+//           `?overview=full&geometries=geojson&steps=true`;
+
+//         const response = await fetch(url);
+//         const data = await response.json();
+
+//         const route = data?.routes?.[0];
+
+//         if (!route) {
+//           throw new Error('No route found');
+//         }
+
+//         const coordinates: LatLng[] = route.geometry.coordinates.map(
+//           ([longitude, latitude]: [number, number]) => ({
+//             latitude,
+//             longitude,
+//           }),
+//         );
+
+//         const nextSteps: RouteStep[] = route.legs?.[0]?.steps || [];
+
+//         setRouteCoordinates(coordinates);
+//         setSteps(nextSteps);
+//         setCurrentStepIndex(0);
+//         currentStepIndexRef.current = 0;
+
+//         setRemainingDistance(route.distance || 0);
+//         setRemainingDuration(route.duration || 0);
+
+//         lastRouteOriginRef.current = origin;
+
+//         setTimeout(() => {
+//           if (coordinates.length > 1) {
+//             mapRef.current?.fitToCoordinates(coordinates, {
+//               animated: true,
+//               edgePadding: {
+//                 top: 210,
+//                 right: 60,
+//                 bottom: 230,
+//                 left: 60,
+//               },
+//             });
+//           }
+//         }, 250);
+//       } catch (error) {
+//         console.log('Navigation route error:', error);
+//         Alert.alert('Route error', 'Unable to create navigation route.');
+//       } finally {
+//         setIsLoadingRoute(false);
+//       }
+//     },
+//     [destination],
+//   );
+
+const fetchRoute = useCallback(
+  async (
+    origin: LatLng,
+    options?: {
+      silent?: boolean;
+      fitMap?: boolean;
+      force?: boolean;
+    },
+  ) => {
+    if (!destination) return;
+
+    const now = Date.now();
+
+    // Prevent repeated route calls
+    if (isFetchingRouteRef.current) return;
+
+    // Do not refetch route too frequently unless force is true
+    if (!options?.force && now - lastRouteFetchAtRef.current < 45000) {
+      return;
+    }
+
+    try {
+      isFetchingRouteRef.current = true;
+      lastRouteFetchAtRef.current = now;
+
+      if (!options?.silent) {
         setIsLoadingRoute(true);
+      }
 
-        const url =
-          `https://router.project-osrm.org/route/v1/driving/` +
-          `${origin.longitude},${origin.latitude};` +
-          `${destination.longitude},${destination.latitude}` +
-          `?overview=full&geometries=geojson&steps=true`;
+      const url =
+        `https://router.project-osrm.org/route/v1/driving/` +
+        `${origin.longitude},${origin.latitude};` +
+        `${destination.longitude},${destination.latitude}` +
+        `?overview=full&geometries=geojson&steps=true`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+      const response = await fetch(url);
+      const data = await response.json();
 
-        const route = data?.routes?.[0];
+      const route = data?.routes?.[0];
 
-        if (!route) {
-          throw new Error('No route found');
-        }
+      if (!route) {
+        throw new Error('No route found');
+      }
 
-        const coordinates: LatLng[] = route.geometry.coordinates.map(
-          ([longitude, latitude]: [number, number]) => ({
-            latitude,
-            longitude,
-          }),
-        );
+      const coordinates: LatLng[] = route.geometry.coordinates.map(
+        ([longitude, latitude]: [number, number]) => ({
+          latitude,
+          longitude,
+        }),
+      );
 
-        const nextSteps: RouteStep[] = route.legs?.[0]?.steps || [];
+      const nextSteps: RouteStep[] = route.legs?.[0]?.steps || [];
 
-        setRouteCoordinates(coordinates);
-        setSteps(nextSteps);
+      setRouteCoordinates(coordinates);
+      setSteps(nextSteps);
+
+      // Only reset instruction when route is created first time / forced
+      if (options?.force || currentStepIndexRef.current === 0) {
         setCurrentStepIndex(0);
         currentStepIndexRef.current = 0;
+      }
 
-        setRemainingDistance(route.distance || 0);
-        setRemainingDuration(route.duration || 0);
+      setRemainingDistance(route.distance || 0);
+      setRemainingDuration(route.duration || 0);
 
-        lastRouteOriginRef.current = origin;
+      lastRouteOriginRef.current = origin;
 
-        setTimeout(() => {
-          if (coordinates.length > 1) {
-            mapRef.current?.fitToCoordinates(coordinates, {
-              animated: true,
-              edgePadding: {
-                top: 210,
-                right: 60,
-                bottom: 230,
-                left: 60,
-              },
-            });
-          }
-        }, 250);
-      } catch (error) {
-        console.log('Navigation route error:', error);
-        Alert.alert('Route error', 'Unable to create navigation route.');
-      } finally {
+if (options?.fitMap && !hasFittedInitialRouteRef.current) {
+  hasFittedInitialRouteRef.current = true;
+
+  const nearbyRoute = getRoutePreviewNearOrigin(coordinates, origin, 3500);
+
+  setTimeout(() => {
+    if (nearbyRoute.length > 1) {
+      mapRef.current?.fitToCoordinates(nearbyRoute, {
+        animated: true,
+        edgePadding: {
+          top: 210,
+          right: 70,
+          bottom: 260,
+          left: 70,
+        },
+      });
+    } else {
+      moveCameraToUser(origin, 0);
+    }
+  }, 250);
+}
+    } catch (error) {
+      console.log('Navigation route error:', error);
+    } finally {
+      isFetchingRouteRef.current = false;
+
+      if (!options?.silent) {
         setIsLoadingRoute(false);
       }
-    },
-    [destination],
-  );
+    }
+  },
+  [destination],
+);
 
-  const updateStepProgress = useCallback(
-    (location: LatLng) => {
-      const nextStep = steps[currentStepIndexRef.current + 1];
+// const updateStepProgress = useCallback(
+//     (location: LatLng) => {
+//       const nextStep = steps[currentStepIndexRef.current + 1];
 
-      if (!nextStep?.maneuver?.location) return;
+//       if (!nextStep?.maneuver?.location) return;
 
-      const [longitude, latitude] = nextStep.maneuver.location;
+//       const [longitude, latitude] = nextStep.maneuver.location;
 
-      const distanceToNextStep = distanceMeters(location, {
-        latitude,
-        longitude,
-      });
+//       const distanceToNextStep = distanceMeters(location, {
+//         latitude,
+//         longitude,
+//       });
 
-      if (distanceToNextStep < 35) {
-        const nextIndex = currentStepIndexRef.current + 1;
-        currentStepIndexRef.current = nextIndex;
-        setCurrentStepIndex(nextIndex);
-      }
-    },
-    [steps],
-  );
+//       if (distanceToNextStep < 35) {
+//         const nextIndex = currentStepIndexRef.current + 1;
+//         currentStepIndexRef.current = nextIndex;
+//         setCurrentStepIndex(nextIndex);
+//       }
+//     },
+//     [steps],
+//   );
+
+
+const updateStepProgress = useCallback((location: LatLng) => {
+  const currentSteps = stepsRef.current;
+  const nextStep = currentSteps[currentStepIndexRef.current + 1];
+
+  if (!nextStep?.maneuver?.location) return;
+
+  const [longitude, latitude] = nextStep.maneuver.location;
+
+  const distanceToNextStep = distanceMeters(location, {
+    latitude,
+    longitude,
+  });
+
+  if (distanceToNextStep < 35) {
+    const nextIndex = currentStepIndexRef.current + 1;
+
+    if (nextIndex < currentSteps.length) {
+      currentStepIndexRef.current = nextIndex;
+      setCurrentStepIndex(nextIndex);
+    }
+  }
+}, []);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -346,34 +519,70 @@ export default function NavigationScreen() {
 
       setCurrentLocation(origin);
       moveCameraToUser(origin, firstLocation.coords.heading || 0);
-      fetchRoute(origin);
+    //   fetchRoute(origin);
+    //     watchRef.current = await Location.watchPositionAsync(
+    //     {
+    //       accuracy: Location.Accuracy.High,
+    //       distanceInterval: 8,
+    //       timeInterval: 2500,
+    //     },
+    //     location => {
+    //       const nextLocation = {
+    //         latitude: location.coords.latitude,
+    //         longitude: location.coords.longitude,
+    //       };
 
-      watchRef.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 8,
-          timeInterval: 2500,
-        },
-        location => {
-          const nextLocation = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          };
+    //       setCurrentLocation(nextLocation);
+    //       moveCameraToUser(nextLocation, location.coords.heading || 0);
+    //       updateStepProgress(nextLocation);
 
-          setCurrentLocation(nextLocation);
-          moveCameraToUser(nextLocation, location.coords.heading || 0);
-          updateStepProgress(nextLocation);
+    //       const lastRouteOrigin = lastRouteOriginRef.current;
 
-          const lastRouteOrigin = lastRouteOriginRef.current;
+    //       if (
+    //         !lastRouteOrigin ||
+    //         distanceMeters(lastRouteOrigin, nextLocation) > 45
+    //       ) {
+    //         fetchRoute(nextLocation);
+    //       }
+    //     },
+    //   );
+fetchRoute(origin, {
+  force: true,
+  fitMap: true,
+});
 
-          if (
-            !lastRouteOrigin ||
-            distanceMeters(lastRouteOrigin, nextLocation) > 45
-          ) {
-            fetchRoute(nextLocation);
-          }
-        },
-      );
+watchRef.current = await Location.watchPositionAsync(
+  {
+    accuracy: Location.Accuracy.Balanced,
+    distanceInterval: 20,
+    timeInterval: 5000,
+  },
+  location => {
+    const nextLocation = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    };
+
+    setCurrentLocation(nextLocation);
+    moveCameraToUser(nextLocation, location.coords.heading || 0);
+    updateStepProgress(nextLocation);
+
+    const lastRouteOrigin = lastRouteOriginRef.current;
+
+    // Re-route only if user has moved far away from original route origin.
+    // This prevents "Building route..." again and again.
+    if (
+      lastRouteOrigin &&
+      distanceMeters(lastRouteOrigin, nextLocation) > 250
+    ) {
+      fetchRoute(nextLocation, {
+        silent: true,
+        fitMap: false,
+      });
+    }
+  },
+);
+  
     };
 
     startNavigation();
@@ -384,11 +593,11 @@ export default function NavigationScreen() {
       watchRef.current = null;
     };
   }, [
-    destination,
-    fetchRoute,
-    moveCameraToUser,
-    router,
-    updateStepProgress,
+    destination
+    // fetchRoute,
+    // moveCameraToUser,
+    // router,
+    // updateStepProgress,
   ]);
 
   const closeNavigation = () => {
@@ -419,7 +628,7 @@ export default function NavigationScreen() {
           <Polyline
             coordinates={routeCoordinates}
             strokeColor="#2563EB"
-            strokeWidth={7}
+            strokeWidth={8}
             lineCap="round"
             lineJoin="round"
           />
