@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -1660,54 +1661,69 @@ const handleStartRoute = async () => {
   }
 };
 
-// const handleNavigateActiveStop = async () => {
-//   const activeStop = activeStopInfo.stop;
+const handleNavigateActiveStop = async () => {
+  const activeStop = activeStopInfo.stop;
 
-//   if (!activeStop) return;
+  if (!activeStop) return;
+
+  try {
+    await Linking.openURL(getMapsNavigationUrl(activeStop));
+  } catch {
+    setErrorMessage("Unable to open navigation.");
+  }
+};
+
+
+// const handleNavigateActiveStop = async () => {
+//   const stop = activeStopInfo.stop;
+
+//   if (!stop) {
+//     Alert.alert('No active stop', 'There is no stop available for navigation.');
+//     return;
+//   }
+
+//   const coordinate = getStopLatLng(stop);
+
+//   if (!coordinate) {
+//     Alert.alert(
+//       'Location missing',
+//       'This stop does not have valid latitude and longitude.',
+//     );
+//     return;
+//   }
 
 //   try {
-//     await Linking.openURL(getMapsNavigationUrl(activeStop));
-//   } catch {
-//     setErrorMessage("Unable to open navigation.");
+//     // WEB: open Google Maps navigation in a new tab/link
+//     if (Platform.OS === 'web') {
+//       const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${coordinate.latitude},${coordinate.longitude}&travelmode=driving`;
+
+//       await Linking.openURL(googleMapsUrl);
+//       return;
+//     }
+//     else{
+
+//     // MOBILE: use embedded in-app navigation screen
+//     await saveNavigationSession({
+//       routeName: 'Active route',
+//       activeStopIndex: activeStopInfo.index ?? 0,
+//       totalStops: stops.length || 1,
+//       destination: {
+//         id: stop.id,
+//         title: getStopTitle(stop, 'Current stop'),
+//         address: getStopAddress(stop),
+//         latitude: coordinate.latitude,
+//         longitude: coordinate.longitude,
+//         orderId: getStopOrderId(stop, 'A1'),
+//       },
+//     });
+
+//     router.push('/navigation' as any);
+//   }
+//   } catch (error) {
+//     console.log('Navigation error:', error);
+//     Alert.alert('Navigation failed', 'Unable to start navigation.');
 //   }
 // };
-
-
-const handleNavigateActiveStop = async () => {
-  const stop = activeStopInfo.stop;
-
-  if (!stop) {
-    Alert.alert('No active stop', 'There is no stop available for navigation.');
-    return;
-  }
-
-  const coordinate = getStopLatLng(stop);
-  console.log('Navigating to stop:', stop, 'Coordinate:', coordinate);
-
-  if (!coordinate) {
-    Alert.alert(
-      'Location missing',
-      'This stop does not have valid latitude and longitude.',
-    );
-    return;
-  }
-
-  await saveNavigationSession({
-    routeName: 'Active route',
-    activeStopIndex: 0,
-    totalStops: 1,
-    destination: {
-      id: stop.id,
-      title: getStopTitle(stop, 'Current stop'),
-      address: getStopAddress(stop),
-      latitude: coordinate.latitude,
-      longitude: coordinate.longitude,
-      orderId: getStopOrderId(stop, 'A1'),
-    },
-  });
-
-  router.push('/navigation' as any);
-};
 
 
 const handleUpdateActiveStopStatus = async (nextStatus: string) => {
