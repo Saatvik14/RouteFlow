@@ -238,3 +238,33 @@ export const apiBatch = async <T = any>(
     };
   }
 };
+
+
+export async function apiPostMultipart<T = any>(
+  endpoint: string,
+  formData: FormData
+): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
+
+  const token = await getAuthToken?.();
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+
+      // IMPORTANT:
+      // Do not set Content-Type here.
+      // Browser / React Native will set multipart boundary automatically.
+    },
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || 'Upload failed');
+  }
+
+  return data as T;
+}

@@ -4,7 +4,7 @@
  */
 
 import { API_ENDPOINTS } from '../../constants/api';
-import { apiDelete, apiGet, apiPost, apiPut } from './client';
+import { apiDelete, apiGet, apiPost, apiPut, apiPostMultipart } from './client';
 
 /**
  * Route/Map Route data
@@ -123,4 +123,15 @@ export const routesService = {
   optimizeRoute: (routeId: any) =>
     apiPost<any>(API_ENDPOINTS.ROUTES.OPTIMIZE, {"route_id": routeId}),
 
+  scanAddressImage: (formData: FormData) =>
+  apiPostMultipart('/route/address/scan', formData),
+
+  scanRouteManifestImage: (formData: FormData) =>
+    apiPostMultipart('/route/manifest/scan', formData),
+
+  importRouteManifest: (formData: FormData) =>
+    apiPostMultipart('/route/manifest/import', formData),
+
+  resolveAddressText: (text: string) =>
+    apiPost('/route/address/resolve', { text }),
 };

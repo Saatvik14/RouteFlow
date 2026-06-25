@@ -51,5 +51,6 @@ app.use('/users', authRoutes);
 app.use('/route', routeRoutes);
 app.use('/order', orderRoutes);
 app.use('/config', configurationRoutes);
+app.use('/route', require('./routes/routeManifestRoutes'));
 
 module.exports = app;
