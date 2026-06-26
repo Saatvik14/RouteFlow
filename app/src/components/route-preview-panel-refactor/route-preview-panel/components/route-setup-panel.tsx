@@ -1,8 +1,10 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
+import { Feather } from '@expo/vector-icons';
 
 type StopLike = {
   id?: string | number;
@@ -33,15 +35,7 @@ type StopLike = {
 
 type RouteSetupPanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
-
-  /**
-   * Pass any one of these from route-preview.
-   * Example:
-   * onSelectStop={(stop) => {
-   *   setSelectedStop(stop);
-   *   setActivePanel('stopDetails');
-   * }}
-   */
+  onCancelRoute?: () => void;
   onSelectStop?: (stop: StopLike, index: number) => void;
   onOpenStopDetails?: (stop: StopLike, index: number) => void;
   onStopPress?: (stop: StopLike, index: number) => void;
@@ -87,14 +81,29 @@ function splitAddress(address?: string) {
   };
 }
 
+function joinUniqueAddressParts(parts: Array<string | undefined>) {
+  const seen = new Set<string>();
+
+  return parts
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .filter((part) => {
+      const key = part.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(', ');
+}
+
 function getStopText(stop: StopLike) {
   const rawAddress =
-    stop.address ||
     stop.full_address ||
     stop.fullAddress ||
-    stop.location?.address ||
+    stop.address ||
     stop.location?.full_address ||
-    stop.location?.fullAddress;
+    stop.location?.fullAddress ||
+    stop.location?.address;
 
   const parsed = splitAddress(rawAddress);
 
@@ -106,18 +115,19 @@ function getStopText(stop: StopLike) {
     parsed?.title ||
     'Stop location';
 
-  const subtitleParts = [
+  const builtFullAddress = joinUniqueAddressParts([
+    rawAddress,
     stop.description,
     stop.subtitle,
-    parsed?.subtitle,
     stop.street || stop.location?.street,
     stop.city || stop.location?.city,
     stop.postcode || stop.postalCode || stop.location?.postcode || stop.location?.postalCode,
-  ]
-    .filter(Boolean)
-    .map(String);
+  ]);
 
-  const subtitle = subtitleParts[0] || 'Address details not available';
+  const subtitle =
+    builtFullAddress && builtFullAddress.toLowerCase() !== title.toLowerCase()
+      ? builtFullAddress
+      : parsed?.subtitle || 'Address details not available';
 
   return { title, subtitle };
 }
@@ -125,10 +135,6 @@ function getStopText(stop: StopLike) {
 function HeaderSearchBar({ onOpenSearch }: { onOpenSearch?: () => void }) {
   return (
     <View style={localStyles.searchHeaderRow}>
-      <Pressable style={localStyles.menuButton} hitSlop={10}>
-        <Text style={localStyles.menuIcon}>☰</Text>
-      </Pressable>
-
       <Pressable style={localStyles.searchBox} onPress={onOpenSearch}>
         <Text style={localStyles.searchIcon}>⌕</Text>
 
@@ -188,7 +194,8 @@ function RouteSetupRow({
         <Text style={localStyles.setupTitle} numberOfLines={1}>
           {title}
         </Text>
-        <Text style={localStyles.setupSubtitle} numberOfLines={2}>
+
+        <Text style={localStyles.setupSubtitle} numberOfLines={3}>
           {subtitle}
         </Text>
       </View>
@@ -196,6 +203,34 @@ function RouteSetupRow({
       <View style={localStyles.setupIconBox}>
         <Text style={localStyles.setupIcon}>{icon}</Text>
       </View>
+    </View>
+  );
+}
+
+function BreakToggleRow() {
+  const [breakEnabled, setBreakEnabled] = useState(false);
+
+  return (
+    <View style={localStyles.breakRow}>
+      <View style={localStyles.timelineCol}>
+        <View style={localStyles.timelineDot} />
+      </View>
+
+      <View style={localStyles.breakTextBox}>
+        <Text style={localStyles.setupTitle}>Add break</Text>
+        <Text style={localStyles.setupSubtitle}>
+          {breakEnabled ? 'Break will be added during route planning' : 'Turn on to plan a break'}
+        </Text>
+      </View>
+
+      <Switch
+        value={breakEnabled}
+        onValueChange={setBreakEnabled}
+        trackColor={{ false: '#D9E1EC', true: '#BFD5FF' }}
+        thumbColor={breakEnabled ? '#2876F8' : '#FFFFFF'}
+        ios_backgroundColor="#D9E1EC"
+        style={localStyles.breakSwitch}
+      />
     </View>
   );
 }
@@ -222,9 +257,8 @@ function StopRow({
         <Text style={localStyles.stopTitle} numberOfLines={1}>
           {stopText.title}
         </Text>
-        <Text style={localStyles.stopSubtitle} numberOfLines={2}>
-          {stopText.subtitle}
-        </Text>
+
+        <Text style={localStyles.stopSubtitle}>{stopText.subtitle}</Text>
       </View>
 
       <View style={localStyles.stopIconBox}>
@@ -243,6 +277,7 @@ export function RouteSetupPanel({
   startTime,
   onOpenSearch,
   onOptimizeRoute,
+  onCancelRoute,
   onSelectStop,
   onOpenStopDetails,
   onStopPress,
@@ -251,11 +286,7 @@ export function RouteSetupPanel({
 
   const stopLabel = `${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}`;
 
-  const startText = getLocationText(
-    start,
-    'Start from current location',
-    'Use GPS position when optimizing',
-  );
+  const startText = getLocationText(start, 'Start from current location', 'Use GPS position when optimizing');
 
   const endText = getLocationText(end, 'Round trip', 'Return to start location');
 
@@ -264,8 +295,6 @@ export function RouteSetupPanel({
   return (
     <DraggableRouteSheet isWide={isWide} initialSnap="middle">
       <View style={[localStyles.panel, isWide && localStyles.panelWeb]}>
-        <View style={localStyles.dragHandle} />
-
         <HeaderSearchBar onOpenSearch={onOpenSearch} />
 
         <View style={localStyles.routeTitleBox}>
@@ -279,7 +308,7 @@ export function RouteSetupPanel({
         <ScrollView
           style={localStyles.scroll}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 112, 132) }}
+          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 178, 196) }}
         >
           <SectionLabel title="Route setup" />
 
@@ -298,7 +327,7 @@ export function RouteSetupPanel({
               icon="⚑"
             />
 
-            <RouteSetupRow dotOnly title="No break" subtitle="Tap to plan a break" icon="☕" last />
+            <BreakToggleRow />
           </View>
 
           <SectionLabel title="Stops" />
@@ -329,6 +358,17 @@ export function RouteSetupPanel({
             { paddingBottom: Math.max(insets.bottom + 10, 16) },
           ]}
         >
+         <Pressable
+  style={({ pressed }) => [
+    localStyles.cancelRouteButton,
+    pressed && localStyles.cancelRouteButtonPressed,
+  ]}
+  onPress={onCancelRoute}
+>
+  <Feather name="trash-2" size={22} color="#FF3B3B" />
+
+  <Text style={localStyles.cancelRouteText}>Cancel route</Text>
+</Pressable>
           <Pressable style={localStyles.optimizeButton} onPress={onOptimizeRoute}>
             <Text style={localStyles.optimizeIcon}>↻</Text>
             <Text style={localStyles.optimizeText}>Optimize route</Text>
@@ -352,39 +392,19 @@ const localStyles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
   },
-  dragHandle: {
-    width: 58,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: '#D6DEE9',
-    alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 10,
-  },
 
   searchHeaderRow: {
-    minHeight: 40,
+    minHeight: 48,
     paddingHorizontal: 18,
+    paddingTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  menuButton: {
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: {
-    color: '#7F95B3',
-    fontSize: 23,
-    lineHeight: 25,
-    fontWeight: '600',
-  },
   searchBox: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 9,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#D7E0EC',
     backgroundColor: '#F7F9FD',
@@ -401,26 +421,26 @@ const localStyles = StyleSheet.create({
   searchPlaceholder: {
     flex: 1,
     color: '#50627E',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
   },
   searchActionIcon: {
-    fontSize: 19,
+    fontSize: 18,
     color: '#8AA0BE',
     marginLeft: 10,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   moreButton: {
-    width: 26,
+    width: 28,
     height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
   moreIcon: {
     color: '#7F95B3',
-    fontSize: 25,
-    lineHeight: 27,
-    fontWeight: '600',
+    fontSize: 24,
+    lineHeight: 26,
+    fontWeight: '500',
   },
 
   routeTitleBox: {
@@ -458,14 +478,14 @@ const localStyles = StyleSheet.create({
   sectionLabel: {
     color: '#556783',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   whiteBlock: {
     backgroundColor: '#FFFFFF',
   },
 
   setupRow: {
-    minHeight: 68,
+    minHeight: 72,
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 16,
@@ -479,7 +499,7 @@ const localStyles = StyleSheet.create({
   },
   timelineTime: {
     color: '#536682',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     maxWidth: 66,
   },
@@ -493,7 +513,7 @@ const localStyles = StyleSheet.create({
     position: 'absolute',
     top: 43,
     width: 2,
-    height: 28,
+    height: 30,
     borderRadius: 999,
     backgroundColor: '#D9E1EC',
   },
@@ -529,14 +549,29 @@ const localStyles = StyleSheet.create({
   setupIcon: {
     color: '#2E76F6',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
+  },
+
+  breakRow: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 18,
+  },
+  breakTextBox: {
+    flex: 1,
+    paddingVertical: 10,
+  },
+  breakSwitch: {
+    marginLeft: 12,
   },
 
   stopRow: {
-    minHeight: 72,
+    minHeight: 78,
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingTop: 14,
+    paddingBottom: 14,
     paddingRight: 16,
   },
   stopRowPressed: {
@@ -565,7 +600,7 @@ const localStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 3,
   },
   stopIconBox: {
     width: 34,
@@ -614,10 +649,30 @@ const localStyles = StyleSheet.create({
     paddingTop: 12,
     paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#EEF2F7',
   },
   footerWeb: {
     maxWidth: 470,
     alignSelf: 'center',
+  },
+  cancelButton: {
+    height: 46,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F0B8B8',
+    backgroundColor: '#FFF7F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  cancelButtonPressed: {
+    backgroundColor: '#FFEDED',
+  },
+  cancelText: {
+    color: '#C24141',
+    fontSize: 15,
+    fontWeight: '600',
   },
   optimizeButton: {
     height: 56,
@@ -631,7 +686,7 @@ const localStyles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 21,
     marginRight: 10,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   optimizeText: {
     color: '#FFFFFF',
@@ -639,4 +694,38 @@ const localStyles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: -0.1,
   },
+  cancelRouteButton: {
+  height: 54,
+  width: '100%',
+  borderRadius: 12,
+  borderWidth: 2,
+  borderColor: '#FFB8B8',
+  backgroundColor: '#FFFFFF',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 12,
+  marginBottom: 12,
+
+  shadowColor: '#FF3B3B',
+  shadowOffset: {
+    width: 0,
+    height: 2,
+  },
+  shadowOpacity: 0.08,
+  shadowRadius: 8,
+  elevation: 2,
+},
+
+cancelRouteButtonPressed: {
+  backgroundColor: '#FFF5F5',
+  borderColor: '#FF8F8F',
+},
+
+cancelRouteText: {
+  color: '#FF3B3B',
+  fontSize: 17,
+  fontWeight: '600',
+  letterSpacing: -0.1,
+},
 });

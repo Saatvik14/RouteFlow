@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -6,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RoutePreviewPanelProps } from '../types';
@@ -14,15 +16,20 @@ import { DraggableRouteSheet } from './draggable-route-sheet';
 type ConfirmedRoutePanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
   onStopPress?: (stop: any, index: number) => void;
+  onCancelRoute?: () => void;
+};
+
+type TimelineTime = {
+  dayLabel?: string;
+  clock: string;
 };
 
 type TimelineItem = {
   id: string;
-  type: 'start' | 'stop' | 'end';
+  type: 'start' | 'stop' | 'end' | 'break';
   title: string;
   address: string;
-  time: string;
-  badge: string;
+  time: TimelineTime;
   sequenceLabel?: string;
   rawStop?: any;
   rawIndex?: number;
@@ -39,11 +46,11 @@ export function ConfirmedRoutePanel({
   distanceLabel,
   routeStatus,
   isStartingRoute,
-  onOpenSearch,
   onRefine,
   onConfirm,
   onStartRoute,
   onStopPress,
+  onCancelRoute,
 }: ConfirmedRoutePanelProps) {
   const insets = useSafeAreaInsets();
 
@@ -91,9 +98,6 @@ export function ConfirmedRoutePanel({
     <DraggableRouteSheet isWide={isWide} initialSnap="middle">
       <View style={localStyles.sheetInner}>
         <View style={localStyles.header}>
-          <Pressable style={localStyles.menuButton}>
-            <Text style={localStyles.menuButtonText}>☰</Text>
-          </Pressable>
 
           <View style={localStyles.headerContent}>
             <View style={localStyles.routeNameRow}>
@@ -115,10 +119,6 @@ export function ConfirmedRoutePanel({
             </Text>
           </View>
 
-          <Pressable style={localStyles.iconButton} onPress={onOpenSearch}>
-            <Text style={localStyles.iconButtonText}>⌕</Text>
-          </Pressable>
-
           <Pressable style={localStyles.iconButton}>
             <Text style={localStyles.iconButtonText}>⋮</Text>
           </Pressable>
@@ -126,12 +126,22 @@ export function ConfirmedRoutePanel({
 
         <View style={localStyles.quickActions}>
           <Pressable style={localStyles.quickActionButton}>
-            <Text style={localStyles.quickActionIcon}>⌁</Text>
+            <Feather
+              name="share-2"
+              size={15}
+              color="#2563EB"
+              style={localStyles.quickActionIconSvg}
+            />
             <Text style={localStyles.quickActionText}>Share live route</Text>
           </Pressable>
 
           <Pressable style={localStyles.quickActionButton}>
-            <Text style={localStyles.quickActionIcon}>▣</Text>
+            <MaterialCommunityIcons
+              name="truck-outline"
+              size={16}
+              color="#2563EB"
+              style={localStyles.quickActionIconSvg}
+            />
             <Text style={localStyles.quickActionText}>Load vehicle</Text>
           </Pressable>
         </View>
@@ -141,7 +151,7 @@ export function ConfirmedRoutePanel({
           contentContainerStyle={[
             localStyles.scrollContent,
             {
-              paddingBottom: Math.max(insets.bottom + 112, 132),
+              paddingBottom: Math.max(insets.bottom + 178, 196),
             },
           ]}
           showsVerticalScrollIndicator
@@ -149,10 +159,57 @@ export function ConfirmedRoutePanel({
           keyboardShouldPersistTaps="handled"
         >
           <View style={localStyles.summaryRow}>
-            <InfoPill label="Stops" value={String(stops.length)} />
-            <InfoPill label="Distance" value={distanceLabel || '0 km'} />
-            <InfoPill label="Duration" value={durationLabel || '0 min'} />
-            <InfoPill label="Start" value={startTime || 'Now'} />
+            <InfoPill
+              label="Duration"
+              value={durationLabel || '0 min'}
+              icon={
+                <Feather
+                  name="clock"
+                  size={15}
+                  color="#2563EB"
+                  style={localStyles.infoIcon}
+                />
+              }
+            />
+
+            <InfoPill
+              label="Distance"
+              value={distanceLabel || '0 km'}
+              icon={
+                <MaterialCommunityIcons
+                  name="source-fork"
+                  size={16}
+                  color="#2563EB"
+                  style={localStyles.infoIcon}
+                />
+              }
+            />
+
+            <InfoPill
+              label="Stops"
+              value={String(stops.length)}
+              icon={
+                <Feather
+                  name="map-pin"
+                  size={15}
+                  color="#2563EB"
+                  style={localStyles.infoIcon}
+                />
+              }
+            />
+
+            <InfoPill
+              label="Start time"
+              value={formatHeaderTime(startTime)}
+              icon={
+                <Feather
+                  name="clock"
+                  size={15}
+                  color="#2563EB"
+                  style={localStyles.infoIcon}
+                />
+              }
+            />
           </View>
 
           <View style={localStyles.timelineCard}>
@@ -161,19 +218,6 @@ export function ConfirmedRoutePanel({
               <Text style={localStyles.timelineSubText}>
                 {durationLabel || '0 min'}
               </Text>
-            </View>
-
-            <View style={localStyles.breakRow}>
-              <View style={localStyles.breakDot} />
-
-              <View style={localStyles.breakContent}>
-                <Text style={localStyles.breakTitle}>No break</Text>
-                <Text style={localStyles.breakText}>Tap to plan a break</Text>
-              </View>
-
-              <View style={localStyles.breakIconBox}>
-                <Text style={localStyles.breakIcon}>☕</Text>
-              </View>
             </View>
 
             {timelineItems.map((item, index) => (
@@ -195,47 +239,69 @@ export function ConfirmedRoutePanel({
           style={[
             localStyles.footer,
             {
-              paddingBottom: Math.max(insets.bottom + 10, 18),
+              paddingBottom: Math.max(insets.bottom + 10, 16),
             },
           ]}
         >
-          <Text style={localStyles.footerDuration}>
-            {durationLabel || '0 min'}
-          </Text>
-
           <Pressable
             style={({ pressed }) => [
-              localStyles.editButton,
-              pressed && localStyles.buttonPressed,
+              localStyles.cancelButton,
+              pressed && localStyles.buttonPressedLight,
             ]}
-            onPress={onRefine}
+            onPress={onCancelRoute}
           >
-            <Text style={localStyles.editButtonText}>
-              {isReadyToStart ? 'Edit' : 'Refine'}
-            </Text>
+            <Feather name="trash-2" size={17} color="#EF4444" />
+            <Text style={localStyles.cancelButtonText}>Cancel route</Text>
           </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              localStyles.startButton,
-              primaryButtonDisabled && localStyles.disabledButton,
-              pressed && !primaryButtonDisabled && localStyles.buttonPressed,
-            ]}
-            onPress={handlePrimaryAction}
-            disabled={primaryButtonDisabled}
-          >
-            <Text style={localStyles.startButtonText}>{primaryLabel}</Text>
-          </Pressable>
+          <View style={localStyles.footerSecondRow}>
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.editButton,
+                pressed && localStyles.buttonPressedLight,
+              ]}
+              onPress={onRefine}
+            >
+              <Feather name="edit-2" size={15} color="#1E293B" />
+              <Text style={localStyles.editButtonText}>
+                {isReadyToStart ? 'Edit route' : 'Refine route'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.startButton,
+                primaryButtonDisabled && localStyles.disabledButton,
+                pressed && !primaryButtonDisabled && localStyles.buttonPressed,
+              ]}
+              onPress={handlePrimaryAction}
+              disabled={primaryButtonDisabled}
+            >
+              <Feather name="play-circle" size={16} color="#FFFFFF" />
+              <Text style={localStyles.startButtonText}>{primaryLabel}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </DraggableRouteSheet>
   );
 }
 
-function InfoPill({ label, value }: { label: string; value: string }) {
+function InfoPill({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: string;
+  icon?: ReactNode;
+}) {
   return (
     <View style={localStyles.infoPill}>
+      {icon}
+
       <Text style={localStyles.infoLabel}>{label}</Text>
+
       <Text style={localStyles.infoValue} numberOfLines={1}>
         {value}
       </Text>
@@ -255,6 +321,7 @@ function TimelineRow({
   const isStart = item.type === 'start';
   const isEnd = item.type === 'end';
   const isStop = item.type === 'stop';
+  const isBreak = item.type === 'break';
 
   return (
     <Pressable
@@ -263,51 +330,53 @@ function TimelineRow({
       style={({ pressed }) => [
         localStyles.timelineRow,
         isStop && localStyles.clickableTimelineRow,
-        pressed && localStyles.timelineRowPressed,
+        pressed && isStop && localStyles.timelineRowPressed,
       ]}
     >
-      <View style={localStyles.timeColumn}>
-        <Text style={localStyles.timeText}>{item.time}</Text>
-
-        {item.sequenceLabel ? (
-          <Text style={localStyles.sequenceText}>{item.sequenceLabel}</Text>
-        ) : null}
-      </View>
-
-      <View style={localStyles.lineColumn}>
+      <View style={localStyles.timelineLeftRail}>
         <View
           style={[
-            localStyles.timelineDot,
-            isStart && localStyles.startDot,
-            isEnd && localStyles.endDot,
-            isStop && localStyles.stopDot,
+            localStyles.leftIconWrap,
+            isStart && localStyles.leftIconStart,
+            isStop && localStyles.leftIconStop,
+            isEnd && localStyles.leftIconEnd,
+            isBreak && localStyles.leftIconBreak,
           ]}
-        />
+        >
+          {isStart ? (
+            <Feather name="navigation" size={14} color="#2563EB" />
+          ) : isEnd ? (
+            <MaterialCommunityIcons
+              name="flag-checkered"
+              size={14}
+              color="#2563EB"
+            />
+          ) : isBreak ? (
+            <MaterialCommunityIcons
+              name="coffee-outline"
+              size={14}
+              color="#2563EB"
+            />
+          ) : (
+            <Text style={localStyles.stopNumberText}>{item.sequenceLabel}</Text>
+          )}
+        </View>
 
-        {!isLast ? <View style={localStyles.verticalLine} /> : null}
+        {!isLast ? <View style={localStyles.leftRailLine} /> : null}
       </View>
 
-      <View style={localStyles.timelineContent}>
-        <View style={localStyles.timelineTextBlock}>
+      <View style={localStyles.timelineBody}>
+        <View style={localStyles.timelineCenterContent}>
           <Text style={localStyles.itemTitle}>{item.title}</Text>
           <Text style={localStyles.itemAddress}>{item.address}</Text>
         </View>
 
-        <View
-          style={[
-            localStyles.badge,
-            isStart && localStyles.startBadge,
-            isEnd && localStyles.endBadge,
-          ]}
-        >
-          <Text
-            style={[
-              localStyles.badgeText,
-              isEnd && localStyles.endBadgeText,
-            ]}
-          >
-            {item.badge}
-          </Text>
+        <View style={localStyles.timeRightColumn}>
+          {item.time.dayLabel ? (
+            <Text style={localStyles.timeDayText}>{item.time.dayLabel}</Text>
+          ) : null}
+
+          <Text style={localStyles.timeTextRight}>{item.time.clock}</Text>
         </View>
       </View>
     </Pressable>
@@ -339,10 +408,19 @@ function buildTimelineItems({
       type: 'start',
       title: 'Start location',
       address: startAddress,
-      time: formatDisplayTime(startTime) || 'Start',
-      badge: '⌂',
+      time: getStartDisplayTime(startTime),
     },
   ];
+
+  items.push({
+    id: 'break-row',
+    type: 'break',
+    title: 'Break',
+    address: 'Tap to plan a break',
+    time: {
+      clock: '',
+    },
+  });
 
   stops.forEach((stop: any, index: number) => {
     const sequence = stop?.sequence_no || stop?.sequenceNo || index + 1;
@@ -353,8 +431,7 @@ function buildTimelineItems({
       title: getStopTitle(stop, index),
       address: getStopAddress(stop),
       time: getStopArrivalTime(stop, index, totalStops, startTime, durationLabel),
-      badge: `A${sequence}`,
-      sequenceLabel: String(sequence).padStart(2, '0'),
+      sequenceLabel: String(sequence),
       rawStop: stop,
       rawIndex: index,
     });
@@ -363,10 +440,9 @@ function buildTimelineItems({
   items.push({
     id: 'end-location',
     type: 'end',
-    title: getLocationTitle(end) || 'End location',
+    title: 'End location',
     address: endAddress,
     time: getEndArrivalTime(end, startTime, durationLabel),
-    badge: '⚑',
   });
 
   return items;
@@ -402,17 +478,6 @@ function getStopAddress(stop: any) {
   );
 }
 
-function getLocationTitle(location: any) {
-  return (
-    location?.title ||
-    location?.name ||
-    location?.label ||
-    location?.location?.title ||
-    location?.location?.name ||
-    ''
-  );
-}
-
 function getLocationAddress(location: any) {
   return (
     location?.description ||
@@ -427,13 +492,24 @@ function getLocationAddress(location: any) {
   );
 }
 
+function getStartDisplayTime(startTime?: string): TimelineTime {
+  const formatted = formatDisplayTime(startTime);
+
+  if (formatted) return formatted;
+
+  return {
+    dayLabel: 'Today',
+    clock: 'Start',
+  };
+}
+
 function getStopArrivalTime(
   stop: any,
   index: number,
   totalStops: number,
   startTime?: string,
   durationLabel?: string,
-) {
+): TimelineTime {
   const explicitTime =
     stop?.arrival_time ||
     stop?.arrivalTime ||
@@ -443,29 +519,35 @@ function getStopArrivalTime(
     stop?.estimated_arrival_time ||
     stop?.estimatedArrivalTime;
 
-  const formattedExplicit = formatDisplayTime(explicitTime);
+  const startDate = parseDateTime(startTime);
+  const formattedExplicit = formatDisplayTime(explicitTime, startDate);
 
   if (formattedExplicit) return formattedExplicit;
 
-  const startMinutes = parseClockToMinutes(startTime);
+  const startMinutes = parseStartMinutes(startTime);
   const totalMinutes = parseDurationToMinutes(durationLabel);
 
   if (startMinutes !== null && totalMinutes !== null && totalStops > 0) {
     const segment = totalMinutes / (totalStops + 1);
+    const absoluteMinutes = startMinutes + Math.round(segment * (index + 1));
+    const dayOffset = Math.floor(absoluteMinutes / 1440);
 
-    return formatClockFromMinutes(
-      startMinutes + Math.round(segment * (index + 1)),
-    );
+    return {
+      dayLabel: getDayLabelFromOffset(dayOffset, startDate),
+      clock: formatClock12FromMinutes(absoluteMinutes),
+    };
   }
 
-  return '--:--';
+  return {
+    clock: '--',
+  };
 }
 
 function getEndArrivalTime(
   end: any,
   startTime?: string,
   durationLabel?: string,
-) {
+): TimelineTime {
   const explicitTime =
     end?.arrival_time ||
     end?.arrivalTime ||
@@ -475,39 +557,88 @@ function getEndArrivalTime(
     end?.estimated_arrival_time ||
     end?.estimatedArrivalTime;
 
-  const formattedExplicit = formatDisplayTime(explicitTime);
+  const startDate = parseDateTime(startTime);
+  const formattedExplicit = formatDisplayTime(explicitTime, startDate);
 
   if (formattedExplicit) return formattedExplicit;
 
-  const startMinutes = parseClockToMinutes(startTime);
+  const startMinutes = parseStartMinutes(startTime);
   const totalMinutes = parseDurationToMinutes(durationLabel);
 
   if (startMinutes !== null && totalMinutes !== null) {
-    return formatClockFromMinutes(startMinutes + totalMinutes);
+    const absoluteMinutes = startMinutes + totalMinutes;
+    const dayOffset = Math.floor(absoluteMinutes / 1440);
+
+    return {
+      dayLabel: getDayLabelFromOffset(dayOffset, startDate),
+      clock: formatClock12FromMinutes(absoluteMinutes),
+    };
   }
 
-  return 'End';
+  return {
+    clock: 'End',
+  };
 }
 
-function formatDisplayTime(value?: string) {
-  if (!value) return '';
+function formatHeaderTime(value?: string) {
+  const formatted = formatDisplayTime(value);
 
-  const date = new Date(value);
+  if (!formatted) return 'Now';
 
-  if (!Number.isNaN(date.getTime()) && String(value).includes('T')) {
-    return date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  return formatted.clock;
+}
+
+function formatDisplayTime(
+  value?: string,
+  baseDate?: Date | null,
+): TimelineTime | null {
+  if (!value) return null;
+
+  const date = parseDateTime(value);
+
+  if (date) {
+    return {
+      dayLabel: getRelativeDayLabel(date, baseDate),
+      clock: formatDateClock(date),
+    };
   }
 
   const clockMinutes = parseClockToMinutes(value);
 
   if (clockMinutes !== null) {
-    return formatClockFromMinutes(clockMinutes);
+    return {
+      dayLabel: 'Today',
+      clock: formatClock12FromMinutes(clockMinutes),
+    };
   }
 
-  return value;
+  return {
+    clock: String(value),
+  };
+}
+
+function parseDateTime(value?: string) {
+  if (!value) return null;
+
+  const text = String(value);
+
+  if (!text.includes('T')) return null;
+
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
+}
+
+function parseStartMinutes(value?: string) {
+  const date = parseDateTime(value);
+
+  if (date) {
+    return date.getHours() * 60 + date.getMinutes();
+  }
+
+  return parseClockToMinutes(value);
 }
 
 function parseClockToMinutes(value?: string) {
@@ -530,12 +661,65 @@ function parseClockToMinutes(value?: string) {
   return hours * 60 + minutes;
 }
 
-function formatClockFromMinutes(totalMinutes: number) {
+function formatDateClock(date: Date) {
+  return date
+    .toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function formatClock12FromMinutes(totalMinutes: number) {
   const normalized = ((totalMinutes % 1440) + 1440) % 1440;
-  const hours = Math.floor(normalized / 60);
+  const hours24 = Math.floor(normalized / 60);
   const minutes = normalized % 60;
 
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  const meridian = hours24 >= 12 ? 'pm' : 'am';
+  const hours12 = hours24 % 12 || 12;
+
+  return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(
+    2,
+    '0',
+  )} ${meridian}`;
+}
+
+function getDayLabelFromOffset(dayOffset: number, baseDate?: Date | null) {
+  if (baseDate) {
+    const targetDate = new Date(baseDate);
+    targetDate.setDate(baseDate.getDate() + dayOffset);
+
+    return getRelativeDayLabel(targetDate);
+  }
+
+  if (dayOffset === 0) return 'Today';
+  if (dayOffset === 1) return 'Tomorrow';
+
+  return `+${dayOffset} days`;
+}
+
+function getRelativeDayLabel(date: Date, baseDate?: Date | null) {
+  const base = startOfLocalDay(baseDate || new Date());
+  const target = startOfLocalDay(date);
+
+  const diffDays = Math.round(
+    (target.getTime() - base.getTime()) / 86_400_000,
+  );
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays === -1) return 'Yesterday';
+
+  return date.toLocaleDateString([], {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function parseDurationToMinutes(value?: string) {
@@ -611,7 +795,7 @@ const localStyles = StyleSheet.create({
 
   routeNameRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
   },
@@ -619,16 +803,16 @@ const localStyles = StyleSheet.create({
   routeTitle: {
     ...font('600'),
     flexShrink: 1,
-    fontSize: 19,
+    fontSize: 18,
     lineHeight: 24,
     color: '#111827',
   },
 
   statusChip: {
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: '#EAF2FF',
+    backgroundColor: '#EAF7ED',
     marginTop: 2,
   },
 
@@ -636,12 +820,12 @@ const localStyles = StyleSheet.create({
     ...font('500'),
     fontSize: 11,
     lineHeight: 14,
-    color: '#2563EB',
+    color: '#2F8F46',
   },
 
   routeMeta: {
     ...font('400'),
-    marginTop: 5,
+    marginTop: 6,
     fontSize: 13,
     lineHeight: 18,
     color: '#64748B',
@@ -653,7 +837,7 @@ const localStyles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 6,
+    marginLeft: 8,
     backgroundColor: '#F8FAFC',
   },
 
@@ -684,10 +868,7 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 10,
   },
 
-  quickActionIcon: {
-    ...font('500'),
-    fontSize: 15,
-    color: '#2563EB',
+  quickActionIconSvg: {
     marginRight: 7,
   },
 
@@ -709,35 +890,42 @@ const localStyles = StyleSheet.create({
 
   summaryRow: {
     flexDirection: 'row',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-    overflow: 'hidden',
+    gap: 10,
     marginBottom: 12,
   },
 
   infoPill: {
     flex: 1,
-    paddingHorizontal: 7,
-    paddingVertical: 9,
-    borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+    minHeight: 84,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+
+  infoIcon: {
+    marginBottom: 7,
   },
 
   infoLabel: {
     ...font('400'),
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 14,
     color: '#64748B',
-    marginBottom: 2,
+    marginBottom: 3,
+    textAlign: 'center',
   },
 
   infoValue: {
     ...font('600'),
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
     color: '#111827',
+    textAlign: 'center',
   },
 
   timelineCard: {
@@ -752,14 +940,14 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 10,
   },
 
   timelineTitle: {
     ...font('600'),
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: 20,
     color: '#111827',
   },
@@ -771,63 +959,13 @@ const localStyles = StyleSheet.create({
     color: '#64748B',
   },
 
-  breakRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
-
-  breakDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: '#94A3B8',
-    marginRight: 18,
-    marginLeft: 26,
-  },
-
-  breakContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  breakTitle: {
-    ...font('500'),
-    fontSize: 16,
-    lineHeight: 21,
-    color: '#111827',
-  },
-
-  breakText: {
-    ...font('400'),
-    fontSize: 13,
-    lineHeight: 18,
-    color: '#64748B',
-  },
-
-  breakIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  breakIcon: {
-    ...font('400'),
-    fontSize: 15,
-  },
-
   timelineRow: {
     flexDirection: 'row',
-    minHeight: 76,
     paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
 
   clickableTimelineRow: {
@@ -838,75 +976,61 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
 
-  timeColumn: {
-    width: 48,
+  timelineLeftRail: {
+    width: 34,
     alignItems: 'center',
-    paddingTop: 16,
+    marginRight: 10,
   },
 
-  timeText: {
-    ...font('500'),
-    fontSize: 12,
-    lineHeight: 15,
-    color: '#475569',
-  },
-
-  sequenceText: {
-    ...font('500'),
-    marginTop: 3,
-    fontSize: 12,
-    lineHeight: 15,
-    color: '#475569',
-  },
-
-  lineColumn: {
-    width: 20,
+  leftIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
   },
 
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 18,
-    backgroundColor: '#93C5FD',
+  leftIconStart: {
+    backgroundColor: '#EAF2FF',
   },
 
-  startDot: {
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: '#60A5FA',
+  leftIconStop: {
+    backgroundColor: '#2F74F7',
   },
 
-  stopDot: {
-    backgroundColor: '#93C5FD',
+  leftIconEnd: {
+    backgroundColor: '#EAF2FF',
   },
 
-  endDot: {
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: '#93C5FD',
+  leftIconBreak: {
+    backgroundColor: '#EEF2FF',
   },
 
-  verticalLine: {
-    flex: 1,
+  stopNumberText: {
+    ...font('600'),
+    fontSize: 11,
+    lineHeight: 13,
+    color: '#FFFFFF',
+  },
+
+  leftRailLine: {
     width: 2,
-    backgroundColor: '#BFDBFE',
-    marginTop: 3,
+    flex: 1,
+    marginTop: 4,
+    backgroundColor: '#D5E4FF',
+    minHeight: 28,
   },
 
-  timelineContent: {
+  timelineBody: {
     flex: 1,
-    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingTop: 12,
-    paddingBottom: 12,
+    minWidth: 0,
   },
 
-  timelineTextBlock: {
+  timelineCenterContent: {
     flex: 1,
     minWidth: 0,
     paddingRight: 10,
@@ -921,39 +1045,33 @@ const localStyles = StyleSheet.create({
 
   itemAddress: {
     ...font('400'),
-    marginTop: 2,
+    marginTop: 3,
     fontSize: 13,
     lineHeight: 18,
     color: '#475569',
   },
 
-  badge: {
-    minWidth: 34,
-    height: 34,
-    borderRadius: 11,
-    paddingHorizontal: 7,
-    backgroundColor: '#EAF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+  timeRightColumn: {
+    width: 76,
+    alignItems: 'flex-end',
+    paddingTop: 1,
   },
 
-  startBadge: {
-    backgroundColor: '#EAF2FF',
+  timeDayText: {
+    ...font('500'),
+    fontSize: 11,
+    lineHeight: 14,
+    color: '#64748B',
+    textAlign: 'right',
   },
 
-  endBadge: {
-    backgroundColor: '#EAF2FF',
-  },
-
-  badgeText: {
-    ...font('600'),
-    fontSize: 13,
+  timeTextRight: {
+    ...font('500'),
+    marginTop: 2,
+    fontSize: 12,
     lineHeight: 16,
-    color: '#2563EB',
-  },
-
-  endBadgeText: {
-    fontSize: 15,
+    color: '#334155',
+    textAlign: 'right',
   },
 
   footer: {
@@ -966,17 +1084,32 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
   },
 
-  footerDuration: {
+  cancelButton: {
+    width: '100%',
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+
+  cancelButtonText: {
     ...font('600'),
-    minWidth: 72,
-    fontSize: 18,
-    lineHeight: 23,
-    color: '#15803D',
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#EF4444',
+  },
+
+  footerSecondRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
 
   editButton: {
@@ -988,28 +1121,32 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    gap: 7,
   },
 
   editButtonText: {
     ...font('500'),
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 18,
     color: '#111827',
   },
 
   startButton: {
-    flex: 1.2,
+    flex: 1,
     height: 50,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2F74F7',
+    flexDirection: 'row',
+    gap: 7,
   },
 
   startButtonText: {
     ...font('600'),
     fontSize: 14,
-    lineHeight: 19,
+    lineHeight: 18,
     color: '#FFFFFF',
   },
 
@@ -1019,5 +1156,9 @@ const localStyles = StyleSheet.create({
 
   buttonPressed: {
     opacity: 0.86,
+  },
+
+  buttonPressedLight: {
+    opacity: 0.82,
   },
 });

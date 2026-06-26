@@ -2,7 +2,7 @@ import { useAuth } from './../app/_layout';
 import { restoreAuthToken } from './../services/api';
 import { routesService } from './../services/api/routes';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { jwtDecode } from 'jwt-decode';
 import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
@@ -13,10 +13,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming, FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ROUTE_STATUS_IN_ARCHIVE } from '../app/(route-preview)/route-preview';
 
 type SidebarProps = {
   isOpen: boolean;
@@ -55,9 +59,21 @@ type BackendRoute = {
   route_status?: string;
   state?: string;
   start_datetime?: string;
+  end_datetime?: string;
   created_at?: string;
   updated_at?: string;
   routeDate?: string;
+  distance?: number | string;
+  total_distance?: number | string;
+  distance_meters?: number | string;
+  duration?: number | string;
+  total_duration?: number | string;
+  duration_seconds?: number | string;
+  stops_count?: number | string;
+  total_stops?: number | string;
+  orders_count?: number | string;
+  stops?: unknown[];
+  orders?: unknown[];
 };
 
 type RouteStatusTone = 'blue' | 'green' | 'amber' | 'purple' | 'red' | 'slate';
@@ -66,9 +82,18 @@ type FeatherIconName = ComponentProps<typeof Feather>['name'];
 type RouteHistoryItem = {
   id: string;
   title: string;
-  date: string;
+  dateLabel: string;
+  dateDay: string;
+  dateMonth: string;
+  timeLabel: string;
   statusLabel: string;
   statusTone: RouteStatusTone;
+  stopCount: number;
+  distanceKm: number;
+  distanceLabel: string;
+  durationMinutes: number;
+  durationLabel: string;
+  sortDate: number;
 };
 
 const getUserFromToken = (token: string): SidebarUser => {
@@ -88,21 +113,15 @@ const getUserFromToken = (token: string): SidebarUser => {
   };
 };
 
-const formatRouteDate = (value?: string) => {
-  if (!value) return '';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  return date.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-  });
+const toNumber = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const toTitleCase = (value: string) =>
   value
     .replace(/_/g, ' ')
+    .replace(/-/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/\b\w/g, char => char.toUpperCase());
@@ -133,6 +152,105 @@ const getRouteStatusMeta = (status?: string): { label: string; tone: RouteStatus
   return { label: toTitleCase(normalized || 'Draft'), tone: 'slate' };
 };
 
+const getRouteDate = (route: BackendRoute) => {
+  const value = route.start_datetime || route.routeDate || route.created_at || route.updated_at;
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+};
+
+const formatDateLabel = (date: Date | null) => {
+  if (!date) return '--';
+
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const formatDateTile = (date: Date | null) => {
+  if (!date) {
+    return {
+      day: '--',
+      month: '',
+    };
+  }
+
+  return {
+    day: date.toLocaleDateString('en-IN', { day: '2-digit' }),
+    month: date.toLocaleDateString('en-IN', { month: 'short' }),
+  };
+};
+
+const formatTime = (value?: string) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const formatTimeRange = (route: BackendRoute) => {
+  const start = formatTime(route.start_datetime);
+  const end = formatTime(route.end_datetime);
+
+  if (start && end) return `${start} - ${end}`;
+  if (start) return start;
+  return 'Time not set';
+};
+
+const getRouteDistanceKm = (route: BackendRoute) => {
+  const distanceMeters = toNumber(route.distance_meters);
+  if (distanceMeters > 0) return distanceMeters / 1000;
+
+  const rawDistance = toNumber(route.total_distance || route.distance);
+  if (rawDistance <= 0) return 0;
+
+  // Your backend may send distance either in meters or km. Large values are treated as meters.
+  return rawDistance > 1000 ? rawDistance / 1000 : rawDistance;
+};
+
+const getRouteDurationMinutes = (route: BackendRoute) => {
+  const durationSeconds = toNumber(route.duration_seconds);
+  if (durationSeconds > 0) return Math.round(durationSeconds / 60);
+
+  const rawDuration = toNumber(route.total_duration || route.duration);
+  if (rawDuration <= 0) return 0;
+
+  // Large values are usually seconds. Small values are usually minutes.
+  return rawDuration > 300 ? Math.round(rawDuration / 60) : Math.round(rawDuration);
+};
+
+const formatDistance = (distanceKm: number) => {
+  if (!distanceKm) return '0 km';
+  return `${distanceKm.toFixed(distanceKm >= 10 ? 1 : 2)} km`;
+};
+
+const formatDuration = (minutes: number) => {
+  if (!minutes) return '0m';
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (!hours) return `${remainingMinutes}m`;
+  if (!remainingMinutes) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
+};
+
+const getStopCount = (route: BackendRoute) => {
+  const explicitCount = toNumber(route.stops_count || route.total_stops || route.orders_count);
+  if (explicitCount > 0) return explicitCount;
+
+  if (Array.isArray(route.stops)) return route.stops.length;
+  if (Array.isArray(route.orders)) return route.orders.length;
+
+  return 0;
+};
+
 const normalizeRoutes = (response: any): RouteHistoryItem[] => {
   const list: BackendRoute[] = Array.isArray(response)
     ? response
@@ -140,59 +258,73 @@ const normalizeRoutes = (response: any): RouteHistoryItem[] => {
 
   if (!Array.isArray(list)) return [];
 
-  return list.map((route, index) => {
-    const id = route.route_id ?? route.routeId ?? route.id ?? index + 1;
-    const dateSource = route.start_datetime || route.routeDate || route.created_at || route.updated_at;
-    const status = route.status || route.route_status || route.state;
-    const statusMeta = getRouteStatusMeta(status);
+  return list
+    .map((route, index) => {
+      const id = route.route_id ?? route.routeId ?? route.id ?? index + 1;
+      const status = route.status || route.route_status || route.state;
+      const statusMeta = getRouteStatusMeta(status);
+      const date = getRouteDate(route);
+      const dateTile = formatDateTile(date);
+      const distanceKm = getRouteDistanceKm(route);
+      const durationMinutes = getRouteDurationMinutes(route);
 
-    return {
-      id: String(id),
-      title: route.name || route.route_name || `Route ${index + 1}`,
-      date: formatRouteDate(dateSource),
-      statusLabel: statusMeta.label,
-      statusTone: statusMeta.tone,
-    };
-  });
+      return {
+        id: String(id),
+        title: route.name || route.route_name || `Route ${index + 1}`,
+        dateLabel: formatDateLabel(date),
+        dateDay: dateTile.day,
+        dateMonth: dateTile.month,
+        timeLabel: formatTimeRange(route),
+        statusLabel: statusMeta.label,
+        statusTone: statusMeta.tone,
+        stopCount: getStopCount(route),
+        distanceKm,
+        distanceLabel: formatDistance(distanceKm),
+        durationMinutes,
+        durationLabel: formatDuration(durationMinutes),
+        sortDate: date?.getTime() || 0,
+      };
+    })
+    .sort((a, b) => b.sortDate - a.sortDate);
 };
-
 
 function getStatusBadgeStyle(tone: RouteStatusTone) {
   switch (tone) {
     case 'blue':
-      return styles.statusBadge_blue;
+      return styles.statusBadgeBlue;
     case 'green':
-      return styles.statusBadge_green;
+      return styles.statusBadgeGreen;
     case 'amber':
-      return styles.statusBadge_amber;
+      return styles.statusBadgeAmber;
     case 'purple':
-      return styles.statusBadge_purple;
+      return styles.statusBadgePurple;
     case 'red':
-      return styles.statusBadge_red;
+      return styles.statusBadgeRed;
     default:
-      return styles.statusBadge_slate;
+      return styles.statusBadgeSlate;
   }
 }
 
 function getStatusTextStyle(tone: RouteStatusTone) {
   switch (tone) {
     case 'blue':
-      return styles.statusText_blue;
+      return styles.statusTextBlue;
     case 'green':
-      return styles.statusText_green;
+      return styles.statusTextGreen;
     case 'amber':
-      return styles.statusText_amber;
+      return styles.statusTextAmber;
     case 'purple':
-      return styles.statusText_purple;
+      return styles.statusTextPurple;
     case 'red':
-      return styles.statusText_red;
+      return styles.statusTextRed;
     default:
-      return styles.statusText_slate;
+      return styles.statusTextSlate;
   }
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { logout } = useAuth();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
@@ -209,22 +341,37 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [routeError, setRouteError] = useState('');
-
   const [mounted, setMounted] = useState(isOpen);
+
   const translateX = useSharedValue(-450);
   const opacity = useSharedValue(0);
 
-  // Action Panel State
-  const [menuRouteId, setMenuRouteId] = useState<string | null>(null);
-  const actionSheetTranslateY = useSharedValue(300);
-
   const sidebarWidth = useMemo(() => {
     if (width < 640) {
-      return Math.min(Math.max(width * 0.94, 320), 420);
+      return Math.min(Math.max(width * 0.94, 330), 420);
     }
 
-    return Math.min(Math.max(width * 0.3, 330), 390);
+    return Math.min(Math.max(width * 0.3, 350), 400);
   }, [width]);
+
+  const completedRoutes = useMemo(
+    () => routes.filter(route => route.statusLabel.toLowerCase() === 'completed'),
+    [routes],
+  );
+
+  const sidebarStats = useMemo(() => {
+    const totalDistance = completedRoutes.reduce((sum, route) => sum + route.distanceKm, 0);
+    const totalDuration = completedRoutes.reduce((sum, route) => sum + route.durationMinutes, 0);
+
+    return {
+      completedCount: completedRoutes.length,
+      totalDistanceLabel: totalDistance ? `${Math.round(totalDistance)} km` : '0 km',
+      totalDurationLabel: formatDuration(totalDuration),
+    };
+  }, [completedRoutes]);
+
+  const recentRoutes = useMemo(() => routes.slice(0, 3), [routes]);
+  const isHistoryActive = pathname?.includes('route-history');
 
   useEffect(() => {
     setSelectedRouteId((params.id as string) || null);
@@ -273,14 +420,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       translateX.value = withTiming(0, { duration: 300 });
       opacity.value = withTiming(1, { duration: 300 });
     } else {
-      opacity.value = withTiming(0, { duration: 250 });
-      translateX.value = withTiming(-sidebarWidth, { duration: 300 }, (finished) => {
+      opacity.value = withTiming(0, { duration: 220 });
+      translateX.value = withTiming(-sidebarWidth, { duration: 280 }, finished => {
         if (finished) {
           runOnJS(setMounted)(false);
         }
       });
     }
-  }, [isOpen, sidebarWidth]);
+  }, [isOpen, sidebarWidth, opacity, translateX]);
 
   const animatedSidebarStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -289,8 +436,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const animatedOverlayStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
   }));
-
-
 
   const handleHome = () => {
     onClose();
@@ -312,44 +457,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     router.push('/support' as never);
   };
 
-  const openRouteMenu = (routeId: string) => {
-    setMenuRouteId(routeId);
-    actionSheetTranslateY.value = withTiming(0, { duration: 300 });
-  };
-
-  const closeRouteMenu = () => {
-    actionSheetTranslateY.value = withTiming(300, { duration: 250 }, (finished) => {
-      if (finished) runOnJS(setMenuRouteId)(null);
-    });
-  };
-
-  const performDelete = async () => {
-    if (!menuRouteId) return;
-    
-    try {
-       const response = await routesService.updateRoute({
-         route_id: menuRouteId,
-         is_active: false, 
-       });
-      if (response.success) {
-        setRoutes(prev => prev.filter(r => r.id !== menuRouteId));
-        if (selectedRouteId === menuRouteId) {
-          router.replace('/' as any);
-        }
-        closeRouteMenu();
-      } else {
-        setRouteError('Could not delete route');
-      }
-    } catch (err) {
-      console.error('Delete error:', err);
-    }
+  const handleRouteHistory = () => {
+    onClose();
+    router.push('/route-history' as never);
   };
 
   const handleRoutePress = (routeId: string) => {
     onClose();
 
     router.push({
-      pathname: '/route-preview',
+      pathname: '/route-history-detail',
       params: {
         id: String(routeId),
       },
@@ -365,16 +482,39 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     icon: FeatherIconName,
     label: string,
     onPress: () => void,
+    isActive?: boolean,
   ) => (
-    <Pressable style={styles.quickActionButton} onPress={onPress}>
-      <View style={styles.quickActionIconBox}>
-        <Feather name={icon} size={16} color="#334155" />
+    <Pressable
+      style={[styles.quickActionButton, isActive && styles.quickActionButtonActive]}
+      onPress={onPress}>
+      <View style={[styles.quickActionIconBox, isActive && styles.quickActionIconBoxActive]}>
+        <Feather name={icon} size={16} color={isActive ? '#2563EB' : '#334155'} />
       </View>
-      <Text numberOfLines={1} style={styles.quickActionText}>
+      <Text numberOfLines={1} style={[styles.quickActionText, isActive && styles.quickActionTextActive]}>
         {label}
       </Text>
     </Pressable>
   );
+
+  const renderMetric = (value: string | number, label: string, tone: 'green' | 'blue' | 'orange') => {
+    const textStyle =
+      tone === 'green'
+        ? styles.metricValueGreen
+        : tone === 'orange'
+          ? styles.metricValueOrange
+          : styles.metricValueBlue;
+
+    return (
+      <View style={styles.metricItem}>
+        <Text numberOfLines={1} style={[styles.metricValue, textStyle]}>
+          {value}
+        </Text>
+        <Text numberOfLines={1} style={styles.metricLabel}>
+          {label}
+        </Text>
+      </View>
+    );
+  };
 
   const renderRouteItem = (route: RouteHistoryItem) => {
     const isActive = selectedRouteId === route.id;
@@ -382,54 +522,57 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     return (
       <Pressable
         key={route.id}
-        style={[styles.routeItem, isActive && styles.activeRouteItem]}
+        style={[styles.routeItem, isActive && styles.routeItemActive]}
         onPress={() => handleRoutePress(route.id)}>
-        <View style={[styles.routeDatePill, isActive && styles.activeRouteDatePill]}>
-          <Text style={[styles.routeDate, isActive && styles.activeRouteDate]}>
-            {route.date || '--'}
-          </Text>
+        <View style={[styles.routeDatePill, isActive && styles.routeDatePillActive]}>
+          <Text style={[styles.routeDateDay, isActive && styles.routeDateDayActive]}>{route.dateDay}</Text>
+          <Text style={[styles.routeDateMonth, isActive && styles.routeDateMonthActive]}>{route.dateMonth}</Text>
         </View>
 
         <View style={styles.routeInfoBox}>
-          <Text numberOfLines={1} style={[styles.routeTitle, isActive && styles.activeRouteTitle]}>
-            {route.title}
-          </Text>
-
-          <View style={styles.routeMetaRow}>
-            <Text numberOfLines={1} style={styles.routeIdText}>
-              ID #{route.id}
+          <View style={styles.routeTopRow}>
+            <Text numberOfLines={1} style={[styles.routeTitle, isActive && styles.routeTitleActive]}>
+              {route.title}
             </Text>
+
             <View style={[styles.statusBadge, getStatusBadgeStyle(route.statusTone)]}>
               <Text style={[styles.statusBadgeText, getStatusTextStyle(route.statusTone)]}>
                 {route.statusLabel}
               </Text>
             </View>
           </View>
+
+          <View style={styles.routeMetaRow}>
+            <View style={styles.routeMetaItem}>
+              <Feather name="clock" size={11} color="#64748B" />
+              <Text numberOfLines={1} style={styles.routeMetaText}>{route.timeLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.routeMetaRowBottom}>
+            <View style={styles.routeMetaItemCompact}>
+              <Feather name="map-pin" size={11} color="#64748B" />
+              <Text numberOfLines={1} style={styles.routeMetaText}>{route.stopCount} stops</Text>
+            </View>
+
+            <View style={styles.routeMetaItemCompact}>
+              <Feather name="navigation" size={11} color="#64748B" />
+              <Text numberOfLines={1} style={styles.routeMetaText}>{route.distanceLabel}</Text>
+            </View>
+          </View>
         </View>
 
-        <Pressable
-          style={styles.routeMoreButton}
-          hitSlop={12}
-          onPress={(e) => {
-            e.stopPropagation();
-            openRouteMenu(route.id);
-          }}>
-          <Feather name="more-vertical" size={18} color={isActive ? '#2563EB' : '#94A3B8'} />
-        </Pressable>
+        <Feather name="chevron-right" size={18} color={isActive ? '#2563EB' : '#94A3B8'} />
       </Pressable>
     );
   };
-
-  const actionSheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: actionSheetTranslateY.value }],
-  }));
 
   if (!mounted) return null;
 
   return (
     <>
       <Animated.View style={[styles.overlay, animatedOverlayStyle]}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <Pressable style={styles.overlayPressable} onPress={onClose} />
       </Animated.View>
 
       <Animated.View
@@ -439,7 +582,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {
             width: sidebarWidth,
             paddingTop: insets.top + 14,
-            paddingBottom: Math.max(insets.bottom + 10, 18),
+            paddingBottom: Math.max(insets.bottom + 8, 16),
           },
         ]}>
         <View style={styles.headerRow}>
@@ -448,19 +591,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </View>
 
           <View style={styles.profileTextBox}>
-            <Text numberOfLines={1} style={styles.userName}>
-              {user.name}
-            </Text>
-
-            <Text numberOfLines={1} style={styles.userEmail}>
-              {user.email}
-            </Text>
-
-            {user.phone ? (
-              <Text numberOfLines={1} style={styles.userPhone}>
-                {user.phone}
-              </Text>
-            ) : null}
+            <Text numberOfLines={1} style={styles.userName}>{user.name}</Text>
+            <Text numberOfLines={1} style={styles.userEmail}>{user.email}</Text>
+            {user.phone ? <Text numberOfLines={1} style={styles.userPhone}>{user.phone}</Text> : null}
           </View>
 
           <Pressable style={styles.closeButton} onPress={onClose} hitSlop={8}>
@@ -468,46 +601,72 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </Pressable>
         </View>
 
-        <View style={styles.planCard}>
-          <View style={styles.planIconCircle}>
-            <Feather name="user" size={17} color="#2563EB" />
-          </View>
-
-          <View style={styles.planTextBox}>
-            <Text style={styles.planTitle}>Free plan</Text>
-            <Text style={styles.planSubtitle}>No subscription</Text>
-          </View>
-
-          <View style={styles.planRouteCountPill}>
-            <Text style={styles.planRouteCountText}>{routes.length} routes</Text>
-          </View>
-        </View>
-
-        <Pressable style={styles.subscribeButton}>
-          <View style={styles.subscribeIconBox}>
-            <MaterialCommunityIcons name="lightning-bolt" size={15} color="#F59E0B" />
-          </View>
-          <Text style={styles.subscribeText}>Upgrade subscription</Text>
-        </Pressable>
-
-        <View style={styles.quickActions}>
-          {renderQuickAction('home', 'Home', handleHome)}
-          {renderQuickAction('settings', 'Settings', handleSettings)}
-          {renderQuickAction('help-circle', 'Support', handleSupport)}
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionEyebrow}>Routes</Text>
-            <Text style={styles.sectionTitle}>Recent activity</Text>
-          </View>
-          <Text style={styles.sectionCount}>{routes.length}</Text>
-        </View>
-
         <ScrollView
-          style={styles.routeList}
+          style={styles.contentScroll}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.routeListContent}>
+          contentContainerStyle={styles.contentScrollInner}>
+          <View style={styles.planCard}>
+            <View style={styles.planIconCircle}>
+              <Feather name="user" size={16} color="#2563EB" />
+            </View>
+
+            <View style={styles.planTextBox}>
+              <Text style={styles.planTitle}>Free plan</Text>
+              <Text style={styles.planSubtitle}>No subscription</Text>
+            </View>
+
+            <View style={styles.planRouteCountPill}>
+              <Text style={styles.planRouteCountText}>{routes.length} routes</Text>
+            </View>
+          </View>
+
+          <Pressable style={styles.subscribeButton}>
+            <View style={styles.subscribeIconBox}>
+              <MaterialCommunityIcons name="lightning-bolt" size={15} color="#F59E0B" />
+            </View>
+            <Text style={styles.subscribeText}>Upgrade subscription</Text>
+          </Pressable>
+
+          <View style={styles.quickActions}>
+            {renderQuickAction('home', 'Home', handleHome, pathname === '/')}
+            {renderQuickAction('settings', 'Settings', handleSettings, pathname?.includes('settings'))}
+            {renderQuickAction('help-circle', 'Support', handleSupport, pathname?.includes('support'))}
+          </View>
+
+          <Pressable
+            style={[styles.historyEntry, isHistoryActive && styles.historyEntryActive]}
+            onPress={handleRouteHistory}>
+            <View style={[styles.historyIconBox, isHistoryActive && styles.historyIconBoxActive]}>
+              <Feather name="archive" size={16} color="#2563EB" />
+            </View>
+
+            <Text style={[styles.historyTitle, isHistoryActive && styles.historyTitleActive]}>
+              Route history
+            </Text>
+
+            <View style={styles.historyCountPill}>
+              <Text style={styles.historyCountText}>{completedRoutes.length || routes.length}</Text>
+            </View>
+          </Pressable>
+
+          <View style={styles.statsCard}>
+            <Text style={styles.statsTitle}>Completed this month</Text>
+            <View style={styles.metricsRow}>
+              {renderMetric(sidebarStats.completedCount, 'Routes', 'green')}
+              <View style={styles.metricDivider} />
+              {renderMetric(sidebarStats.totalDistanceLabel, 'Distance', 'blue')}
+              <View style={styles.metricDivider} />
+              {renderMetric(sidebarStats.totalDurationLabel, 'Duration', 'orange')}
+            </View>
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent activity</Text>
+            <View style={styles.sectionCountPill}>
+              <Text style={styles.sectionCountText}>{recentRoutes.length}</Text>
+            </View>
+          </View>
+
           {isLoadingRoutes ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="small" color="#2563EB" />
@@ -517,19 +676,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           {!isLoadingRoutes && routeError ? (
             <View style={styles.emptyCard}>
-              <Feather name="alert-circle" size={19} color="#EF4444" />
+              <Feather name="alert-circle" size={18} color="#EF4444" />
               <Text style={styles.emptyText}>{routeError}</Text>
             </View>
           ) : null}
 
           {!isLoadingRoutes && !routeError && routes.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Feather name="map" size={19} color="#64748B" />
+              <Feather name="map" size={18} color="#64748B" />
               <Text style={styles.emptyText}>No routes created yet.</Text>
             </View>
           ) : null}
 
-          {!isLoadingRoutes && routes.map(renderRouteItem)}
+          {!isLoadingRoutes && !routeError && recentRoutes.map(renderRouteItem)}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -543,35 +702,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <Text style={styles.logoutText}>Logout</Text>
           </Pressable>
         </View>
-
-        {/* Route Action Panel (Internal Action Sheet) */}
-        {menuRouteId && (
-          <>
-            <Animated.View 
-              entering={FadeIn.duration(200)} 
-              exiting={FadeOut.duration(200)}
-              style={styles.menuOverlay}
-            >
-              <Pressable style={{ flex: 1 }} onPress={closeRouteMenu} />
-            </Animated.View>
-            
-            <Animated.View style={[styles.actionSheet, actionSheetStyle]}>
-              <View style={styles.actionSheetHandle} />
-              <Text style={styles.actionSheetTitle}>Route Actions</Text>
-              
-              <Pressable style={styles.actionButton} onPress={performDelete}>
-                <View style={[styles.actionIconBox, { backgroundColor: '#FEF2F2' }]}>
-                  <Feather name="trash-2" size={18} color="#EF4444" />
-                </View>
-                <Text style={styles.actionButtonTextDanger}>Delete Route History</Text>
-              </Pressable>
-
-              <Pressable style={styles.actionCancelButton} onPress={closeRouteMenu}>
-                <Text style={styles.actionCancelText}>Cancel</Text>
-              </Pressable>
-            </Animated.View>
-          </>
-        )}
       </Animated.View>
     </>
   );
@@ -588,6 +718,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.32)',
   },
 
+  overlayPressable: {
+    flex: 1,
+  },
+
   sidebar: {
     position: 'absolute',
     left: 0,
@@ -595,101 +729,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 210,
     backgroundColor: '#FFFFFF',
-    borderTopRightRadius: 24,
-    borderBottomRightRadius: 24,
+    borderTopRightRadius: 26,
+    borderBottomRightRadius: 26,
     borderRightWidth: 1,
-    borderRightColor: '#E7EDF6',
-    elevation: 20,
+    borderRightColor: '#DDE8F7',
+    elevation: 22,
     shadowColor: '#0F172A',
-    shadowOffset: {
-      width: 10,
-      height: 0,
-    },
+    shadowOffset: { width: 10, height: 0 },
     shadowOpacity: 0.16,
     shadowRadius: 24,
-  },
-
-  menuOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 24,
-    zIndex: 250,
-  },
-
-  actionSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 12,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-    zIndex: 260,
-    elevation: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-
-  actionSheetHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-
-  actionSheetTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-
-  actionIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-
-  actionButtonTextDanger: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#EF4444',
-  },
-
-  actionCancelButton: {
-    marginTop: 12,
-    height: 50,
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  actionCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
   },
 
   headerRow: {
@@ -701,25 +749,22 @@ const styles = StyleSheet.create({
   avatar: {
     width: 52,
     height: 52,
-    borderRadius: 18,
-    backgroundColor: '#EA580C',
+    borderRadius: 17,
+    backgroundColor: '#F97316',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-    shadowColor: '#EA580C',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.18,
+    shadowColor: '#F97316',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
     shadowRadius: 14,
     elevation: 5,
   },
 
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 23,
+    lineHeight: 29,
     fontWeight: '600',
   },
 
@@ -729,8 +774,8 @@ const styles = StyleSheet.create({
   },
 
   userName: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15.5,
+    lineHeight: 21,
     fontWeight: '600',
     color: '#111827',
     letterSpacing: -0.2,
@@ -738,8 +783,8 @@ const styles = StyleSheet.create({
 
   userEmail: {
     marginTop: 2,
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 12.5,
+    lineHeight: 16,
     fontWeight: '400',
     color: '#64748B',
   },
@@ -760,15 +805,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E5EAF3',
+    borderColor: '#E1E8F2',
     marginLeft: 8,
   },
 
+  contentScroll: {
+    flex: 1,
+    marginTop: 14,
+  },
+
+  contentScrollInner: {
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+  },
+
   planCard: {
-    marginTop: 22,
-    marginHorizontal: 18,
-    minHeight: 62,
-    borderRadius: 18,
+    minHeight: 58,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: '#DDE8F7',
     backgroundColor: '#F8FBFF',
@@ -779,13 +832,13 @@ const styles = StyleSheet.create({
   },
 
   planIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 13,
     backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 11,
+    marginRight: 10,
   },
 
   planTextBox: {
@@ -794,22 +847,22 @@ const styles = StyleSheet.create({
   },
 
   planTitle: {
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13.5,
+    lineHeight: 17,
     fontWeight: '600',
-    color: '#1D4ED8',
+    color: '#2563EB',
   },
 
   planSubtitle: {
     marginTop: 2,
-    fontSize: 12.5,
-    lineHeight: 16,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: '400',
     color: '#64748B',
   },
 
   planRouteCountPill: {
-    minHeight: 26,
+    minHeight: 25,
     borderRadius: 13,
     paddingHorizontal: 10,
     alignItems: 'center',
@@ -820,17 +873,16 @@ const styles = StyleSheet.create({
   },
 
   planRouteCountText: {
-    fontSize: 11.5,
-    lineHeight: 15,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: '600',
     color: '#64748B',
   },
 
   subscribeButton: {
-    height: 44,
-    marginTop: 12,
-    marginHorizontal: 18,
-    borderRadius: 15,
+    height: 43,
+    marginTop: 11,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#DCE6F4',
     backgroundColor: '#FFFFFF',
@@ -850,24 +902,24 @@ const styles = StyleSheet.create({
   },
 
   subscribeText: {
-    fontSize: 14,
+    fontSize: 13.5,
     lineHeight: 18,
     fontWeight: '600',
     color: '#2563EB',
   },
 
   quickActions: {
-    marginTop: 14,
-    marginHorizontal: 18,
+    marginTop: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 9,
   },
 
   quickActionButton: {
-    width: '31.5%',
-    minHeight: 56,
+    flex: 1,
+    minHeight: 54,
     borderRadius: 16,
-    backgroundColor: '#F7FAFE',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E1E8F2',
     alignItems: 'center',
@@ -875,114 +927,246 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
 
+  quickActionButtonActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+
   quickActionIconBox: {
-    width: 26,
+    width: 25,
     height: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 3,
   },
 
+  quickActionIconBoxActive: {
+    backgroundColor: '#DBEAFE',
+    borderRadius: 11,
+  },
+
   quickActionText: {
-    fontSize: 12.5,
+    fontSize: 12,
     lineHeight: 16,
     fontWeight: '600',
     color: '#334155',
   },
 
-  sectionHeader: {
-    marginTop: 24,
-    paddingHorizontal: 18,
-    marginBottom: 10,
+  quickActionTextActive: {
+    color: '#2563EB',
+  },
+
+  historyEntry: {
+    minHeight: 55,
+    marginTop: 13,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E1E8F2',
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
   },
 
-  sectionEyebrow: {
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '700',
-    color: '#94A3B8',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
+  historyEntryActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#CFE2FF',
   },
 
-  sectionTitle: {
-    marginTop: 2,
-    fontSize: 15,
-    lineHeight: 20,
+  historyIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  historyIconBoxActive: {
+    backgroundColor: '#DBEAFE',
+  },
+
+  historyTitle: {
+    flex: 1,
+    fontSize: 14.5,
+    lineHeight: 19,
     fontWeight: '600',
     color: '#1E293B',
   },
 
-  sectionCount: {
-    minWidth: 28,
-    textAlign: 'center',
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
+  historyTitleActive: {
     color: '#2563EB',
-    backgroundColor: '#EEF6FF',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    overflow: 'hidden',
   },
 
-  routeList: {
-    flex: 1,
+  historyCountPill: {
+    minWidth: 31,
+    minHeight: 26,
+    borderRadius: 13,
+    paddingHorizontal: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DBEAFE',
   },
 
-  routeListContent: {
-    paddingHorizontal: 14,
+  historyCountText: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+
+  statsCard: {
+    marginTop: 13,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E1E8F2',
+    paddingHorizontal: 13,
+    paddingTop: 13,
     paddingBottom: 12,
   },
 
-  routeItem: {
-    minHeight: 70,
-    borderRadius: 18,
+  statsTitle: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
+
+  metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+  },
+
+  metricItem: {
+    flex: 1,
+    alignItems: 'center',
+    minWidth: 0,
+  },
+
+  metricValue: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+
+  metricValueGreen: {
+    color: '#16A34A',
+  },
+
+  metricValueBlue: {
+    color: '#2563EB',
+  },
+
+  metricValueOrange: {
+    color: '#F97316',
+  },
+
+  metricLabel: {
+    marginTop: 3,
+    fontSize: 11.5,
+    lineHeight: 15,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+
+  metricDivider: {
+    width: 1,
+    height: 34,
+    backgroundColor: '#E5EAF3',
+  },
+
+  sectionHeader: {
+    marginTop: 17,
+    marginBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  sectionTitle: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+
+  sectionCountPill: {
+    minWidth: 27,
+    minHeight: 24,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEF6FF',
+  },
+
+  sectionCountText: {
+    fontSize: 11.5,
+    lineHeight: 14,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+
+  routeItem: {
+    minHeight: 82,
+    borderRadius: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
     paddingVertical: 10,
     marginBottom: 9,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#EEF2F7',
+    borderColor: '#E7EDF6',
   },
 
-  activeRouteItem: {
+  routeItemActive: {
     backgroundColor: '#EFF6FF',
     borderColor: '#CFE2FF',
   },
 
   routeDatePill: {
-    width: 54,
-    height: 42,
-    borderRadius: 14,
+    width: 51,
+    height: 58,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E7EDF6',
-    marginRight: 11,
+    marginRight: 10,
   },
 
-  activeRouteDatePill: {
+  routeDatePillActive: {
     backgroundColor: '#DBEAFE',
     borderColor: '#BFDBFE',
   },
 
-  routeDate: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
+  routeDateDay: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+
+  routeDateDayActive: {
+    color: '#1D4ED8',
+  },
+
+  routeDateMonth: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '600',
     color: '#64748B',
   },
 
-  activeRouteDate: {
-    color: '#1D4ED8',
+  routeDateMonthActive: {
+    color: '#2563EB',
   },
 
   routeInfoBox: {
@@ -990,16 +1174,24 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
 
-  routeTitle: {
-    fontSize: 14.5,
-    lineHeight: 19,
-    fontWeight: '600',
-    color: '#111827',
-    letterSpacing: -0.15,
+  routeTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
 
-  activeRouteTitle: {
-    color: '#1D4ED8',
+  routeTitle: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#0F172A',
+    letterSpacing: -0.15,
+    marginRight: 7,
+  },
+
+  routeTitleActive: {
+    color: '#2563EB',
   },
 
   routeMetaRow: {
@@ -1008,16 +1200,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  routeIdText: {
+  routeMetaRowBottom: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  routeMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    flex: 1,
+  },
+
+  routeMetaItemCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  routeMetaText: {
+    marginLeft: 4,
     fontSize: 11.5,
     lineHeight: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#64748B',
-    marginRight: 7,
   },
 
   statusBadge: {
-    minHeight: 21,
+    minHeight: 22,
     borderRadius: 11,
     paddingHorizontal: 8,
     alignItems: 'center',
@@ -1026,71 +1238,63 @@ const styles = StyleSheet.create({
   },
 
   statusBadgeText: {
-    fontSize: 10.5,
-    lineHeight: 14,
-    fontWeight: '700',
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
   },
 
-  statusBadge_blue: {
+  statusBadgeBlue: {
     backgroundColor: '#EFF6FF',
     borderColor: '#BFDBFE',
   },
 
-  statusText_blue: {
+  statusTextBlue: {
     color: '#2563EB',
   },
 
-  statusBadge_green: {
+  statusBadgeGreen: {
     backgroundColor: '#ECFDF5',
     borderColor: '#BBF7D0',
   },
 
-  statusText_green: {
+  statusTextGreen: {
     color: '#16A34A',
   },
 
-  statusBadge_amber: {
+  statusBadgeAmber: {
     backgroundColor: '#FFFBEB',
     borderColor: '#FDE68A',
   },
 
-  statusText_amber: {
+  statusTextAmber: {
     color: '#D97706',
   },
 
-  statusBadge_purple: {
+  statusBadgePurple: {
     backgroundColor: '#F5F3FF',
     borderColor: '#DDD6FE',
   },
 
-  statusText_purple: {
+  statusTextPurple: {
     color: '#7C3AED',
   },
 
-  statusBadge_red: {
+  statusBadgeRed: {
     backgroundColor: '#FEF2F2',
     borderColor: '#FECACA',
   },
 
-  statusText_red: {
+  statusTextRed: {
     color: '#DC2626',
   },
 
-  statusBadge_slate: {
+  statusBadgeSlate: {
     backgroundColor: '#F8FAFC',
     borderColor: '#E2E8F0',
   },
 
-  statusText_slate: {
+  statusTextSlate: {
     color: '#64748B',
-  },
-
-  routeMoreButton: {
-    width: 30,
-    height: 42,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginLeft: 6,
   },
 
   loadingBox: {
@@ -1136,7 +1340,7 @@ const styles = StyleSheet.create({
 
   footer: {
     paddingHorizontal: 18,
-    paddingTop: 12,
+    paddingTop: 11,
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
     backgroundColor: '#FFFFFF',
@@ -1145,16 +1349,13 @@ const styles = StyleSheet.create({
   createRouteButton: {
     height: 50,
     borderRadius: 16,
-    backgroundColor: '#2F76F6',
+    backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     shadowColor: '#2563EB',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.18,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
     shadowRadius: 14,
     elevation: 6,
   },
@@ -1163,17 +1364,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     lineHeight: 19,
-    fontWeight: '700',
+    fontWeight: '600',
     marginLeft: 8,
   },
 
   logoutButton: {
-    height: 42,
+    height: 41,
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    marginTop: 8,
+    marginTop: 7,
   },
 
   logoutText: {
