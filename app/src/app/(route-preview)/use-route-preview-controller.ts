@@ -58,6 +58,7 @@ import {
   ORDER_STATUS_FAILED,
   persistRouteSnapshot,
   ROUTE_STATUS_COMPLETED,
+  ROUTE_STATUS_IN_ARCHIVE,
   ROUTE_STATUS_IN_TRANSIT,
   ROUTE_STATUS_OPTIMIZED,
   ROUTE_STATUS_PENDING,
@@ -87,6 +88,7 @@ type UseRoutePreviewControllerResult = {
   selectedSuggestion: PlaceSuggestion | null;
   stopDetails: StopDetails;
   isUpdatingStopStatus: boolean;
+  isCancellingRoute: boolean;
   activeStopInfo: ReturnType<typeof getActiveStop>;
   setSearchText: (value: string) => void;
   setIsSidebarOpen: (value: boolean) => void;
@@ -105,6 +107,7 @@ type UseRoutePreviewControllerResult = {
   handleNavigateActiveStop: () => Promise<void>;
   handleMarkStopDelivered: () => Promise<void>;
   handleMarkStopFailed: () => Promise<void>;
+  handleCancelRoute: () => Promise<void>;
   handleCreateNewRoute: () => void;
   handleScanAddress: () => Promise<void>;
   handleVoiceAddress: () => Promise<void>;
@@ -167,6 +170,7 @@ export function useRoutePreviewController(
   const [selectedStop, setSelectedStop] = useState<RouteStop | null>(null);
   const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
+  const [isCancellingRoute, setIsCancellingRoute] = useState(false);
 
   const effectiveRouteId = activeRouteId || routeIdFromParams;
 
@@ -777,6 +781,32 @@ export function useRoutePreviewController(
   }, [handleUpdateActiveStopStatus]);
 
 
+  const handleCancelRoute = useCallback(async () => {
+    if (!effectiveRouteId || isCancellingRoute) return;
+
+    setIsCancellingRoute(true);
+    setErrorMessage('');
+
+    try {
+      await routesService.updateRoute({
+        route_id: effectiveRouteId,
+        status: ROUTE_STATUS_IN_ARCHIVE,
+      });
+
+      setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_IN_ARCHIVE));
+      setPanelMode('empty');
+      setRoute(null);
+      router.replace('/' as any);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to cancel route.',
+      );
+    } finally {
+      setIsCancellingRoute(false);
+    }
+  }, [effectiveRouteId, isCancellingRoute, router]);
+
+
   const showResolvedAddressSuggestions = useCallback((response: any, fallbackQuery: string) => {
     const resolvedSuggestions = getResolvedAddressSuggestions(response, fallbackQuery);
 
@@ -1002,6 +1032,7 @@ export function useRoutePreviewController(
     selectedSuggestion,
     stopDetails,
     isUpdatingStopStatus,
+    isCancellingRoute,
     activeStopInfo,
     setSearchText,
     setIsSidebarOpen,
@@ -1020,6 +1051,7 @@ export function useRoutePreviewController(
     handleNavigateActiveStop,
     handleMarkStopDelivered,
     handleMarkStopFailed,
+    handleCancelRoute,
     handleCreateNewRoute,
     handleScanAddress,
     handleVoiceAddress,

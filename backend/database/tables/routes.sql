@@ -14,3 +14,5 @@ CREATE TABLE IF NOT EXISTS routes (
 );
 
 ALTER TABLE routes add is_active boolean default true;
+ALTER TABLE routes ADD COLUMN distance DECIMAL(10, 3) DEFAULT 0;
+ALTER TABLE routes ADD COLUMN duration DECIMAL(10, 3) DEFAULT 0;

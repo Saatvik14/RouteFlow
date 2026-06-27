@@ -695,18 +695,15 @@ export async function persistRouteSnapshot({
   if (!routeId) return;
 
   const payload: any = {
-    route_id: routeId,
-    coordinates: serializeRouteCoordinates(route.coordinates || []),
+    route_id: routeId
   };
 
   if (status) payload.status = status;
   if (Number.isFinite(distanceMeters)) {
     payload.distance = distanceMeters;
-    payload.total_distance = distanceMeters;
   }
   if (Number.isFinite(durationSeconds)) {
     payload.duration = durationSeconds;
-    payload.total_duration = durationSeconds;
   }
 
   await routesService.updateRoute(payload);

@@ -1,12 +1,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapScreen from '../../components/maps/RouteMap';
 import { RoutePanel } from './../../components/route-panel';
 import { RoutePreviewPanel } from './../../components/route-preview-panel-refactor/route-preview-panel';
+import { TransitStopPanel } from './../../components/route-preview-panel-refactor/route-preview-panel/components/transit-stop-panel';
 import { Sidebar } from './../../components/sidebar';
 import { getParam, ROUTE_STATUS_IN_ARCHIVE } from './route-preview.helpers';
 import { styles } from './route-preview.styles';
@@ -17,6 +18,8 @@ export { ROUTE_STATUS_IN_ARCHIVE };
 export default function RoutePreviewScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
   const routeId = useMemo(() => getParam(params.id, ''), [params.id]);
 
   const {
@@ -40,6 +43,7 @@ export default function RoutePreviewScreen() {
     selectedSuggestion,
     stopDetails,
     isUpdatingStopStatus,
+    isCancellingRoute,
     activeStopInfo,
     setSearchText,
     setIsSidebarOpen,
@@ -58,6 +62,7 @@ export default function RoutePreviewScreen() {
     handleNavigateActiveStop,
     handleMarkStopDelivered,
     handleMarkStopFailed,
+    handleCancelRoute,
     handleCreateNewRoute,
     handleScanAddress,
     handleVoiceAddress,
@@ -143,6 +148,57 @@ export default function RoutePreviewScreen() {
 
       {!isInitialLoading && !route ? (
         <RoutePanel />
+      ) : !isInitialLoading && route && resolvedPanelMode === 'transit' ? (
+        <TransitStopPanel
+          isWide={isWide}
+          mode={resolvedPanelMode}
+          routeName={routeTitle}
+          startTime={previewStartTime}
+          start={route.start}
+          end={route.end}
+          stops={route.stops}
+          durationLabel={routeMeta.durationLabel}
+          distanceLabel={routeMeta.distanceLabel}
+          routeStatus={routeStatus}
+          activeStop={activeStopInfo.stop}
+          activeStopIndex={activeStopInfo.index}
+          totalActiveStops={activeStopInfo.total}
+          isUpdatingStopStatus={isUpdatingStopStatus}
+          isCancellingRoute={isCancellingRoute}
+          isCompletingRoute={false}
+          searchText={searchText}
+          suggestions={suggestions}
+          selectedSuggestion={selectedSuggestion}
+          stopDetails={stopDetails}
+          isAddingStop={isAddingStop}
+          isStartingRoute={isStartingRoute}
+          onSearchTextChange={setSearchText}
+          onOpenSearch={handleOpenSearch}
+          onCloseSearch={handleCloseSearch}
+          onSelectSuggestion={handleSelectSuggestion}
+          onSelectStop={handleOpenStopDetails}
+          onOpenStopDetails={handleOpenStopDetails}
+          onStopPress={handleOpenStopDetails}
+          onStopDetailsChange={handleStopDetailsChange}
+          onConfirmStopDetails={handleConfirmStopDetails}
+          onOptimizeRoute={handleOptimizeRoute}
+          onRefine={handleRefineRoute}
+          onConfirm={handleConfirmRoute}
+          onStartRoute={handleStartRoute}
+          onNavigateActiveStop={handleNavigateActiveStop}
+          onMarkStopDelivered={handleMarkStopDelivered}
+          onMarkStopFailed={handleMarkStopFailed}
+          onMarkRouteCompleted={handleCreateNewRoute}
+          onCancelRoute={handleCancelRoute}
+          onCreateNewRoute={handleCreateNewRoute}
+          onScanAddress={handleScanAddress}
+          onVoiceAddress={handleVoiceAddress}
+          onScanRouteManifest={handleScanRouteManifest}
+          onImportRouteManifest={handleImportRouteManifest}
+          onCopyStopsFromPastRoute={handleCopyStopsFromPastRoute}
+          onSkipOptimization={handleSkipOptimization}
+          onRemoveStops={handleRemoveStops}
+        />
       ) : !isInitialLoading && route ? (
         <RoutePreviewPanel
           mode={resolvedPanelMode}
