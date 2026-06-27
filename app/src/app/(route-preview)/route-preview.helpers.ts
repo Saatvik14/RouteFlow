@@ -41,8 +41,8 @@ export const ROUTE_STATUS_IN_TRANSIT =
 export const ROUTE_STATUS_COMPLETED =
   (ROUTE_STATUS as Record<string, string>).COMPLETED || 'completed';
 
-export const ROUTE_STATUS_IN_ARCHIVE =
-  (ROUTE_STATUS as Record<string, string>).ARCHIVED || 'archived';
+export const ROUTE_STATUS_CANCELLED =
+  (ROUTE_STATUS as Record<string, string>).CANCELLED || 'cancelled';
 
 export const ORDER_STATUS_DELIVERED = 'delivered';
 export const ORDER_STATUS_FAILED = 'failed';
@@ -70,6 +70,10 @@ export function getPanelModeFromStatus(
   status: unknown,
   stopsCount: number,
 ): PanelMode {
+  if (isCancelledRouteStatus(status)) {
+    return 'cancelled';
+  }
+
   if (isInTransitStatus(status) || isStatus(status, ROUTE_STATUS_COMPLETED)) {
     return 'transit';
   }
@@ -1077,4 +1081,20 @@ export function buildMapDisplayRoute(route: AppRoute): AppRoute {
     end: (displayMarkers.get('end') || route.end) as RoutePoint,
     coordinates: route.coordinates?.length ? route.coordinates : getInitialCoordinates(route),
   };
+}
+
+export function isCancelledRouteStatus(status: unknown) {
+  const normalized = normalizeRouteStatus(status);
+
+  return normalized === ROUTE_STATUS_CANCELLED || normalized === 'canceled';
+}
+
+export function isPendingOrderStatus(status: unknown) {
+  const normalized = normalizeRouteStatus(status);
+
+  return (
+    normalized === ROUTE_STATUS_PENDING ||
+    normalized === 'pnding' ||
+    normalized === ''
+  );
 }

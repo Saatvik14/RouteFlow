@@ -9,11 +9,10 @@ import { RoutePanel } from './../../components/route-panel';
 import { RoutePreviewPanel } from './../../components/route-preview-panel-refactor/route-preview-panel';
 import { TransitStopPanel } from './../../components/route-preview-panel-refactor/route-preview-panel/components/transit-stop-panel';
 import { Sidebar } from './../../components/sidebar';
-import { getParam, ROUTE_STATUS_IN_ARCHIVE } from './route-preview.helpers';
+import { getParam } from './route-preview.helpers';
 import { styles } from './route-preview.styles';
 import { useRoutePreviewController } from './use-route-preview-controller';
 
-export { ROUTE_STATUS_IN_ARCHIVE };
 
 export default function RoutePreviewScreen() {
   const params = useLocalSearchParams();
@@ -244,6 +243,7 @@ export default function RoutePreviewScreen() {
           onCopyStopsFromPastRoute={handleCopyStopsFromPastRoute}
           onSkipOptimization={handleSkipOptimization}
           onRemoveStops={handleRemoveStops}
+          onCancelRoute={handleCancelRoute}
         />
       ) : null}
 

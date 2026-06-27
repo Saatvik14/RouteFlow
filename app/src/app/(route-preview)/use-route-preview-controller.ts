@@ -58,12 +58,14 @@ import {
   ORDER_STATUS_FAILED,
   persistRouteSnapshot,
   ROUTE_STATUS_COMPLETED,
-  ROUTE_STATUS_IN_ARCHIVE,
   ROUTE_STATUS_IN_TRANSIT,
   ROUTE_STATUS_OPTIMIZED,
   ROUTE_STATUS_PENDING,
   updateOrderStatusOnBackend,
   unwrapOrderPayload,
+  ROUTE_STATUS_CANCELLED,
+  isCancelledRouteStatus,
+  isPendingOrderStatus
 } from './route-preview.helpers';
 
 type UseRoutePreviewControllerResult = {
@@ -284,13 +286,17 @@ export function useRoutePreviewController(
     return getActiveStop(route?.stops || []);
   }, [route?.stops]);
 
-  const resolvedPanelMode = useMemo<PanelMode>(() => {
-    if (isInTransitStatus(routeStatus) || isStatus(routeStatus, ROUTE_STATUS_COMPLETED)) {
-      return 'transit';
-    }
+const resolvedPanelMode = useMemo<PanelMode>(() => {
+  if (isCancelledRouteStatus(routeStatus)) {
+    return 'cancelled';
+  }
 
-    return panelMode;
-  }, [panelMode, routeStatus]);
+  if (isInTransitStatus(routeStatus) || isStatus(routeStatus, ROUTE_STATUS_COMPLETED)) {
+    return 'transit';
+  }
+
+  return panelMode;
+}, [panelMode, routeStatus]);
 
   useEffect(() => {
     setActiveRouteId(routeIdFromParams);
@@ -329,12 +335,13 @@ export function useRoutePreviewController(
         let nextRoute = result.route;
         let nextRouteMeta = result.routeMeta;
 
-        if (
-          (isOptimizedStatus(result.routeStatus) ||
-            isInTransitStatus(result.routeStatus)) &&
-          getRoutePoints(nextRoute).length >= 2 &&
-          !hasDetailedRoadPath(nextRoute)
-        ) {
+       if (
+        (isOptimizedStatus(result.routeStatus) ||
+          isInTransitStatus(result.routeStatus) ||
+          isCancelledRouteStatus(result.routeStatus)) &&
+        getRoutePoints(nextRoute).length >= 2 &&
+        !hasDetailedRoadPath(nextRoute)
+) {
           const roadPath = await fetchRoutePath(getRoutePoints(nextRoute));
 
           nextRoute = {
@@ -880,30 +887,109 @@ export function useRoutePreviewController(
   }, [handleUpdateActiveStopStatus]);
 
 
-  const handleCancelRoute = useCallback(async () => {
-    if (!effectiveRouteId || isCancellingRoute) return;
+  const handleCancelRoute = async () => {
+      console.log(1)
+  if (!effectiveRouteId || isCancellingRoute) return;
 
-    setIsCancellingRoute(true);
-    setErrorMessage('');
+  setIsCancellingRoute(true);
+  setErrorMessage('');
 
-    try {
-      await routesService.updateRoute({
-        route_id: effectiveRouteId,
-        status: ROUTE_STATUS_IN_ARCHIVE,
-      });
+  try {
+    await routesService.cancelRoute(effectiveRouteId);
 
-      setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_IN_ARCHIVE));
-      setPanelMode('empty');
-      setRoute(null);
-      router.replace('/' as any);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to cancel route.',
-      );
-    } finally {
-      setIsCancellingRoute(false);
-    }
-  }, [effectiveRouteId, isCancellingRoute, router]);
+    const cancelledStatus = normalizeRouteStatus(ROUTE_STATUS_CANCELLED);
+
+    setRouteStatus(cancelledStatus);
+    setPanelMode('cancelled');
+
+    // Backend updates only pending orders.
+    // Frontend also updates only pending stops locally for instant UI feedback.
+    setRoute((currentRoute) => {
+      if (!currentRoute) return currentRoute;
+
+      return {
+        ...currentRoute,
+        stops: currentRoute.stops.map((stop) => {
+          const currentStopStatus =
+            stop.status ||
+            ROUTE_STATUS_PENDING;
+
+          if (!isPendingOrderStatus(currentStopStatus)) {
+            return stop;
+          }
+
+          return {
+            ...stop,
+            status: cancelledStatus,
+            orderStatus: cancelledStatus,
+            order_status: cancelledStatus,
+          };
+        }),
+      };
+    });
+
+    recenterMap();
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error ? error.message : 'Unable to cancel route.',
+    );
+  } finally {
+    setIsCancellingRoute(false);
+  }
+
+  };
+
+
+// const handleCancelRoute = useCallback(async () => {
+//   console.log(1)
+//   if (!effectiveRouteId || isCancellingRoute) return;
+
+//   setIsCancellingRoute(true);
+//   setErrorMessage('');
+
+//   try {
+//     await routesService.cancelRoute(effectiveRouteId);
+
+//     const cancelledStatus = normalizeRouteStatus(ROUTE_STATUS_CANCELLED);
+
+//     setRouteStatus(cancelledStatus);
+//     setPanelMode('cancelled');
+
+//     // Backend updates only pending orders.
+//     // Frontend also updates only pending stops locally for instant UI feedback.
+//     setRoute((currentRoute) => {
+//       if (!currentRoute) return currentRoute;
+
+//       return {
+//         ...currentRoute,
+//         stops: currentRoute.stops.map((stop) => {
+//           const currentStopStatus =
+//             stop.status ||
+//             ROUTE_STATUS_PENDING;
+
+//           if (!isPendingOrderStatus(currentStopStatus)) {
+//             return stop;
+//           }
+
+//           return {
+//             ...stop,
+//             status: cancelledStatus,
+//             orderStatus: cancelledStatus,
+//             order_status: cancelledStatus,
+//           };
+//         }),
+//       };
+//     });
+
+//     recenterMap();
+//   } catch (error) {
+//     setErrorMessage(
+//       error instanceof Error ? error.message : 'Unable to cancel route.',
+//     );
+//   } finally {
+//     setIsCancellingRoute(false);
+//   }
+// }, [effectiveRouteId, isCancellingRoute, recenterMap]);
 
 
   const showResolvedAddressSuggestions = useCallback((response: any, fallbackQuery: string) => {

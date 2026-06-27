@@ -4,7 +4,7 @@
  */
 
 import { API_ENDPOINTS } from '../../constants/api';
-import { apiDelete, apiGet, apiPost, apiPut, apiPostMultipart } from './client';
+import { apiDelete, apiGet, apiPost, apiPut, apiPostMultipart, apiPatch } from './client';
 
 /**
  * Route/Map Route data
@@ -118,6 +118,12 @@ export const routesService = {
     apiGet<any>(
       `${API_ENDPOINTS.ROUTES.AUTOCOMPLETE_ADDRESS}?text=${encodeURIComponent(text)}&limit=${limit}`
     ),
+
+    /**
+   * Cancel route by ID
+   */
+  cancelRoute: (routeId: string) =>
+    apiPatch<Route>(API_ENDPOINTS.ROUTES.CANCEL_ROUTE(routeId)),
 
 
   optimizeRoute: (routeId: any) =>

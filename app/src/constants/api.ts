@@ -102,6 +102,7 @@ export const API_ENDPOINTS = {
     SEARCH_ROUTES: '/route/search',
     AUTOCOMPLETE_ADDRESS: '/route/autocomplete',
     OPTIMIZE: '/route/optimize',
+    CANCEL_ROUTE: (id: string) => `/route/cancel?route_id=${id}`,
   },
 
   // Order endpoints

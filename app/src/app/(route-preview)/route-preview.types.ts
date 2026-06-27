@@ -7,7 +7,8 @@ export type PanelMode =
   | 'setup'
   | 'confirmed'
   | 'transit'
-  | 'add';
+  | 'add'
+  | 'cancelled';
 
 export type RouteStatus = string;
 

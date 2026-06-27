@@ -554,4 +554,74 @@ const optimizeRoute = async (req, res) => {
   }
 };
 
-module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, optimizeRoute };
+
+// controllers/routeController.js
+const cancelRoute = async (req, res) => {
+  try {
+    const routeId = req.query.route_id;
+
+    if (!routeId) {
+      return res.status(400).json({
+        success: false,
+        message: "route_id is required",
+      });
+    }
+
+    const query = `
+      WITH updated_route AS (
+        UPDATE routes
+        SET 
+          status = 'cancelled',
+          updated_at = NOW()
+        WHERE route_id = $1
+        RETURNING *
+      ),
+      updated_orders AS (
+        UPDATE orders
+        SET 
+          status = 'cancelled',
+          updated_at = NOW()
+        WHERE route_id = $1
+          AND LOWER(status) IN ('pending', 'pnding')
+        RETURNING order_id, status
+      )
+      SELECT 
+        (SELECT row_to_json(updated_route) FROM updated_route) AS route,
+        (SELECT COUNT(*) FROM updated_orders) AS cancelled_orders_count;
+    `;
+
+    const result = await runQuery(query, [routeId]);
+
+    const data = result.rows?.[0];
+
+    if (!data?.route) {
+      return res.status(404).json({
+        success: false,
+        message: "Route not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Route cancelled successfully",
+      route: data.route,
+      cancelledOrdersCount: Number(data.cancelled_orders_count || 0),
+    });
+  } catch (error) {
+    console.error("Error cancelling route:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to cancel route",
+      error: error.message,
+    });
+  }
+};
+
+
+module.exports = {
+  cancelRoute,
+};
+
+
+module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, optimizeRoute, cancelRoute };

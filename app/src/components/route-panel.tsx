@@ -32,7 +32,17 @@ export function RoutePanel() {
   const [loading, setLoading] = useState(true);
   const isMounted = useRef(true);
 
-  const isOptimized = latestRoute && ['optimized', 'confirmed', 'in_transit', 'completed'].includes(latestRoute.status?.toLowerCase());
+const normalizedLatestStatus = latestRoute?.status?.toLowerCase?.() || '';
+const isCancelledRoute =
+  normalizedLatestStatus === 'cancelled' || normalizedLatestStatus === 'canceled';
+
+const isOptimized =
+  latestRoute &&
+  ['optimized', 'confirmed', 'in_transit', 'completed', 'cancelled', 'canceled'].includes(
+    normalizedLatestStatus,
+  );
+
+  // const isOptimized = latestRoute && ['optimized', 'confirmed', 'in_transit', 'completed'].includes(latestRoute.status?.toLowerCase());
   const hasStops = latestRoute && latestRoute.stops && latestRoute.stops.length > 0;
 
   const MIN_HEIGHT = panelHeight;
@@ -303,7 +313,7 @@ export function RoutePanel() {
             </View>
 
         <View style={styles.buttonGroup}>
-        {hasStops && isOptimized && (
+        {hasStops && isOptimized && !isCancelledRoute &&  (
           <Pressable
             style={({ pressed }) => [
               styles.button,
@@ -334,7 +344,7 @@ export function RoutePanel() {
                 : styles.buttonText
             }
           >
-            {latestRoute ? 'Add locations' : 'Set up locations'}
+            {isCancelledRoute ? 'View cancelled route' : latestRoute ? 'Add locations' : 'Set up locations'}
           </Text>
         </Pressable>
       </View>

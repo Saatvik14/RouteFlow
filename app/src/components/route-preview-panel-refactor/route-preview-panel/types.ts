@@ -6,7 +6,8 @@ export type PanelMode =
   | 'details'
   | 'setup'
   | 'confirmed'
-  | 'transit';
+  | 'transit'
+  | 'cancelled';
 
 export type PlaceSuggestion = {
   id: string;

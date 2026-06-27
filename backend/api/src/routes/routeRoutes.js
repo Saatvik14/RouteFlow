@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, autocompleteAddress, optimizeRoute } = require('../controllers/routeController');
+const { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, autocompleteAddress, optimizeRoute, cancelRoute } = require('../controllers/routeController');
 const { protect } = require('../middleware/authMiddleware'); // Assuming this exists to verify JWT
 
 // All route APIs are protected by authentication
@@ -13,5 +13,6 @@ router.put('/edit', editRoute);
 router.post('/geocode', geocodeAddress);
 router.get('/autocomplete', autocompleteAddress);
 router.post('/optimize', optimizeRoute);
+router.patch('/cancel', cancelRoute);
 
 module.exports = router;
