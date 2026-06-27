@@ -226,6 +226,59 @@ const fetchOrders = async (req, res) => {
   }
 };
 
+
+const fetchOrdersByRoute = async (req, res) => {
+  try {
+    const { routeId } = req.query;
+
+    if (!routeId) {
+      return res.status(400).json({
+        message: "routeId is required",
+      });
+    }
+
+    const query = `
+      SELECT 
+        o.*,
+
+        l.name AS location_name,
+        l.housenumber,
+        l.street,
+        l.city,
+        l.postcode,
+        l.country,
+        l.latitude,
+        l.longitude,
+
+        op.longitudinal,
+        op.side,
+        op.vertical
+
+      FROM orders o
+      JOIN locations l 
+        ON o.location_id = l.location_id
+      LEFT JOIN order_placements op 
+        ON o.order_id = op.order_id
+
+      WHERE o.route_id = $1
+
+      ORDER BY 
+        o.sequence_no ASC NULLS LAST,
+        o.created_at ASC
+    `;
+
+    const result = await runQuery(query, [routeId]);
+
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error fetching route orders:", error);
+
+    return res.status(500).json({
+      message: "Server error while fetching orders for route",
+    });
+  }
+};
+
 // @desc    Get vehicle placement for a specific order
 // @route   GET /order/vehicleplace?order_id=...
 // @access  Private
@@ -426,5 +479,6 @@ module.exports = {
   addBulkOrders,
   insertOrderStop,
   setVehiclePlacement,
-  getVehiclePlacementByOrderId 
+  getVehiclePlacementByOrderId ,
+  fetchOrdersByRoute
 };

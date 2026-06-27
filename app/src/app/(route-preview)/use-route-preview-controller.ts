@@ -137,6 +137,107 @@ function emptyRouteFallback(): AppRoute {
   };
 }
 
+function getNumericStepValue(...values: unknown[]) {
+  for (const value of values) {
+    const numberValue = Number(value);
+    if (Number.isFinite(numberValue) && numberValue >= 0) return numberValue;
+  }
+
+  return undefined;
+}
+
+function buildStopWithOptimizeTiming(stop: RouteStop, step: any): RouteStop {
+  const arrivalOffsetSeconds = getNumericStepValue(
+    step?.arrival_seconds,
+    step?.arrivalSeconds,
+    step?.arrival,
+    step?.eta_seconds,
+    step?.etaSeconds,
+    step?.duration_seconds,
+    step?.durationSeconds,
+    step?.duration,
+  );
+
+  const distanceMeters = getNumericStepValue(
+    step?.distance_meters,
+    step?.distanceMeters,
+    step?.distance,
+  );
+
+  return {
+    ...stop,
+    etaSeconds: arrivalOffsetSeconds,
+    eta_seconds: arrivalOffsetSeconds,
+    arrivalOffsetSeconds,
+    arrival_offset_seconds: arrivalOffsetSeconds,
+    cumulativeDurationSeconds: arrivalOffsetSeconds,
+    cumulative_duration_seconds: arrivalOffsetSeconds,
+    distanceMeters,
+    distance_meters: distanceMeters,
+  } as RouteStop;
+}
+
+function getUpdatedOrderPayload(response: any) {
+  const raw = response?.data ?? response;
+
+  return (
+    raw?.order ||
+    raw?.updatedOrder ||
+    raw?.updated_order ||
+    raw?.data?.order ||
+    raw?.data?.updatedOrder ||
+    raw?.data?.updated_order ||
+    raw?.data ||
+    raw ||
+    {}
+  );
+}
+
+function getStatusTimestamp(updatedOrder: any, fallbackTimestamp: string) {
+  return (
+    updatedOrder?.actualArrivalTime ||
+    updatedOrder?.actual_arrival_time ||
+    updatedOrder?.deliveredAt ||
+    updatedOrder?.delivered_at ||
+    updatedOrder?.failedAt ||
+    updatedOrder?.failed_at ||
+    updatedOrder?.completedAt ||
+    updatedOrder?.completed_at ||
+    updatedOrder?.statusUpdatedAt ||
+    updatedOrder?.status_updated_at ||
+    updatedOrder?.markedAt ||
+    updatedOrder?.marked_at ||
+    updatedOrder?.updatedAt ||
+    updatedOrder?.updated_at ||
+    fallbackTimestamp
+  );
+}
+
+function buildStopWithStatusUpdate(stop: RouteStop, nextStatus: string, updatedOrder: any): RouteStop {
+  const nowIso = new Date().toISOString();
+  const statusTimestamp = getStatusTimestamp(updatedOrder, nowIso);
+  const isDelivered = nextStatus === ORDER_STATUS_DELIVERED;
+  const isFailed = nextStatus === ORDER_STATUS_FAILED;
+
+  return {
+    ...stop,
+    ...updatedOrder,
+    status: nextStatus,
+    orderStatus: nextStatus,
+    order_status: nextStatus,
+    statusUpdatedAt: statusTimestamp,
+    status_updated_at: statusTimestamp,
+    actualArrivalTime: updatedOrder?.actualArrivalTime || updatedOrder?.actual_arrival_time || statusTimestamp,
+    actual_arrival_time: updatedOrder?.actual_arrival_time || updatedOrder?.actualArrivalTime || statusTimestamp,
+    completedAt: updatedOrder?.completedAt || updatedOrder?.completed_at || statusTimestamp,
+    completed_at: updatedOrder?.completed_at || updatedOrder?.completedAt || statusTimestamp,
+    deliveredAt: isDelivered ? statusTimestamp : (updatedOrder?.deliveredAt || updatedOrder?.delivered_at || (stop as any)?.deliveredAt),
+    delivered_at: isDelivered ? statusTimestamp : (updatedOrder?.delivered_at || updatedOrder?.deliveredAt || (stop as any)?.delivered_at),
+    failedAt: isFailed ? statusTimestamp : (updatedOrder?.failedAt || updatedOrder?.failed_at || (stop as any)?.failedAt),
+    failed_at: isFailed ? statusTimestamp : (updatedOrder?.failed_at || updatedOrder?.failedAt || (stop as any)?.failed_at),
+  } as RouteStop;
+}
+
 export function useRoutePreviewController(
   routeIdFromParams: string,
 ): UseRoutePreviewControllerResult {
@@ -550,7 +651,7 @@ export function useRoutePreviewController(
         if (usedStopIds.has(stopKey)) return;
 
         usedStopIds.add(stopKey);
-        optimizedStops.push(matchedStop);
+        optimizedStops.push(buildStopWithOptimizeTiming(matchedStop, step));
       });
 
       route.stops.forEach((stop) => {
@@ -725,12 +826,10 @@ export function useRoutePreviewController(
       }
 
       const activeStopKey = getStopIdentity(activeStop);
+      const updatedOrder = getUpdatedOrderPayload(response);
       const nextStops = route.stops.map((stop) =>
         getStopIdentity(stop) === activeStopKey
-          ? {
-              ...stop,
-              status: nextStatus,
-            }
+          ? buildStopWithStatusUpdate(stop, nextStatus, updatedOrder)
           : stop,
       );
       const nextRoute: AppRoute = {

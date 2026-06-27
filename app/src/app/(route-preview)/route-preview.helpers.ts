@@ -468,7 +468,7 @@ async function fetchRouteOrderStops(routeId: string): Promise<RouteStop[]> {
   if (!routeId) return [];
 
   try {
-    const response = await ordersService.fetchOrders();
+    const response = await ordersService.fetchOrdersByRoute(routeId);
     const routeOrders = unwrapApiList(response).filter((order) =>
       isOrderForRoute(order, routeId),
     );

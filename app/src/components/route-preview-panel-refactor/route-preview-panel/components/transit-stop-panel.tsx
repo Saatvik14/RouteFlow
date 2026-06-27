@@ -196,23 +196,108 @@ const getStopPhone = (stop: any) => {
   );
 };
 
-const getStopArrivalTime = (stop: any, includeDay = false) => {
-  return formatArrivalTime(
+const getNumericValue = (...values: unknown[]) => {
+  for (const value of values) {
+    const numberValue = Number(value);
+    if (Number.isFinite(numberValue) && numberValue >= 0) return numberValue;
+  }
+
+  return null;
+};
+
+const parseDurationLabelToSeconds = (label?: string) => {
+  if (!label) return null;
+
+  const normalized = label.toLowerCase().replace(/,/g, ' ');
+  let seconds = 0;
+
+  const dayMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:d|day|days)/);
+  const hourMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)/);
+  const minuteMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes)/);
+  const secondMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)/);
+
+  if (dayMatch) seconds += Number(dayMatch[1]) * 86400;
+  if (hourMatch) seconds += Number(hourMatch[1]) * 3600;
+  if (minuteMatch) seconds += Number(minuteMatch[1]) * 60;
+  if (secondMatch) seconds += Number(secondMatch[1]);
+
+  return seconds > 0 ? seconds : null;
+};
+
+const getStopOffsetSeconds = (stop: any, fallbackOffsetSeconds?: number | null) => {
+  const directOffset = getNumericValue(
+    stop?.arrivalOffsetSeconds,
+    stop?.arrival_offset_seconds,
+    stop?.etaSeconds,
+    stop?.eta_seconds,
+    stop?.cumulativeDurationSeconds,
+    stop?.cumulative_duration_seconds,
+    stop?.durationSeconds,
+    stop?.duration_seconds,
+    stop?.arrival,
+    stop?.duration,
+  );
+
+  if (directOffset !== null) return directOffset;
+  return Number.isFinite(Number(fallbackOffsetSeconds)) ? Number(fallbackOffsetSeconds) : null;
+};
+
+const getDistributedOffsetSeconds = (index: number, stopsCount: number, durationLabel?: string) => {
+  const totalSeconds = parseDurationLabelToSeconds(durationLabel);
+  if (!totalSeconds || stopsCount <= 0) return null;
+
+  // Fallback only: distribute total route duration across stops when backend/optimizer
+  // does not return per-stop ETA. Accurate ETA should come from optimize steps.
+  return Math.round(totalSeconds * ((index + 1) / (stopsCount + 1)));
+};
+
+const formatArrivalFromOffset = (startTime: unknown, offsetSeconds: number | null, includeDay: boolean) => {
+  const startText = getText(startTime);
+  if (!startText || offsetSeconds === null) return '';
+
+  const parsedStart = new Date(startText);
+  if (Number.isNaN(parsedStart.getTime())) return '';
+
+  const arrival = new Date(parsedStart.getTime() + offsetSeconds * 1000);
+  return formatArrivalTime(arrival.toISOString(), { includeDay });
+};
+
+const getStopArrivalTime = (
+  stop: any,
+  includeDay = false,
+  fallbackStartTime?: unknown,
+  fallbackOffsetSeconds?: number | null,
+) => {
+  const directArrival = formatArrivalTime(
     stop?.eta ||
       stop?.etaLabel ||
       stop?.eta_label ||
+      stop?.etaTime ||
+      stop?.eta_time ||
       stop?.time ||
       stop?.arrivalTime ||
       stop?.arrival_time ||
+      stop?.arrivalDatetime ||
+      stop?.arrival_datetime ||
       stop?.estimatedArrival ||
       stop?.estimated_arrival ||
       stop?.estimatedArrivalTime ||
       stop?.estimated_arrival_time ||
+      stop?.plannedArrival ||
+      stop?.planned_arrival ||
       stop?.expectedArrival ||
       stop?.expected_arrival ||
       stop?.scheduledTime ||
       stop?.scheduled_time,
     { includeDay },
+  );
+
+  if (directArrival) return directArrival;
+
+  return formatArrivalFromOffset(
+    fallbackStartTime,
+    getStopOffsetSeconds(stop, fallbackOffsetSeconds),
+    includeDay,
   );
 };
 
@@ -242,6 +327,109 @@ const isSameStop = (left: any, right: any) => {
 const getStopStatus = (stop: any) => getText(stop?.status, stop?.orderStatus, stop?.order_status).toLowerCase();
 const isStopDone = (stop: any) => DONE_STATUSES.has(getStopStatus(stop));
 const isStopFailed = (stop: any) => FAILED_STATUSES.has(getStopStatus(stop));
+
+const getStopStatusMeta = (stop: any, isActive: boolean) => {
+  const status = getStopStatus(stop);
+
+  if (FAILED_STATUSES.has(status)) {
+    return { label: 'Failed', tone: 'red' as const };
+  }
+
+  if (status === 'delivered' || status === 'completed') {
+    return { label: 'Delivered', tone: 'green' as const };
+  }
+
+  if (isActive) {
+    return { label: 'Current', tone: 'blue' as const };
+  }
+
+  if (status === 'in_transit' || status === 'in-transit') {
+    return { label: 'In transit', tone: 'blue' as const };
+  }
+
+  return { label: 'Pending', tone: 'slate' as const };
+};
+
+const getStopActualArrivalTime = (stop: any, includeDay = false) => {
+  const actualTime =
+    stop?.actualArrivalTime ||
+    stop?.actual_arrival_time ||
+    stop?.deliveredAt ||
+    stop?.delivered_at ||
+    stop?.failedAt ||
+    stop?.failed_at ||
+    stop?.completedAt ||
+    stop?.completed_at ||
+    stop?.statusUpdatedAt ||
+    stop?.status_updated_at ||
+    stop?.markedAt ||
+    stop?.marked_at ||
+    stop?.updatedAt ||
+    stop?.updated_at;
+
+  return formatArrivalTime(actualTime, { includeDay });
+};
+
+const getStopTimelineTimeInfo = (
+  stop: any,
+  index: number,
+  stopsCount: number,
+  startTime: unknown,
+  durationLabel?: string,
+) => {
+  const failed = isStopFailed(stop);
+  const done = isStopDone(stop);
+
+  if (done) {
+    const actualTime =
+      getStopActualArrivalTime(stop, true) ||
+      getStopArrivalTime(
+        stop,
+        true,
+        startTime,
+        getDistributedOffsetSeconds(index, stopsCount, durationLabel),
+      );
+
+    return {
+      label: failed ? 'Failed at' : 'Arrived',
+      value: actualTime || '--',
+    };
+  }
+
+  return {
+    label: 'ETA',
+    value:
+      getStopArrivalTime(
+        stop,
+        true,
+        startTime,
+        getDistributedOffsetSeconds(index, stopsCount, durationLabel),
+      ) || '--',
+  };
+};
+
+const getStopPackageCount = (stop: any) => {
+  const packageCount = getNumericValue(
+    stop?.packageCount,
+    stop?.package_count,
+    Array.isArray(stop?.packages) ? stop.packages.length : undefined,
+  );
+
+  if (packageCount === null) return '';
+  return `${packageCount} ${packageCount === 1 ? 'pkg' : 'pkgs'}`;
+};
+
+const getStopIssueText = (stop: any) => {
+  return getText(
+    stop?.failureReason,
+    stop?.failure_reason,
+    stop?.issue,
+    stop?.issueText,
+    stop?.issue_text,
+    stop?.cancelReason,
+    stop?.cancel_reason,
+  );
+};
 
 const getNavigationUrl = (stop: any) => {
   const latitude = Number(stop?.latitude ?? stop?.lat ?? stop?.location?.latitude ?? stop?.location?.lat);
@@ -370,6 +558,53 @@ function SegmentedHeader({
   );
 }
 
+function StatusPill({ label, tone }: { label: string; tone: 'blue' | 'green' | 'red' | 'slate' }) {
+  return (
+    <View
+      style={[
+        localStyles.statusPill,
+        tone === 'blue' && localStyles.statusPillBlue,
+        tone === 'green' && localStyles.statusPillGreen,
+        tone === 'red' && localStyles.statusPillRed,
+        tone === 'slate' && localStyles.statusPillSlate,
+      ]}
+    >
+      <View
+        style={[
+          localStyles.statusDot,
+          tone === 'blue' && localStyles.statusDotBlue,
+          tone === 'green' && localStyles.statusDotGreen,
+          tone === 'red' && localStyles.statusDotRed,
+          tone === 'slate' && localStyles.statusDotSlate,
+        ]}
+      />
+      <Text
+        style={[
+          localStyles.statusPillText,
+          tone === 'blue' && localStyles.statusPillTextBlue,
+          tone === 'green' && localStyles.statusPillTextGreen,
+          tone === 'red' && localStyles.statusPillTextRed,
+          tone === 'slate' && localStyles.statusPillTextSlate,
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function MetaChip({ icon, text }: { icon: ReactNode; text: string }) {
+  if (!text) return null;
+
+  return (
+    <View style={localStyles.metaChip}>
+      {icon}
+      <Text style={localStyles.metaChipText} numberOfLines={1}>{text}</Text>
+    </View>
+  );
+}
+
 export function TransitStopPanel(props: TransitStopPanelProps) {
   const {
     isWide,
@@ -430,12 +665,24 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
   const progressLabel = `${progressIndex}/${totalStops}`;
   const stopTitle = getStopTitle(stop, activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex);
   const stopAddress = getStopAddress(stop);
-  const arrivalTime = getStopArrivalTime(stop);
+  const currentFallbackOffsetSeconds = getDistributedOffsetSeconds(
+    activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex,
+    (stops || []).length,
+    durationLabel,
+  );
+  const arrivalTime = getStopArrivalTime(stop, false, startTime, currentFallbackOffsetSeconds);
   const completedStops = (stops || []).filter((item: any) => isStopDone(item)).length;
   const progressPercent = Math.min(100, Math.max(8, (completedStops / totalStops) * 100));
 
-  const openRoute = () => setPanelView('route');
-  const openCurrent = () => setPanelView('current');
+  const openRoute = () => {
+    setSelectedStop(null);
+    setPanelView('route');
+  };
+
+  const openCurrent = () => {
+    setSelectedStop(null);
+    setPanelView('current');
+  };
 
   const openStopDetail = (nextStop: any) => {
     setSelectedStop(nextStop);
@@ -476,173 +723,301 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
 
   const contentBottomPadding = Math.max(insets.bottom + 18, 30);
 
-  const renderCurrentStop = () => (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={[localStyles.currentContent, { paddingBottom: contentBottomPadding }]}
-    >
-      <View style={localStyles.currentHeader}>
-        <View style={localStyles.currentHeaderText}>
-          <Text style={localStyles.eyebrow}>Current stop</Text>
-          <Text style={localStyles.currentTitle} numberOfLines={2}>{stopTitle}</Text>
-          <Text style={localStyles.currentAddress} numberOfLines={2}>{stopAddress}</Text>
-        </View>
+  const renderCurrentStop = () => {
+    const currentIndex = activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex;
+    const stopCode = getStopOrderId(stop, currentIndex);
+    const notes = getStopNotes(stop);
 
-        <View style={localStyles.countPill}>
-          <Text style={localStyles.countPillText}>{progressLabel}</Text>
-        </View>
-      </View>
-
-      <View style={localStyles.etaPillWide}>
-        <Feather name="clock" size={14} color="#2563EB" />
-        <Text style={localStyles.etaPillText}>ETA {arrivalTime || '--'}</Text>
-      </View>
-
-      <View style={localStyles.currentActionsRow}>
-        <ActionButton
-          label="Navigate"
-          variant="blue"
-          disabled={Boolean(isUpdatingStopStatus)}
-          icon={<MaterialCommunityIcons name="navigation-variant" size={24} color="#FFFFFF" />}
-          onPress={() => handleNavigateStop(stop)}
-        />
-
-        <ActionButton
-          label={isUpdatingStopStatus ? 'Updating' : 'Delivered'}
-          variant="green"
-          disabled={Boolean(isUpdatingStopStatus)}
-          icon={<PackageActionIcon type="delivered" />}
-          onPress={onMarkStopDelivered}
-        />
-
-        <ActionButton
-          label={isUpdatingStopStatus ? 'Updating' : 'Failed'}
-          variant="red"
-          disabled={Boolean(isUpdatingStopStatus)}
-          icon={<PackageActionIcon type="failed" />}
-          onPress={onMarkStopFailed}
-        />
-      </View>
-
-      <Pressable style={localStyles.viewFullRouteRow} onPress={openRoute}>
-        <View style={localStyles.viewFullIconBox}>
-          <Feather name="list" size={18} color="#2563EB" />
-        </View>
-        <Text style={localStyles.viewFullText}>View full route</Text>
-        <Feather name="chevron-right" size={21} color="#94A3B8" />
-      </Pressable>
-    </ScrollView>
-  );
-
-  const renderFullRoute = () => (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={[localStyles.fullRouteContent, { paddingBottom: contentBottomPadding }]}
-    >
-      <SegmentedHeader active="route" onCurrent={openCurrent} onRoute={openRoute} />
-
-      <View style={localStyles.progressHeader}>
-        <Text style={localStyles.progressLabel}>Route progress</Text>
-        <Text style={localStyles.progressValue}>{progressIndex} of {totalStops} stops</Text>
-      </View>
-      <View style={localStyles.progressTrack}>
-        <View style={[localStyles.progressFill, { width: `${progressPercent}%` }]} />
-      </View>
-
-      <View style={localStyles.statsGrid}>
-        <View style={localStyles.statBox}>
-          <Text style={localStyles.statLabel}>Remaining</Text>
-          <Text style={localStyles.statValue}>{durationLabel || '--'}</Text>
-        </View>
-        <View style={localStyles.statBox}>
-          <Text style={localStyles.statLabel}>Distance left</Text>
-          <Text style={localStyles.statValue}>{distanceLabel || '--'}</Text>
-        </View>
-      </View>
-
-      <View style={localStyles.timelineCard}>
-        <View style={localStyles.timelineRow}>
-          <View style={localStyles.timeColumn}>
-            <Text style={localStyles.timelineTime}>{formatArrivalTime(startTime) || '--'}</Text>
-          </View>
-          <View style={localStyles.markerColumn}>
-            <View style={[localStyles.timelineMarker, localStyles.timelineMarkerBlue]}>
-              <MaterialCommunityIcons name="navigation-variant" size={13} color="#FFFFFF" />
-            </View>
-            <View style={localStyles.timelineConnector} />
-          </View>
-          <View style={localStyles.timelineContent}>
-            <Text style={localStyles.timelineTitle}>Start location</Text>
-            <Text style={localStyles.timelineAddress} numberOfLines={2}>{getPointAddress(start)}</Text>
-          </View>
-        </View>
-
-        {(stops || []).map((item: any, index: number) => {
-          const isActive = isSameStop(item, stop);
-          const done = isStopDone(item);
-          const failed = isStopFailed(item);
-
-          return (
-            <Pressable key={`${getStopIdentity(item) || index}`} style={localStyles.timelineRow} onPress={() => openStopDetail(item)}>
-              <View style={localStyles.timeColumn}>
-                <Text style={localStyles.timelineTime}>{getStopArrivalTime(item, true) || '--'}</Text>
-              </View>
-              <View style={localStyles.markerColumn}>
-                <View
-                  style={[
-                    localStyles.timelineMarker,
-                    isActive && localStyles.timelineMarkerBlue,
-                    done && !failed && localStyles.timelineMarkerGreen,
-                    failed && localStyles.timelineMarkerRed,
-                  ]}
-                >
-                  {done ? (
-                    <Feather name={failed ? 'x' : 'check'} size={12} color="#FFFFFF" />
-                  ) : (
-                    <Text style={[localStyles.timelineMarkerText, isActive && localStyles.timelineMarkerTextActive]}>{index + 1}</Text>
-                  )}
-                </View>
-                <View style={localStyles.timelineConnector} />
-              </View>
-              <View style={localStyles.timelineContent}>
-                <Text style={localStyles.timelineTitle} numberOfLines={1}>{getStopTitle(item, index)}</Text>
-                <Text style={localStyles.timelineAddress} numberOfLines={2}>{getStopAddress(item)}</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color="#CBD5E1" />
-            </Pressable>
-          );
-        })}
-
-        <View style={[localStyles.timelineRow, localStyles.timelineRowLast]}>
-          <View style={localStyles.timeColumn}>
-            <Text style={localStyles.timelineTime}>End</Text>
-          </View>
-          <View style={localStyles.markerColumn}>
-            <View style={[localStyles.timelineMarker, localStyles.timelineMarkerFinish]}>
-              <Feather name="flag" size={12} color="#FFFFFF" />
-            </View>
-          </View>
-          <View style={localStyles.timelineContent}>
-            <Text style={localStyles.timelineTitle}>End location</Text>
-            <Text style={localStyles.timelineAddress} numberOfLines={2}>{getPointAddress(end)}</Text>
-          </View>
-        </View>
-      </View>
-
-      <Pressable
-        style={({ pressed }) => [
-          localStyles.cancelRouteButton,
-          (isCancellingRoute || !onCancelRoute) && localStyles.actionDisabled,
-          pressed && onCancelRoute && !isCancellingRoute && localStyles.pressed,
-        ]}
-        onPress={onCancelRoute}
-        disabled={Boolean(isCancellingRoute || !onCancelRoute)}
+    return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[localStyles.currentContent, { paddingBottom: contentBottomPadding }]}
       >
-        <Feather name="trash-2" size={17} color="#EF4444" />
-        <Text style={localStyles.cancelRouteText}>{isCancellingRoute ? 'Cancelling...' : 'Cancel route'}</Text>
-      </Pressable>
-    </ScrollView>
-  );
+        <SegmentedHeader active="current" onCurrent={openCurrent} onRoute={openRoute} />
+
+        <View style={localStyles.currentHeader}>
+          <View style={localStyles.currentHeaderText}>
+            <Text style={localStyles.eyebrow}>Current stop</Text>
+            <Text style={localStyles.currentTitle} numberOfLines={2}>{stopTitle}</Text>
+            <Text style={localStyles.currentAddress} numberOfLines={3}>{stopAddress}</Text>
+          </View>
+
+          <View style={localStyles.countPill}>
+            <Text style={localStyles.countPillText}>{progressLabel}</Text>
+          </View>
+        </View>
+
+        <View style={localStyles.etaPillWide}>
+          <Feather name="clock" size={14} color="#2563EB" />
+          <Text style={localStyles.etaPillText}>ETA {arrivalTime || '--'}</Text>
+        </View>
+
+        <View style={localStyles.currentActionsRow}>
+          <ActionButton
+            label="Navigate"
+            variant="blue"
+            disabled={Boolean(isUpdatingStopStatus)}
+            icon={<MaterialCommunityIcons name="navigation-variant" size={24} color="#FFFFFF" />}
+            onPress={() => handleNavigateStop(stop)}
+          />
+
+          <ActionButton
+            label={isUpdatingStopStatus ? 'Updating' : 'Delivered'}
+            variant="green"
+            disabled={Boolean(isUpdatingStopStatus)}
+            icon={<PackageActionIcon type="delivered" />}
+            onPress={onMarkStopDelivered}
+          />
+
+          <ActionButton
+            label={isUpdatingStopStatus ? 'Updating' : 'Failed'}
+            variant="red"
+            disabled={Boolean(isUpdatingStopStatus)}
+            icon={<PackageActionIcon type="failed" />}
+            onPress={onMarkStopFailed}
+          />
+        </View>
+
+        <View style={localStyles.addressCard}>
+          <View style={localStyles.addressIconBox}>
+            <McIcon name="map-marker-outline" size={22} color="#2563EB" />
+          </View>
+          <View style={localStyles.addressContent}>
+            <Text style={localStyles.sectionLabel}>Full delivery address</Text>
+            <Text style={localStyles.addressText}>{stopAddress}</Text>
+          </View>
+        </View>
+
+        <View style={localStyles.detailCard}>
+          <DetailRow
+            icon={<McIcon name="note-text-outline" size={18} color="#475569" />}
+            label="Notes"
+            value={notes || 'Add notes for this stop'}
+            muted={!notes}
+          />
+          <View style={localStyles.detailDivider} />
+          <DetailRow
+            icon={<Feather name="package" size={17} color="#475569" />}
+            label="Order ID"
+            value={`${stopCode} Originally ${getOrdinal(currentIndex)}`}
+          />
+          <View style={localStyles.detailDivider} />
+          <DetailRow
+            icon={<Feather name="clock" size={17} color="#475569" />}
+            label="Time of arrival"
+            value={arrivalTime || 'Not available'}
+            rightIcon={false}
+          />
+        </View>
+
+        <View style={localStyles.optionsCard}>
+          <DetailRow
+            icon={<Feather name="edit-3" size={18} color="#475569" />}
+            label="Edit stop"
+            value=""
+            onPress={() => onOpenStopDetails?.(stop)}
+          />
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const renderFullRoute = () => {
+    const allStops = stops || [];
+    const deliveredCount = allStops.filter((item: any) => isStopDone(item) && !isStopFailed(item)).length;
+    const failedCount = allStops.filter((item: any) => isStopFailed(item)).length;
+    const pendingCount = allStops.filter((item: any) => !isStopDone(item)).length;
+    const activeTitle = stop ? getStopTitle(stop, activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex) : '';
+
+    return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[localStyles.fullRouteContent, { paddingBottom: contentBottomPadding }]}
+      >
+        <SegmentedHeader active="route" onCurrent={openCurrent} onRoute={openRoute} />
+
+        <View style={localStyles.progressHeader}>
+          <Text style={localStyles.progressLabel}>Route progress</Text>
+          <Text style={localStyles.progressValue}>{progressIndex} of {totalStops} stops</Text>
+        </View>
+        <View style={localStyles.progressTrack}>
+          <View style={[localStyles.progressFill, { width: `${progressPercent}%` }]} />
+        </View>
+
+        <View style={localStyles.statsGrid}>
+          <View style={localStyles.statBox}>
+            <Text style={localStyles.statLabel}>Remaining</Text>
+            <Text style={localStyles.statValue}>{durationLabel || '--'}</Text>
+          </View>
+          <View style={localStyles.statBox}>
+            <Text style={localStyles.statLabel}>Distance left</Text>
+            <Text style={localStyles.statValue}>{distanceLabel || '--'}</Text>
+          </View>
+        </View>
+
+        <View style={localStyles.statusSummaryCard}>
+          <View style={localStyles.summaryItem}>
+            <Text style={localStyles.summaryLabel}>Delivered</Text>
+            <Text style={[localStyles.summaryValue, localStyles.summaryValueGreen]}>{deliveredCount}</Text>
+          </View>
+          <View style={localStyles.summaryDivider} />
+          <View style={localStyles.summaryItem}>
+            <Text style={localStyles.summaryLabel}>Failed</Text>
+            <Text style={[localStyles.summaryValue, localStyles.summaryValueRed]}>{failedCount}</Text>
+          </View>
+          <View style={localStyles.summaryDivider} />
+          <View style={localStyles.summaryItem}>
+            <Text style={localStyles.summaryLabel}>Pending</Text>
+            <Text style={localStyles.summaryValue}>{pendingCount}</Text>
+          </View>
+        </View>
+
+        {activeTitle ? (
+          <View style={localStyles.nextStopCard}>
+            <View style={localStyles.nextStopIcon}>
+              <MaterialCommunityIcons name="navigation-variant" size={15} color="#2563EB" />
+            </View>
+            <View style={localStyles.nextStopTextBox}>
+              <Text style={localStyles.nextStopLabel}>Current stop</Text>
+              <Text style={localStyles.nextStopTitle} numberOfLines={1}>{activeTitle}</Text>
+            </View>
+            <Text style={localStyles.nextStopEta}>ETA {arrivalTime || '--'}</Text>
+          </View>
+        ) : null}
+
+        <View style={localStyles.timelineCard}>
+          <View style={localStyles.timelineRow}>
+            <View style={localStyles.timeColumn}>
+              <Text style={localStyles.timelineTime}>{formatArrivalTime(startTime) || '--'}</Text>
+              <Text style={localStyles.timelineTimeKind}>Start</Text>
+            </View>
+            <View style={localStyles.markerColumn}>
+              <View style={[localStyles.timelineMarker, localStyles.timelineMarkerBlue]}>
+                <MaterialCommunityIcons name="navigation-variant" size={13} color="#FFFFFF" />
+              </View>
+              <View style={localStyles.timelineConnector} />
+            </View>
+            <View style={localStyles.timelineContent}>
+              <Text style={localStyles.timelineTitle}>Start location</Text>
+              <Text style={localStyles.timelineAddress} numberOfLines={2}>{getPointAddress(start)}</Text>
+            </View>
+          </View>
+
+          {allStops.map((item: any, index: number) => {
+            const isActive = isSameStop(item, stop);
+            const done = isStopDone(item);
+            const failed = isStopFailed(item);
+            const statusMeta = getStopStatusMeta(item, isActive);
+            const timeInfo = getStopTimelineTimeInfo(item, index, allStops.length, startTime, durationLabel);
+            const orderId = getStopOrderId(item, index);
+            const packageText = getStopPackageCount(item);
+            const notes = getStopNotes(item);
+            const issueText = failed ? getStopIssueText(item) : '';
+
+            return (
+              <Pressable
+                key={`${getStopIdentity(item) || index}`}
+                style={({ pressed }) => [
+                  localStyles.timelineRow,
+                  localStyles.timelineStopRow,
+                  isActive && localStyles.timelineActiveRow,
+                  pressed && localStyles.pressed,
+                ]}
+                onPress={() => openStopDetail(item)}
+              >
+                <View style={localStyles.timeColumn}>
+                  <Text
+                    style={[
+                      localStyles.timelineTime,
+                      done && !failed && localStyles.timelineTimeGreen,
+                      failed && localStyles.timelineTimeRed,
+                    ]}
+                  >
+                    {timeInfo.value}
+                  </Text>
+                  <Text
+                    style={[
+                      localStyles.timelineTimeKind,
+                      done && !failed && localStyles.timelineTimeKindGreen,
+                      failed && localStyles.timelineTimeKindRed,
+                    ]}
+                  >
+                    {timeInfo.label}
+                  </Text>
+                </View>
+                <View style={localStyles.markerColumn}>
+                  <View
+                    style={[
+                      localStyles.timelineMarker,
+                      isActive && localStyles.timelineMarkerBlue,
+                      done && !failed && localStyles.timelineMarkerGreen,
+                      failed && localStyles.timelineMarkerRed,
+                    ]}
+                  >
+                    {done ? (
+                      <Feather name={failed ? 'x' : 'check'} size={12} color="#FFFFFF" />
+                    ) : isActive ? (
+                      <MaterialCommunityIcons name="navigation-variant" size={12} color="#FFFFFF" />
+                    ) : (
+                      <Text style={[localStyles.timelineMarkerText, isActive && localStyles.timelineMarkerTextActive]}>{index + 1}</Text>
+                    )}
+                  </View>
+                  <View style={localStyles.timelineConnector} />
+                </View>
+                <View style={localStyles.timelineContent}>
+                  <View style={localStyles.timelineTitleRow}>
+                    <Text style={localStyles.timelineTitle} numberOfLines={1}>{getStopTitle(item, index)}</Text>
+                    <StatusPill label={statusMeta.label} tone={statusMeta.tone} />
+                  </View>
+                  <Text style={localStyles.timelineAddress} numberOfLines={2}>{getStopAddress(item)}</Text>
+
+                  <View style={localStyles.timelineMetaRow}>
+                    <MetaChip icon={<Feather name="package" size={12} color="#64748B" />} text={`Order ${orderId}`} />
+                    <MetaChip icon={<Feather name="box" size={12} color="#64748B" />} text={packageText} />
+                    {notes ? (
+                      <MetaChip icon={<Feather name="file-text" size={12} color="#64748B" />} text="Notes" />
+                    ) : null}
+                    {issueText ? (
+                      <MetaChip icon={<Feather name="alert-triangle" size={12} color="#EF4444" />} text={issueText} />
+                    ) : null}
+                  </View>
+                </View>
+                <Feather name="chevron-right" size={18} color="#CBD5E1" />
+              </Pressable>
+            );
+          })}
+
+          <View style={[localStyles.timelineRow, localStyles.timelineRowLast]}>
+            <View style={localStyles.timeColumn}>
+              <Text style={localStyles.timelineTime}>End</Text>
+            </View>
+            <View style={localStyles.markerColumn}>
+              <View style={[localStyles.timelineMarker, localStyles.timelineMarkerFinish]}>
+                <Feather name="flag" size={12} color="#FFFFFF" />
+              </View>
+            </View>
+            <View style={localStyles.timelineContent}>
+              <Text style={localStyles.timelineTitle}>End location</Text>
+              <Text style={localStyles.timelineAddress} numberOfLines={2}>{getPointAddress(end)}</Text>
+            </View>
+          </View>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            localStyles.cancelRouteButton,
+            (isCancellingRoute || !onCancelRoute) && localStyles.actionDisabled,
+            pressed && onCancelRoute && !isCancellingRoute && localStyles.pressed,
+          ]}
+          onPress={onCancelRoute}
+          disabled={Boolean(isCancellingRoute || !onCancelRoute)}
+        >
+          <Feather name="trash-2" size={17} color="#EF4444" />
+          <Text style={localStyles.cancelRouteText}>{isCancellingRoute ? 'Cancelling...' : 'Cancel route'}</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  };
 
   const renderStopDetail = () => {
     const detailStop = selectedStop || stop;
@@ -651,7 +1026,12 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const detailAddress = getStopAddress(detailStop);
     const detailNotes = getStopNotes(detailStop);
     const detailOrderId = getStopOrderId(detailStop, detailIndex);
-    const detailArrivalTime = getStopArrivalTime(detailStop);
+    const detailArrivalTime = getStopArrivalTime(
+      detailStop,
+      false,
+      startTime,
+      getDistributedOffsetSeconds(detailIndex, (stops || []).length, durationLabel),
+    );
     const phone = getStopPhone(detailStop);
     const canUpdateThisStop = isSameStop(detailStop, stop) && !isStopDone(detailStop);
 
@@ -786,11 +1166,10 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
 
   return (
     <DraggableRouteSheet
-      key={panelView}
       isWide={isWide}
       mode="large"
       variant="transit"
-      initialSnap={panelView === 'current' ? 'bottom' : 'top'}
+      initialSnap="top"
     >
       {panelView === 'current' ? renderCurrentStop() : null}
       {panelView === 'route' ? renderFullRoute() : null}
@@ -938,32 +1317,6 @@ const localStyles = StyleSheet.create({
     opacity: 0.86,
     transform: [{ scale: 0.99 }],
   },
-  viewFullRouteRow: {
-    minHeight: 58,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 12,
-  },
-  viewFullIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  viewFullText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
   segmentedControl: {
     height: 48,
     borderRadius: 12,
@@ -1071,7 +1424,7 @@ const localStyles = StyleSheet.create({
     minHeight: 54,
   },
   timeColumn: {
-    width: 62,
+    width: 74,
     alignItems: 'flex-end',
     paddingTop: 2,
     paddingRight: 8,
@@ -1129,6 +1482,7 @@ const localStyles = StyleSheet.create({
     minWidth: 0,
   },
   timelineTitle: {
+    flexShrink: 1,
     fontSize: 14,
     lineHeight: 19,
     color: '#0F172A',
@@ -1140,6 +1494,210 @@ const localStyles = StyleSheet.create({
     lineHeight: 17,
     color: '#475569',
     fontWeight: '400',
+  },
+
+  timelineStopRow: {
+    minHeight: 92,
+    paddingTop: 2,
+  },
+  timelineActiveRow: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    marginRight: -4,
+  },
+  timelineTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 2,
+  },
+  timelineMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  timelineTimeKind: {
+    marginTop: 2,
+    fontSize: 9,
+    lineHeight: 12,
+    color: '#94A3B8',
+    fontWeight: '500',
+    textAlign: 'right',
+  },
+  timelineTimeGreen: {
+    color: '#15803D',
+  },
+  timelineTimeRed: {
+    color: '#DC2626',
+  },
+  timelineTimeKindGreen: {
+    color: '#16A34A',
+  },
+  timelineTimeKindRed: {
+    color: '#EF4444',
+  },
+  statusSummaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#E2E8F0',
+  },
+  summaryLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  summaryValue: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  summaryValueGreen: {
+    color: '#16A34A',
+  },
+  summaryValueRed: {
+    color: '#EF4444',
+  },
+  nextStopCard: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    marginBottom: 12,
+  },
+  nextStopIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextStopTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nextStopLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  nextStopTitle: {
+    marginTop: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  nextStopEta: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#2563EB',
+    fontWeight: '600',
+  },
+  statusPill: {
+    flexShrink: 0,
+    minHeight: 22,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+  },
+  statusPillBlue: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#DBEAFE',
+  },
+  statusPillGreen: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  statusPillRed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  statusPillSlate: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+  },
+  statusDotBlue: {
+    backgroundColor: '#2563EB',
+  },
+  statusDotGreen: {
+    backgroundColor: '#16A34A',
+  },
+  statusDotRed: {
+    backgroundColor: '#EF4444',
+  },
+  statusDotSlate: {
+    backgroundColor: '#94A3B8',
+  },
+  statusPillText: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
+  },
+  statusPillTextBlue: {
+    color: '#2563EB',
+  },
+  statusPillTextGreen: {
+    color: '#15803D',
+  },
+  statusPillTextRed: {
+    color: '#DC2626',
+  },
+  statusPillTextSlate: {
+    color: '#64748B',
+  },
+  metaChip: {
+    maxWidth: '100%',
+    minHeight: 24,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  metaChipText: {
+    maxWidth: 150,
+    fontSize: 10,
+    lineHeight: 13,
+    color: '#64748B',
+    fontWeight: '500',
   },
   cancelRouteButton: {
     height: 52,
@@ -1216,6 +1774,41 @@ const localStyles = StyleSheet.create({
     lineHeight: 16,
     color: '#0F172A',
     fontWeight: '600',
+  },
+  addressCard: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  addressIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addressContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#64748B',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  addressText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#0F172A',
+    fontWeight: '500',
   },
   detailCard: {
     borderRadius: 16,

@@ -47,7 +47,11 @@ export const ordersService = {
    * Fetch all orders
    */
   fetchOrders: () =>
-    apiGet<Order[]>(API_ENDPOINTS.ORDERS.FETCH),
+    apiGet<Order[]>(API_ENDPOINTS.ORDERS.FETCH_ALL),
+
+
+  fetchOrdersByRoute: (routeId: string) =>
+      apiGet<Order[]>(API_ENDPOINTS.ORDERS.GET_ORDERS_BY_ROUTE(routeId)),
 
   /**
    * Set vehicle placement for an order
