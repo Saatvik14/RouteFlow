@@ -1,13 +1,9 @@
-import type { RoutePoint } from '../../maps/RouteMap.native';
+import type { 
+  RoutePoint,
+  RouteStop
+   } from '../../maps/RouteMap.native';
 
-export type PanelMode =
-  | 'empty'
-  | 'search'
-  | 'details'
-  | 'setup'
-  | 'confirmed'
-  | 'transit'
-  | 'cancelled';
+export type PanelMode = any;
 
 export type PlaceSuggestion = {
   id: string;
@@ -67,6 +63,22 @@ export type RoutePreviewPanelProps = {
   onMarkRouteCompleted?: () => void | Promise<void>;
   onCopyStopsToNewRoute?: () => void | Promise<void>;
   onCreateNewRoute?: () => void | Promise<void>;
+  editingStop?: RouteStop | null;
+  isSavingRouteEdit?: boolean;
+  onOpenEditRoute?: () => void;
+  onCancelEditRoute?: () => void;
+  onOpenEditStartLocation?: () => void;
+  onOpenEditEndLocation?: () => void;
+  onOpenEditStartTime?: () => void;
+  onSaveRouteLocation?: (target: 'start' | 'end', suggestion: PlaceSuggestion) => void;
+  onSaveRouteTime?: (target: 'start' | 'end', isoDateTime: string) => void;
+  onOpenEditStop?: (stop: RouteStop) => void;
+  onSaveEditedStop?: (details: StopDetails) => void;
+  onOpenEditStopAddress?: (stop?: RouteStop) => void;
+  onSaveStopAddress?: (suggestion: PlaceSuggestion) => void;
+  onRemoveEditedStop?: () => void;
+  onReOptimizeEditedRoute?: () => void;
+
 };
 
 

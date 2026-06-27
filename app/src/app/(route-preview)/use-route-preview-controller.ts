@@ -65,8 +65,14 @@ import {
   unwrapOrderPayload,
   ROUTE_STATUS_CANCELLED,
   isCancelledRouteStatus,
-  isPendingOrderStatus
+  isPendingOrderStatus,
+  buildRouteLocationPayload,
+buildRoutePointFromSuggestion,
+formatTimeFromDateTime
 } from './route-preview.helpers';
+
+
+
 
 type UseRoutePreviewControllerResult = {
   route: AppRoute | null;
@@ -118,6 +124,21 @@ type UseRoutePreviewControllerResult = {
   handleCopyStopsFromPastRoute: () => void;
   handleSkipOptimization: () => Promise<void>;
   handleRemoveStops: () => void;
+  editingStop: RouteStop | null;
+  isSavingRouteEdit: boolean;
+  handleOpenEditRoute: () => void;
+  handleCancelEditRoute: () => void;
+  handleOpenEditStartLocation: () => void;
+  handleOpenEditEndLocation: () => void;
+  handleOpenEditStartTime: () => void;
+  handleSaveRouteLocation: (target: 'start' | 'end', suggestion: PlaceSuggestion) => Promise<void>;
+  handleSaveRouteTime: (target: 'start' | 'end', isoDateTime: string) => Promise<void>;
+  handleOpenEditStop: (stop: RouteStop) => void;
+  handleSaveEditedStop: (details: StopDetails) => Promise<void>;
+  handleOpenEditStopAddress: (stop?: RouteStop) => void;
+  handleSaveStopAddress: (suggestion: PlaceSuggestion) => Promise<void>;
+  handleRemoveEditedStop: () => Promise<void>;
+  handleReOptimizeEditedRoute: () => Promise<void>;
 };
 
 function getLatestRouteId(response: any) {
@@ -274,6 +295,7 @@ export function useRoutePreviewController(
   const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
   const [isCancellingRoute, setIsCancellingRoute] = useState(false);
+  const [isSavingRouteEdit, setIsSavingRouteEdit] = useState(false);
 
   const effectiveRouteId = activeRouteId || routeIdFromParams;
 
@@ -389,28 +411,302 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
     };
   }, [routeIdFromParams]);
 
-  useEffect(() => {
-    let mounted = true;
+useEffect(() => {
+  let mounted = true;
 
-    const timer = setTimeout(async () => {
-      if (panelMode !== 'search') return;
+  const timer = setTimeout(async () => {
+    const shouldFetchSuggestions = [
+      'search',
+      'edit_start_location',
+      'edit_end_location',
+      'edit_stop_address',
+    ].includes(String(panelMode));
 
-      const data = await fetchPlaceSuggestions(searchText);
+    if (!shouldFetchSuggestions) return;
 
-      if (mounted) {
-        setSuggestions(data);
-      }
-    }, 350);
+    const data = await fetchPlaceSuggestions(searchText);
 
-    return () => {
-      mounted = false;
-      clearTimeout(timer);
-    };
-  }, [searchText, panelMode]);
+    if (mounted) {
+      setSuggestions(data);
+    }
+  }, 350);
+
+  return () => {
+    mounted = false;
+    clearTimeout(timer);
+  };
+}, [searchText, panelMode]);
 
   const recenterMap = useCallback(() => {
     setCenterSignal((prev) => prev + 1);
   }, []);
+
+  const markRouteNeedsReOptimization = useCallback(async () => {
+  if (!effectiveRouteId) return;
+  await routesService.updateRoute({
+    route_id: effectiveRouteId,
+    status: ROUTE_STATUS_PENDING,
+  });
+  setRouteStatus(ROUTE_STATUS_PENDING);
+}, [effectiveRouteId]);
+
+
+const handleOpenEditRoute = useCallback(() => {
+  setErrorMessage('');
+  setSelectedStop(null);
+  setSelectedSuggestion(null);
+  setSearchText('');
+  setSuggestions([]);
+  setPanelMode('edit_route');
+}, []);
+
+const handleCancelEditRoute = useCallback(() => {
+  setErrorMessage('');
+  setSelectedStop(null);
+  setSelectedSuggestion(null);
+  setSearchText('');
+  setSuggestions([]);
+  setPanelMode('confirmed');
+}, []);
+
+const handleOpenEditStartLocation = useCallback(() => {
+  setSearchText(route?.start?.description || route?.start?.title || '');
+  setSuggestions([]);
+  setPanelMode('edit_start_location');
+}, [route?.start]);
+
+const handleOpenEditEndLocation = useCallback(() => {
+  setSearchText(route?.end?.description || route?.end?.title || '');
+  setSuggestions([]);
+  setPanelMode('edit_end_location');
+}, [route?.end]);
+
+const handleOpenEditStartTime = useCallback(() => {
+  setPanelMode('edit_start_time');
+}, []);
+
+const handleSaveRouteLocation = useCallback(async (target: 'start' | 'end', suggestion: PlaceSuggestion) => {
+  if (!route || !effectiveRouteId) return;
+
+  setIsSavingRouteEdit(true);
+  setErrorMessage('');
+
+  try {
+    const payload: any = {
+      route_id: effectiveRouteId,
+      status: ROUTE_STATUS_PENDING,
+    };
+
+    payload[target === 'start' ? 'start_location' : 'end_location'] =
+      buildRouteLocationPayload(suggestion);
+
+    const response = await routesService.updateRoute(payload);
+    if (!isSuccessResponse(response)) {
+      throw new Error(getResponseErrorMessage(response, 'Unable to save location.'));
+    }
+
+    const nextPoint = buildRoutePointFromSuggestion(suggestion, target === 'start' ? 'Start location' : 'End location');
+
+    setRoute({
+      ...route,
+      [target]: nextPoint,
+      coordinates: getInitialCoordinates({ ...route, [target]: nextPoint }),
+    });
+    setRouteStatus(ROUTE_STATUS_PENDING);
+    setSelectedSuggestion(null);
+    setSuggestions([]);
+    setSearchText('');
+    setPanelMode('edit_route');
+    recenterMap();
+  } catch (error) {
+    setErrorMessage(error instanceof Error ? error.message : 'Unable to save location.');
+  } finally {
+    setIsSavingRouteEdit(false);
+  }
+}, [effectiveRouteId, recenterMap, route]);
+
+const handleSaveRouteTime = useCallback(async (target: 'start' | 'end', isoDateTime: string) => {
+  if (!effectiveRouteId) return;
+
+  setIsSavingRouteEdit(true);
+  setErrorMessage('');
+
+  try {
+    const payload: any = {
+      route_id: effectiveRouteId,
+      status: ROUTE_STATUS_PENDING,
+      [target === 'start' ? 'start_datetime' : 'end_datetime']: isoDateTime,
+    };
+
+    const response = await routesService.updateRoute(payload);
+    if (!isSuccessResponse(response)) {
+      throw new Error(getResponseErrorMessage(response, 'Unable to save time.'));
+    }
+
+    if (target === 'start') {
+      setPreviewStartTime(formatTimeFromDateTime(isoDateTime));
+    }
+
+    setRouteStatus(ROUTE_STATUS_PENDING);
+    setPanelMode('edit_route');
+  } catch (error) {
+    setErrorMessage(error instanceof Error ? error.message : 'Unable to save time.');
+  } finally {
+    setIsSavingRouteEdit(false);
+  }
+}, [effectiveRouteId]);
+
+const handleOpenEditStop = useCallback((stop: RouteStop) => {
+  setSelectedStop(stop);
+  setSelectedSuggestion(buildSuggestionFromStop(stop));
+  setStopDetails(buildStopDetailsFromStop(stop));
+  setPanelMode('edit_stop');
+}, []);
+
+const handleSaveEditedStop = useCallback(async (details: StopDetails) => {
+  if (!route || !selectedStop || !effectiveRouteId) return;
+  const orderId = getStopBackendId(selectedStop);
+  if (!orderId) {
+    setErrorMessage('Order id is missing. Unable to save stop.');
+    return;
+  }
+
+  setIsSavingRouteEdit(true);
+  setErrorMessage('');
+
+  try {
+    const response = await ordersService.editOrder({
+      order_id: orderId,
+      packages: details.packages,
+      order: details.order,
+      stopType: details.stopType,
+      stop_type: details.stopType,
+      notes: details.notes,
+    });
+    if (!isSuccessResponse(response)) {
+      throw new Error(getResponseErrorMessage(response, 'Unable to save stop.'));
+    }
+
+    const selectedKey = getStopIdentity(selectedStop);
+    const nextStops = route.stops.map(stop =>
+      getStopIdentity(stop) === selectedKey
+        ? { ...stop, ...details, packages: Number(details.packages || 1) }
+        : stop,
+    );
+
+    setRoute({ ...route, stops: nextStops });
+    await markRouteNeedsReOptimization();
+    setSelectedStop(null);
+    setSelectedSuggestion(null);
+    setPanelMode('edit_route');
+  } catch (error) {
+    setErrorMessage(error instanceof Error ? error.message : 'Unable to save stop.');
+  } finally {
+    setIsSavingRouteEdit(false);
+  }
+}, [effectiveRouteId, markRouteNeedsReOptimization, route, selectedStop]);
+
+const handleOpenEditStopAddress = useCallback((stop?: RouteStop) => {
+  const targetStop = stop || selectedStop;
+  if (!targetStop) return;
+  setSelectedStop(targetStop);
+  setSearchText(targetStop.address || targetStop.description || targetStop.title || '');
+  setSuggestions([]);
+  setPanelMode('edit_stop_address');
+}, [selectedStop]);
+
+const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) => {
+  if (!route || !selectedStop || !effectiveRouteId) return;
+  const orderId = getStopBackendId(selectedStop);
+  if (!orderId) {
+    setErrorMessage('Order id is missing. Unable to save stop address.');
+    return;
+  }
+
+  setIsSavingRouteEdit(true);
+  setErrorMessage('');
+
+  try {
+    const response = await ordersService.editOrder({
+      order_id: orderId,
+      location: buildRouteLocationPayload(suggestion),
+      address: suggestion.fullAddress,
+      title: suggestion.title,
+      description: suggestion.subtitle,
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    });
+    if (!isSuccessResponse(response)) {
+      throw new Error(getResponseErrorMessage(response, 'Unable to save stop address.'));
+    }
+
+    const selectedKey = getStopIdentity(selectedStop);
+    const nextPoint = buildRoutePointFromSuggestion(suggestion, selectedStop.title || 'Stop');
+    const nextStops = route.stops.map(stop =>
+      getStopIdentity(stop) === selectedKey
+        ? { ...stop, ...nextPoint, address: suggestion.fullAddress, description: suggestion.subtitle }
+        : stop,
+    );
+
+    const nextRoute = {
+      ...route,
+      stops: nextStops,
+      coordinates: getInitialCoordinates({ ...route, stops: nextStops }),
+    };
+
+    setRoute(nextRoute);
+    await markRouteNeedsReOptimization();
+    setSelectedSuggestion(null);
+    setSuggestions([]);
+    setSearchText('');
+    setPanelMode('edit_stop');
+    recenterMap();
+  } catch (error) {
+    setErrorMessage(error instanceof Error ? error.message : 'Unable to save stop address.');
+  } finally {
+    setIsSavingRouteEdit(false);
+  }
+}, [effectiveRouteId, markRouteNeedsReOptimization, recenterMap, route, selectedStop]);
+
+const handleRemoveEditedStop = useCallback(async () => {
+  if (!route || !selectedStop || !effectiveRouteId) return;
+  const orderId = getStopBackendId(selectedStop);
+
+  setIsSavingRouteEdit(true);
+  setErrorMessage('');
+
+  try {
+    const service: any = ordersService as any;
+    if (orderId && typeof service.deleteOrder === 'function') {
+      await service.deleteOrder(orderId);
+    } else if (orderId && typeof service.removeOrder === 'function') {
+      await service.removeOrder(orderId);
+    } else if (orderId) {
+      await ordersService.editOrder({ order_id: orderId, status: 'cancelled' });
+    }
+
+    const selectedKey = getStopIdentity(selectedStop);
+    const nextStops = route.stops
+      .filter(stop => getStopIdentity(stop) !== selectedKey)
+      .map((stop, index) => ({ ...stop, sequence: index + 1, sequenceNo: index + 1, markerLabel: String(index + 1) }));
+
+    setRoute({
+      ...route,
+      stops: nextStops,
+      coordinates: getInitialCoordinates({ ...route, stops: nextStops }),
+    });
+    await markRouteNeedsReOptimization();
+    setSelectedStop(null);
+    setSelectedSuggestion(null);
+    setPanelMode('edit_route');
+    recenterMap();
+  } catch (error) {
+    setErrorMessage(error instanceof Error ? error.message : 'Unable to remove stop.');
+  } finally {
+    setIsSavingRouteEdit(false);
+  }
+}, [effectiveRouteId, markRouteNeedsReOptimization, recenterMap, route, selectedStop]);
+
 
   const handleToggleMapType = useCallback(() => {
     setMapType((prev) => (prev === 'standard' ? 'satellite' : 'standard'));
@@ -721,6 +1017,12 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
       setIsOptimizing(false);
     }
   }, [effectiveRouteId, isOptimizing, recenterMap, route]);
+
+  const handleReOptimizeEditedRoute = useCallback(async () => {
+  await handleOptimizeRoute();
+}, [handleOptimizeRoute]);
+
+
 
   const handleRefineRoute = useCallback(() => {
     setPanelMode('setup');
@@ -1245,5 +1547,20 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
     handleCopyStopsFromPastRoute,
     handleSkipOptimization,
     handleRemoveStops,
+    editingStop: selectedStop,
+    isSavingRouteEdit,
+    handleOpenEditRoute,
+    handleCancelEditRoute,
+    handleOpenEditStartLocation,
+    handleOpenEditEndLocation,
+    handleOpenEditStartTime,
+    handleSaveRouteLocation,
+    handleSaveRouteTime,
+    handleOpenEditStop,
+    handleSaveEditedStop,
+    handleOpenEditStopAddress,
+    handleSaveStopAddress,
+    handleRemoveEditedStop,
+    handleReOptimizeEditedRoute
   };
 }

@@ -17,12 +17,15 @@ type ConfirmedRoutePanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
   onStopPress?: (stop: any, index: number) => void;
   onCancelRoute?: () => void;
+  onOpenEditRoute?: () => void;
 };
 
 type TimelineTime = {
   dayLabel?: string;
   clock: string;
 };
+
+
 
 type TimelineItem = {
   id: string;
@@ -51,6 +54,7 @@ export function ConfirmedRoutePanel({
   onStartRoute,
   onStopPress,
   onCancelRoute,
+  onOpenEditRoute,
 }: ConfirmedRoutePanelProps) {
   const insets = useSafeAreaInsets();
 
@@ -260,7 +264,7 @@ export function ConfirmedRoutePanel({
                 localStyles.editButton,
                 pressed && localStyles.buttonPressedLight,
               ]}
-              onPress={onRefine}
+              onPress={onOpenEditRoute || onRefine}
             >
               <Feather name="edit-2" size={15} color="#1E293B" />
               <Text style={localStyles.editButtonText}>

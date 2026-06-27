@@ -1098,3 +1098,45 @@ export function isPendingOrderStatus(status: unknown) {
     normalized === ''
   );
 }
+
+
+// Add these helper functions to route-preview.helpers.ts
+
+export function buildRouteLocationPayload(suggestion: PlaceSuggestion) {
+  const fullAddress = suggestion.fullAddress || suggestion.subtitle || suggestion.title || '';
+
+  return {
+    mode: 'manual_address',
+    address: fullAddress,
+    full_address: fullAddress,
+    name: suggestion.title || fullAddress,
+    selectedFromSuggestion: true,
+    latitude: suggestion.latitude,
+    longitude: suggestion.longitude,
+    details: {
+      placeId: String(suggestion.id || ''),
+      addressLine1: suggestion.title || '',
+      addressLine2: suggestion.subtitle || '',
+      city: '',
+      district: '',
+      state: '',
+      country: '',
+      countryCode: '',
+      postalCode: '',
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    },
+  };
+}
+
+export function buildRoutePointFromSuggestion(
+  suggestion: PlaceSuggestion,
+  fallbackTitle = 'Location',
+): RoutePoint {
+  return {
+    latitude: Number(suggestion.latitude),
+    longitude: Number(suggestion.longitude),
+    title: suggestion.title || fallbackTitle,
+    description: suggestion.fullAddress || suggestion.subtitle || suggestion.title || fallbackTitle,
+  };
+}

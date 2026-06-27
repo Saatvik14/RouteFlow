@@ -1,14 +1,6 @@
 import type { ConfirmedRoute, RoutePoint } from '../../components/maps/RouteMap';
 
-export type PanelMode =
-  | 'empty'
-  | 'search'
-  | 'details'
-  | 'setup'
-  | 'confirmed'
-  | 'transit'
-  | 'add'
-  | 'cancelled';
+export type PanelMode = any;
 
 export type RouteStatus = string;
 
@@ -71,3 +63,5 @@ export type RouteLoadResult = {
   routeStatus: RouteStatus;
   routeId: string;
 };
+
+

@@ -70,6 +70,21 @@ export default function RoutePreviewScreen() {
     handleCopyStopsFromPastRoute,
     handleSkipOptimization,
     handleRemoveStops,
+    editingStop,
+    isSavingRouteEdit,
+    handleOpenEditRoute,
+    handleCancelEditRoute,
+    handleOpenEditStartLocation,
+    handleOpenEditEndLocation,
+    handleOpenEditStartTime,
+    handleSaveRouteLocation,
+    handleSaveRouteTime,
+    handleOpenEditStop,
+    handleSaveEditedStop,
+    handleOpenEditStopAddress,
+    handleSaveStopAddress,
+    handleRemoveEditedStop,
+    handleReOptimizeEditedRoute,
   } = useRoutePreviewController(routeId);
 
   return (
@@ -197,6 +212,24 @@ export default function RoutePreviewScreen() {
           onCopyStopsFromPastRoute={handleCopyStopsFromPastRoute}
           onSkipOptimization={handleSkipOptimization}
           onRemoveStops={handleRemoveStops}
+          editingStop={editingStop}
+          isSavingRouteEdit={isSavingRouteEdit}
+          isOptimizing={isOptimizing}
+          onOpenEditRoute={handleOpenEditRoute}
+          onCancelEditRoute={handleCancelEditRoute}
+          onOpenEditStartLocation={handleOpenEditStartLocation}
+          onOpenEditEndLocation={handleOpenEditEndLocation}
+          onOpenEditStartTime={handleOpenEditStartTime}
+          onSaveRouteLocation={handleSaveRouteLocation}
+          onSaveRouteTime={handleSaveRouteTime}
+          onOpenEditStop={handleOpenEditStop}
+          onSaveEditedStop={handleSaveEditedStop}
+          onOpenEditStopAddress={handleOpenEditStopAddress}
+          onSaveStopAddress={handleSaveStopAddress}
+          onRemoveEditedStop={handleRemoveEditedStop}
+          onReOptimizeEditedRoute={handleReOptimizeEditedRoute}
+          onAddAnotherStop={handleOpenSearch}
+
         />
       ) : !isInitialLoading && route ? (
         <RoutePreviewPanel
@@ -244,6 +277,24 @@ export default function RoutePreviewScreen() {
           onSkipOptimization={handleSkipOptimization}
           onRemoveStops={handleRemoveStops}
           onCancelRoute={handleCancelRoute}
+          editingStop={editingStop}
+          isSavingRouteEdit={isSavingRouteEdit}
+          isOptimizing={isOptimizing}
+          onOpenEditRoute={handleOpenEditRoute}
+          onCancelEditRoute={handleCancelEditRoute}
+          onOpenEditStartLocation={handleOpenEditStartLocation}
+          onOpenEditEndLocation={handleOpenEditEndLocation}
+          onOpenEditStartTime={handleOpenEditStartTime}
+          onSaveRouteLocation={handleSaveRouteLocation}
+          onSaveRouteTime={handleSaveRouteTime}
+          onOpenEditStop={handleOpenEditStop}
+          onSaveEditedStop={handleSaveEditedStop}
+          onOpenEditStopAddress={handleOpenEditStopAddress}
+          onSaveStopAddress={handleSaveStopAddress}
+          onRemoveEditedStop={handleRemoveEditedStop}
+          onReOptimizeEditedRoute={handleReOptimizeEditedRoute}
+          onAddAnotherStop={handleOpenSearch}
+
         />
       ) : null}
 
