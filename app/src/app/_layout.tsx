@@ -4,10 +4,11 @@ import {
   DarkTheme,
   DefaultTheme,
 } from '@react-navigation/native';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Platform, useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from './../components/animated-icon';
+import { SecurityLockScreen } from './../components/security-lock-screen';
 import { fetchAndStoreConfig, restoreAuthToken, setAuthToken } from './../services/api';
 
 // Simple Auth Context for demonstration
@@ -26,6 +27,8 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAppLocked, setIsAppLocked] = useState(false);
+  const appStateRef = useRef(AppState.currentState);
 
   const router = useRouter();
   const segments = useSegments();
@@ -37,6 +40,10 @@ export default function RootLayout() {
         const token = await restoreAuthToken();
         if (token) {
           setIsLoggedIn(true);
+          // Lock the app on cold start if user is already logged in
+          if (Platform.OS !== 'web') {
+            setIsAppLocked(true);
+          }
           await fetchAndStoreConfig();
         }
       } catch (err) {
@@ -49,11 +56,37 @@ export default function RootLayout() {
     bootstrapAsync();
   }, []);
 
+  // Lock app when returning from background (native only)
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        // App came to foreground — lock if user is logged in
+        if (isLoggedIn) {
+          setIsAppLocked(true);
+        }
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => subscription.remove();
+  }, [isLoggedIn]);
+
+  const handleUnlocked = useCallback(() => {
+    setIsAppLocked(false);
+  }, []);
+
   const authContext = useMemo(() => ({
     isLoggedIn,
     isLoading,
     login: () => {
       setIsLoggedIn(true);
+      // Don't lock on fresh login — user just authenticated
+      setIsAppLocked(false);
       fetchAndStoreConfig();
     },
       logout: async () => {
@@ -88,7 +121,9 @@ export default function RootLayout() {
   return (
     <AuthContext.Provider value={authContext}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        {isLoggedIn ? (
+        {isLoggedIn && isAppLocked && Platform.OS !== 'web' ? (
+          <SecurityLockScreen onUnlocked={handleUnlocked} />
+        ) : isLoggedIn ? (
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="(MapScreen)/MapScreen" />

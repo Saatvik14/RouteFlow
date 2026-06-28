@@ -8,7 +8,10 @@
     "scheme": "app",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "RouteFlow uses Face ID to secure your account and protect your delivery data."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,8 +24,7 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.USE_BIOMETRIC"
       ],
       "package": "com.vvdevill.app"
     },
@@ -55,6 +57,12 @@
       "microphonePermission": "Allow RouteFlow to use the microphone.",
       "speechRecognitionPermission": "Allow RouteFlow to use speech recognition.",
       "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+    }
+  ],
+  [
+    "expo-local-authentication",
+    {
+      "faceIDPermission": "RouteFlow uses Face ID to secure your account."
     }
   ]
 ],
