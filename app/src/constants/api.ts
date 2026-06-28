@@ -121,6 +121,9 @@ export const API_ENDPOINTS = {
   CONFIG: {
     FETCH_CONFIG: '/config/fetch-config'
   },
+  SUPPORT: {
+    SUBMIT: '/support/submit',
+  },
 
 };
 

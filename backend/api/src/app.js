@@ -10,6 +10,7 @@ const authRoutes = require('./routes/authRoutes');
 const routeRoutes = require('./routes/routeRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const configurationRoutes = require('./routes/configurationRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 
 const app = express();
 
@@ -52,5 +53,6 @@ app.use('/route', routeRoutes);
 app.use('/order', orderRoutes);
 app.use('/config', configurationRoutes);
 app.use('/route', require('./routes/routeManifestRoutes'));
+app.use('/support', supportRoutes);
 
 module.exports = app;
