@@ -433,17 +433,40 @@ const autocompleteAddress = async (req, res) => {
   }
 
   try {
-    const url = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
-    url.searchParams.append('text', text);
-    url.searchParams.append('limit', limit || '3');
-    url.searchParams.append('lang', lang || 'en');
-    url.searchParams.append('format', 'json');
-    url.searchParams.append('apiKey', apiKey);
+    const autocompleteUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
+    autocompleteUrl.searchParams.append('text', text);
+    autocompleteUrl.searchParams.append('limit', limit || '3');
+    autocompleteUrl.searchParams.append('lang', lang || 'en');
+    autocompleteUrl.searchParams.append('format', 'json');
+    autocompleteUrl.searchParams.append('apiKey', apiKey);
 
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    const autocompleteResponse = await fetch(autocompleteUrl.toString());
+    const autocompleteData = await autocompleteResponse.json();
 
-    res.status(200).json(data);
+    if (!autocompleteData?.results || autocompleteData.results.length === 0) {
+      const geocodeUrl = new URL('https://api.geoapify.com/v1/geocode/search');
+      // console.log('No autocomplete results found, falling back to geocode search');
+      geocodeUrl.searchParams.append('text', text);
+      geocodeUrl.searchParams.append('limit', limit || '3');
+      geocodeUrl.searchParams.append('lang', lang || 'en');
+      geocodeUrl.searchParams.append('format', 'json');
+      geocodeUrl.searchParams.append('apiKey', apiKey);
+
+      const geocodeResponse = await fetch(geocodeUrl.toString());
+      const geocodeData = await geocodeResponse.json();
+
+      if (geocodeData?.results?.length > 0) {
+        const bestResult = geocodeData.results.reduce((prev, current) => {
+          const prevConfidence = prev?.rank?.confidence || 0;
+          const currentConfidence = current?.rank?.confidence || 0;
+          return currentConfidence > prevConfidence ? current : prev;
+        }, geocodeData.results[0]);
+
+        return res.status(200).json({ results: [bestResult] });
+      }
+    }
+
+    return res.status(200).json(autocompleteData);
   } catch (error) {
     console.error('Autocomplete Error:', error);
     res.status(500).json({ message: 'Server error during autocomplete' });

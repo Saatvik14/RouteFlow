@@ -514,6 +514,7 @@ export default function RoutePointsScreen() {
 
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
 
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [activeSearch, setActiveSearch] = useState<'start' | 'end' | null>(null);
@@ -530,7 +531,7 @@ export default function RoutePointsScreen() {
         ? isStartValid
         : Boolean(endLocation.address.trim());
 
-  const canSubmit = isStartValid && isEndValid && !isSubmitting;
+  const canSubmit = isStartValid && isEndValid && !isSubmitting && !isFetchingSuggestions;
 
   const endTitle = useMemo(() => {
     if (endMode === 'round_trip') return 'Round trip';
@@ -558,10 +559,17 @@ export default function RoutePointsScreen() {
     }
 
     const timer = setTimeout(async () => {
-      const data = await fetchPlaceSuggestions(query);
+      setIsFetchingSuggestions(true);
+      try {
+        const data = await fetchPlaceSuggestions(query);
 
-      if (mounted) {
-        setSuggestions(data);
+        if (mounted) {
+          setSuggestions(data);
+        }
+      } finally {
+        if (mounted) {
+          setIsFetchingSuggestions(false);
+        }
       }
     }, 350);
 
