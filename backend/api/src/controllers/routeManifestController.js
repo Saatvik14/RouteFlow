@@ -238,14 +238,57 @@ const resolveAddressText = async (req, res) => {
 };
 
 // POST /route/address/scan
+const performOcrSpace = async (file) => {
+  const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+  const apiKey = process.env.OCR_SPACE_API_KEY || 'helloworld';
+
+  const formData = new URLSearchParams();
+  formData.append('apikey', apiKey);
+  formData.append('base64Image', base64Image);
+  formData.append('scale', 'true');
+  formData.append('detectOrientation', 'true');
+  formData.append('language', 'eng');
+
+  const response = await fetch('https://api.ocr.space/parse/image', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`OCR.space API responded with status ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  if (result.IsErroredOnProcessing || !result.ParsedResults || result.ParsedResults.length === 0) {
+    throw new Error(result.ErrorMessage || result.ErrorDetails || 'OCR.space processing failed');
+  }
+
+  return result.ParsedResults[0].ParsedText || '';
+};
+
+const performOcr = async (file) => {
+  try {
+    console.log('[OCR] Trying OCR.space API...');
+    return await performOcrSpace(file);
+  } catch (error) {
+    console.warn('[OCR] OCR.space failed, falling back to local Tesseract.js:', error);
+    const result = await Tesseract.recognize(file.buffer, 'eng');
+    return result.data.text || '';
+  }
+};
+
 const scanAddressImage = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'Image file is required' });
     }
 
-    const result = await Tesseract.recognize(req.file.buffer, 'eng');
-    const ocrText = cleanOcrText(result.data.text);
+    const text = await performOcr(req.file);
+    const ocrText = cleanOcrText(text);
     const candidates = getBestAddressCandidates(ocrText);
 
     const suggestions = [];
@@ -273,8 +316,8 @@ const scanRouteManifestImage = async (req, res) => {
       return res.status(400).json({ message: 'Manifest image is required' });
     }
 
-    const result = await Tesseract.recognize(req.file.buffer, 'eng');
-    const ocrText = cleanOcrText(result.data.text);
+    const text = await performOcr(req.file);
+    const ocrText = cleanOcrText(text);
     const rows = parseManifestRowsFromText(ocrText);
     const resolvedRows = await resolveRows(rows);
 

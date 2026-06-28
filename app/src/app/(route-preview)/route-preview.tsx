@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
-import { ActivityIndicator, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapScreen from '../../components/maps/RouteMap';
+import { CameraScanner } from '../../components/camera-scanner';
 import { RoutePanel } from './../../components/route-panel';
 import { RoutePreviewPanel } from './../../components/route-preview-panel-refactor/route-preview-panel';
 import { TransitStopPanel } from './../../components/route-preview-panel-refactor/route-preview-panel/components/transit-stop-panel';
@@ -20,6 +21,7 @@ export default function RoutePreviewScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const routeId = useMemo(() => getParam(params.id, ''), [params.id]);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   const {
     route,
@@ -63,7 +65,7 @@ export default function RoutePreviewScreen() {
     handleMarkStopFailed,
     handleCancelRoute,
     handleCreateNewRoute,
-    handleScanAddress,
+    handleScanAddress: controllerHandleScanAddress,
     handleVoiceAddress,
     handleScanRouteManifest,
     handleImportRouteManifest,
@@ -86,6 +88,10 @@ export default function RoutePreviewScreen() {
     handleRemoveEditedStop,
     handleReOptimizeEditedRoute,
   } = useRoutePreviewController(routeId);
+
+  const handleScanAddress = () => {
+    setIsScannerVisible(true);
+  };
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -313,6 +319,17 @@ export default function RoutePreviewScreen() {
           </View>
         </View>
       ) : null}
+
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={isScannerVisible}
+        onRequestClose={() => setIsScannerVisible(false)}>
+        <CameraScanner
+          onClose={() => setIsScannerVisible(false)}
+          onTextRecognized={(text) => setSearchText(text)}
+        />
+      </Modal>
     </GestureHandlerRootView>
   );
 }
