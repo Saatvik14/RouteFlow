@@ -56,10 +56,14 @@ export function CameraScanner({ onTextRecognized, onClose }: CameraScannerProps)
       setError(null);
       setRecognizedText('');
 
+      await new Promise(resolve => setTimeout(resolve, 600));
+
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.85,
+        quality: 1,
         skipProcessing: false,
-      });
+        exif: false,
+        shutterSound: false,
+        });
 
       if (!photo?.uri) {
         throw new Error('Failed to capture image');
@@ -115,9 +119,10 @@ export function CameraScanner({ onTextRecognized, onClose }: CameraScannerProps)
   return (
     <View style={styles.container}>
       <CameraView
-        style={styles.camera}
-        facing="back"
-        ref={cameraRef}
+      style={styles.camera}
+      facing="back"
+      ref={cameraRef}
+      autofocus="on"
       >
         {/* Header Overlay */}
         <View style={styles.header}>
