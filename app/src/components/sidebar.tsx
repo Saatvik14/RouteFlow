@@ -1038,7 +1038,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </View>
           </View>
 
-          <Pressable style={styles.subscribeButton}>
+          <Pressable style={styles.subscribeButton} onPress={() => {
+        onClose();
+        router.push("/subscription");
+    }}>
             <View style={styles.subscribeIconBox}>
               <MaterialCommunityIcons
                 name="lightning-bolt"
