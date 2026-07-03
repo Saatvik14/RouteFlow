@@ -1,6 +1,7 @@
 import { useAuth } from "./../app/_layout";
 import { restoreAuthToken } from "./../services/api";
 import { routesService } from "./../services/api/routes";
+import { ordersService } from "./../services/api/orders";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { jwtDecode } from "jwt-decode";
@@ -259,19 +260,41 @@ const formatDuration = (minutes: number) => {
   return `${hours}h ${remainingMinutes}m`;
 };
 
-const getStopCount = (route: BackendRoute) => {
+const getStopCount = (route: BackendRoute, allOrders: any[] = []) => {
+  const routeId = route.route_id ?? route.routeId ?? route.id;
+  if (routeId !== undefined && routeId !== null && allOrders.length > 0) {
+    const routeOrders = allOrders.filter(
+      (order: any) => String(order.route_id || order.routeId) === String(routeId)
+    );
+    if (routeOrders.length > 0) {
+      return routeOrders.length;
+    }
+  }
+
   const explicitCount = toNumber(
-    route.stops_count || route.total_stops || route.orders_count,
+    route.stops_count ||
+      route.total_stops ||
+      route.orders_count ||
+      (route as any).stop_count ||
+      (route as any).order_count ||
+      (route as any).stopsCount ||
+      (route as any).ordersCount ||
+      (route as any).totalStops
   );
   if (explicitCount > 0) return explicitCount;
 
   if (Array.isArray(route.stops)) return route.stops.length;
   if (Array.isArray(route.orders)) return route.orders.length;
+  if (Array.isArray((route as any).route_stops)) return (route as any).route_stops.length;
+  if (Array.isArray((route as any).routeStops)) return (route as any).routeStops.length;
+  if (Array.isArray((route as any).coordinates)) {
+    return Math.max(0, (route as any).coordinates.length - 2);
+  }
 
   return 0;
 };
 
-const normalizeRoutes = (response: any): RouteHistoryItem[] => {
+const normalizeRoutes = (response: any, allOrders: any[] = []): RouteHistoryItem[] => {
   const list: BackendRoute[] = Array.isArray(response)
     ? response
     : response?.routes || response?.data?.routes || response?.data || [];
@@ -297,7 +320,7 @@ const normalizeRoutes = (response: any): RouteHistoryItem[] => {
         timeLabel: formatTimeRange(route),
         statusLabel: statusMeta.label,
         statusTone: statusMeta.tone,
-        stopCount: getStopCount(route),
+        stopCount: getStopCount(route, allOrders),
         distanceKm,
         distanceLabel: formatDistance(distanceKm),
         durationMinutes,
@@ -341,6 +364,9 @@ function getStatusTextStyle(tone: RouteStatusTone) {
       return styles.statusTextSlate;
   }
 }
+
+let cachedRoutesData: any = null;
+let cachedOrdersData: any = null;
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
@@ -422,9 +448,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     if (!isOpen) return;
 
     const loadSidebarData = async () => {
+      if (cachedRoutesData) {
+        setRoutes(normalizeRoutes(cachedRoutesData, cachedOrdersData || []));
+        setIsLoadingRoutes(false);
+      } else {
+        setIsLoadingRoutes(true);
+      }
+
       try {
         setRouteError("");
-        setIsLoadingRoutes(true);
 
         const token = await restoreAuthToken();
 
@@ -443,10 +475,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           throw new Error(response.error || "Unable to fetch routes");
         }
 
-        setRoutes(normalizeRoutes(response.data));
+        let allOrders: any[] = [];
+        try {
+          const ordersResponse = (await ordersService.fetchOrders()) as any;
+          const rawPayload = ordersResponse?.data ?? ordersResponse;
+          allOrders = Array.isArray(rawPayload)
+            ? rawPayload
+            : rawPayload?.orders || rawPayload?.data?.orders || [];
+        } catch (err) {
+          console.log("Error loading orders for sidebar count:", err);
+        }
+
+        const routesDataChanged = JSON.stringify(response.data) !== JSON.stringify(cachedRoutesData);
+        const ordersDataChanged = JSON.stringify(allOrders) !== JSON.stringify(cachedOrdersData);
+
+        if (routesDataChanged || ordersDataChanged || !cachedRoutesData) {
+          cachedRoutesData = response.data;
+          cachedOrdersData = allOrders;
+          setRoutes(normalizeRoutes(response.data, allOrders));
+        }
       } catch (error) {
         console.log("Sidebar load error:", error);
-        setRouteError("Unable to load routes");
+        if (!cachedRoutesData) {
+          setRouteError("Unable to load routes");
+        }
       } finally {
         setIsLoadingRoutes(false);
       }
