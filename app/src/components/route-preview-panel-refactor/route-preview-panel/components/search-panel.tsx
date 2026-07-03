@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -14,6 +14,7 @@ import {
 import { styles } from '../styles';
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
+import { useVoiceAddress } from '../../../../hooks/useVoiceAddress';
 
 type SearchPanelExtraProps = {
   isWide: boolean;
@@ -34,16 +35,31 @@ function ActionCard({
   title,
   subtitle,
   onPress,
+  isActive,
 }: {
   icon: string;
   title: string;
   subtitle: string;
   onPress?: () => void;
+  isActive?: boolean;
 }) {
   return (
-    <Pressable style={localStyles.actionCard} onPress={onPress}>
-      <View style={localStyles.actionIconBox}>
-        <Text style={localStyles.actionIcon}>{icon}</Text>
+    <Pressable
+      style={[
+        localStyles.actionCard,
+        isActive && { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
+      ]}
+      onPress={onPress}
+    >
+      <View
+        style={[
+          localStyles.actionIconBox,
+          isActive && { backgroundColor: '#FEE2E2' },
+        ]}
+      >
+        <Text style={[localStyles.actionIcon, isActive && { color: '#EF4444' }]}>
+          {icon}
+        </Text>
       </View>
 
       <View style={{ flex: 1 }}>
@@ -100,6 +116,30 @@ export function SearchPanel({
   onRemoveStops,
 }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
+  const { isListening, transcript, error, startListening, stopListening } = useVoiceAddress();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (transcript) {
+      onSearchTextChange(transcript);
+    }
+  }, [transcript, onSearchTextChange]);
+
+  useEffect(() => {
+    if (error) {
+      setErrorMsg(error);
+      const timer = setTimeout(() => setErrorMsg(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  const handleVoicePress = async () => {
+    if (isListening) {
+      await stopListening();
+    } else {
+      await startListening();
+    }
+  };
 
   const closeMenuAndRun = (handler?: () => void) => {
     setMenuVisible(false);
@@ -123,8 +163,20 @@ export function SearchPanel({
             <TextInput
               value={searchText}
               onChangeText={onSearchTextChange}
-              placeholder="Tap to add stops"
-              placeholderTextColor="#7C8CA5"
+              placeholder={
+                isListening
+                  ? 'Listening... Speak now'
+                  : errorMsg
+                  ? errorMsg
+                  : 'Tap to add stops'
+              }
+              placeholderTextColor={
+                isListening
+                  ? '#DE3B3B'
+                  : errorMsg
+                  ? '#DC2626'
+                  : '#7C8CA5'
+              }
               autoFocus
               style={[
                 localStyles.input,
@@ -137,7 +189,17 @@ export function SearchPanel({
               ]}
             />
 
-            {searchText ? (
+            {isListening ? (
+              <Pressable
+                onPress={handleVoicePress}
+                style={[
+                  localStyles.smallIconButton,
+                  { backgroundColor: '#FEE2E2' },
+                ]}
+              >
+                <Text style={[localStyles.headerIcon, { color: '#EF4444' }]}>🎙</Text>
+              </Pressable>
+            ) : searchText ? (
               <Pressable
                 onPress={() => onSearchTextChange('')}
                 style={localStyles.smallIconButton}
@@ -154,7 +216,7 @@ export function SearchPanel({
                 </Pressable>
 
                 <Pressable
-                  onPress={onVoiceAddress}
+                  onPress={handleVoicePress}
                   style={localStyles.smallIconButton}
                 >
                   <Text style={localStyles.headerIcon}>🎙</Text>
@@ -202,9 +264,10 @@ export function SearchPanel({
               />
               <ActionCard
                 icon="🎙"
-                title="Voice address"
-                subtitle="Speak the delivery address"
-                onPress={onVoiceAddress}
+                title={isListening ? 'Stop listening' : 'Voice address'}
+                subtitle={isListening ? 'Listening... Speak now' : 'Speak the delivery address'}
+                onPress={handleVoicePress}
+                isActive={isListening}
               />
               <ActionCard
                 icon="▤"
@@ -297,9 +360,14 @@ export function SearchPanel({
 
               <MenuRow
                 icon="🎙"
-                title="Add address by voice"
-                subtitle="Speak and convert it into address suggestions"
-                onPress={() => closeMenuAndRun(onVoiceAddress)}
+                title={isListening ? 'Stop listening' : 'Add address by voice'}
+                subtitle={
+                  isListening
+                    ? 'Listening... Tap to stop'
+                    : 'Speak and convert it into address suggestions'
+                }
+                onPress={() => closeMenuAndRun(handleVoicePress)}
+                destructive={isListening}
               />
 
               <MenuRow

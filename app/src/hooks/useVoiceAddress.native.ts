@@ -1,88 +1,136 @@
-import { useRef } from 'react';
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
-
-type PromiseHandlers = {
-  resolve: (value: string) => void;
-  reject: (reason?: any) => void;
-};
-
-const SpeechModule = ExpoSpeechRecognitionModule as any;
+import { useState, useEffect, useRef } from 'react';
 
 export function useVoiceAddress() {
-  const promiseRef = useRef<PromiseHandlers | null>(null);
-  const finalTextRef = useRef('');
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const cleanup = () => {
-    promiseRef.current = null;
-    finalTextRef.current = '';
-  };
+  const speechModuleRef = useRef<any>(null);
+  const subscriptionsRef = useRef<any[]>([]);
 
-  useSpeechRecognitionEvent('result', event => {
-    const text = event.results?.[0]?.transcript || '';
-
-    if (text) {
-      finalTextRef.current = text;
+  // Load module on mount dynamically to avoid crash if native module is not built/available
+  useEffect(() => {
+    let active = true;
+    async function loadModule() {
+      try {
+        const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
+        if (active) {
+          speechModuleRef.current = ExpoSpeechRecognitionModule;
+        }
+      } catch (err) {
+        console.warn('ExpoSpeechRecognition is not available:', err);
+      }
     }
+    loadModule();
+    return () => {
+      active = false;
+      subscriptionsRef.current.forEach(sub => {
+        try {
+          sub?.remove?.();
+        } catch (e) {
+          // ignore
+        }
+      });
+      subscriptionsRef.current = [];
+    };
+  }, []);
 
-    if (event.isFinal && promiseRef.current) {
-      const finalText = finalTextRef.current.trim();
+  const startListening = async () => {
+    try {
+      setTranscript('');
+      setError(null);
 
-      if (finalText) {
-        promiseRef.current.resolve(finalText);
-      } else {
-        promiseRef.current.reject(new Error('No voice input detected.'));
+      let SpeechModule = speechModuleRef.current;
+      if (!SpeechModule) {
+        try {
+          const { ExpoSpeechRecognitionModule } = await import('expo-speech-recognition');
+          SpeechModule = ExpoSpeechRecognitionModule;
+          speechModuleRef.current = SpeechModule;
+        } catch (err) {
+          throw new Error('Speech recognition not available on this build.');
+        }
       }
 
-      cleanup();
-    }
-  });
+      if (!SpeechModule) {
+        throw new Error('Speech recognition module not loaded.');
+      }
 
-  useSpeechRecognitionEvent('error', event => {
-    if (!promiseRef.current) return;
+      const permission = await SpeechModule.requestPermissionsAsync();
+      if (!permission?.granted) {
+        throw new Error('Microphone permission is required for voice address.');
+      }
 
-    promiseRef.current.reject(
-      new Error(event.message || 'Could not read voice address.')
-    );
+      // Clean up previous listeners
+      subscriptionsRef.current.forEach(sub => {
+        try {
+          sub?.remove?.();
+        } catch (e) {
+          // ignore
+        }
+      });
+      subscriptionsRef.current = [];
 
-    cleanup();
-  });
+      setIsListening(true);
 
-  useSpeechRecognitionEvent('end', () => {
-    if (!promiseRef.current) return;
+      const startSub = SpeechModule.addListener('start', () => {
+        setIsListening(true);
+      });
 
-    const finalText = finalTextRef.current.trim();
+      const endSub = SpeechModule.addListener('end', () => {
+        setIsListening(false);
+        subscriptionsRef.current.forEach(sub => {
+          try {
+            sub?.remove?.();
+          } catch (e) {
+            // ignore
+          }
+        });
+        subscriptionsRef.current = [];
+      });
 
-    if (finalText) {
-      promiseRef.current.resolve(finalText);
-    } else {
-      promiseRef.current.reject(new Error('No voice input detected.'));
-    }
+      const resultSub = SpeechModule.addListener('result', (event: any) => {
+        const text =
+          event?.results?.[0]?.transcript ||
+          event?.results?.[0]?.alternatives?.[0]?.transcript ||
+          event?.transcript ||
+          '';
+        setTranscript(text);
+      });
 
-    cleanup();
-  });
+      const errorSub = SpeechModule.addListener('error', (event: any) => {
+        setError(event?.message || event?.error || 'Speech recognition error');
+        setIsListening(false);
+      });
 
-  const startListening = async (): Promise<string> => {
-    const permission = await SpeechModule.requestPermissionsAsync();
-
-    if (!permission?.granted) {
-      throw new Error('Microphone permission is required for voice address.');
-    }
-
-    return new Promise((resolve, reject) => {
-      promiseRef.current = { resolve, reject };
-      finalTextRef.current = '';
+      subscriptionsRef.current = [startSub, endSub, resultSub, errorSub];
 
       SpeechModule.start({
         lang: 'en-IN',
-        interimResults: false,
+        interimResults: true,
         continuous: false,
         maxAlternatives: 1,
       });
-    });
+    } catch (e: any) {
+      setError(e.message || 'Failed to start speech recognition');
+      setIsListening(false);
+    }
   };
 
-  return { startListening };
+  const stopListening = async () => {
+    try {
+      if (speechModuleRef.current) {
+        speechModuleRef.current.stop();
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  return {
+    isListening,
+    transcript,
+    error,
+    startListening,
+    stopListening,
+  };
 }
