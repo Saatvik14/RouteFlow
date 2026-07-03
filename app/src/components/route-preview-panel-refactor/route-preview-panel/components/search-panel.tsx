@@ -26,6 +26,9 @@ type SearchPanelExtraProps = {
   onCopyStopsFromPastRoute?: () => void;
   onSkipOptimization?: () => void;
   onRemoveStops?: () => void;
+  pendingManifestStops?: any[];
+  onConfirmManifestStops?: (stops: any[]) => Promise<void>;
+  onCancelManifestStops?: () => void;
 };
 
 type Props = RoutePreviewPanelProps & SearchPanelExtraProps;
@@ -114,10 +117,23 @@ export function SearchPanel({
   onCopyStopsFromPastRoute,
   onSkipOptimization,
   onRemoveStops,
+  pendingManifestStops,
+  onConfirmManifestStops,
+  onCancelManifestStops,
 }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
+  const [bulkUploadVisible, setBulkUploadVisible] = useState(false);
   const { isListening, transcript, error, startListening, stopListening } = useVoiceAddress();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [reviewStops, setReviewStops] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (pendingManifestStops && pendingManifestStops.length > 0) {
+      setReviewStops(pendingManifestStops);
+    } else {
+      setReviewStops([]);
+    }
+  }, [pendingManifestStops]);
 
   useEffect(() => {
     if (transcript) {
@@ -138,6 +154,48 @@ export function SearchPanel({
       await stopListening();
     } else {
       await startListening();
+    }
+  };
+
+  const downloadSampleTemplate = () => {
+    if (Platform.OS === 'web') {
+      const csvContent =
+        'Address\n' +
+        '"1600 Amphitheatre Pkwy, Mountain View, CA 94043"\n' +
+        '"1 Infinite Loop, Cupertino, CA 95014"\n' +
+        '"350 Fifth Ave, New York, NY 10118"';
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'sample-route-manifest.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      alert(
+        'Excel/CSV Template Columns:\n\n' +
+          '1. Address\n\n' +
+          'Please create a spreadsheet with only this single header column.'
+      );
+    }
+  };
+
+  const handleDeletePendingStop = (indexToDelete: number) => {
+    setReviewStops((prev) => prev.filter((_, idx) => idx !== indexToDelete));
+  };
+
+  const handleConfirmReview = async () => {
+    if (onConfirmManifestStops) {
+      await onConfirmManifestStops(reviewStops);
+    }
+  };
+
+  const handleCancelReview = () => {
+    if (onCancelManifestStops) {
+      onCancelManifestStops();
     }
   };
 
@@ -246,7 +304,13 @@ export function SearchPanel({
             <Text style={localStyles.emptyTitle}>No stops added yet</Text>
             <Text style={localStyles.emptySubtitle}>
               Add stops manually, scan an address label, use voice, or import a
-              complete route manifest.
+              complete route manifest.{' '}
+              <Text
+                style={{ color: '#286EF0', fontWeight: '600', textDecorationLine: 'underline' }}
+                onPress={downloadSampleTemplate}
+              >
+                Download template
+              </Text>
             </Text>
 
             <View style={localStyles.actionGrid}>
@@ -271,9 +335,9 @@ export function SearchPanel({
               />
               <ActionCard
                 icon="▤"
-                title="Route manifest"
-                subtitle="Scan or import many stops"
-                onPress={() => setMenuVisible(true)}
+                title="Bulk upload orders"
+                subtitle="Upload Excel sheet with multiple stops"
+                onPress={() => setBulkUploadVisible(true)}
               />
             </View>
 
@@ -371,17 +435,10 @@ export function SearchPanel({
               />
 
               <MenuRow
-                icon="▤"
-                title="Scan route manifest"
-                subtitle="Scan a printed sheet with multiple stops"
-                onPress={() => closeMenuAndRun(onScanRouteManifest)}
-              />
-
-              <MenuRow
                 icon="▣"
-                title="Import route manifest"
-                subtitle="Upload CSV or Excel with many stops"
-                onPress={() => closeMenuAndRun(onImportRouteManifest)}
+                title="Bulk upload orders"
+                subtitle="Import stops using Excel or CSV spreadsheet"
+                onPress={() => closeMenuAndRun(() => setBulkUploadVisible(true))}
               />
 
               <View style={localStyles.menuDivider} />
@@ -406,6 +463,127 @@ export function SearchPanel({
               />
             </Pressable>
           </Pressable>
+        </Modal>
+
+        <Modal
+          visible={bulkUploadVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setBulkUploadVisible(false)}
+        >
+          <Pressable
+            style={localStyles.backdrop}
+            onPress={() => setBulkUploadVisible(false)}
+          >
+            <Pressable style={localStyles.bottomMenu} onPress={(e) => e.stopPropagation()}>
+              <View style={localStyles.menuHandle} />
+              
+              <Text style={localStyles.modalTitle}>Bulk Upload Orders</Text>
+              <Text style={localStyles.modalSubtitle}>
+                Add multiple stops at once using an Excel or CSV file.
+              </Text>
+
+              <MenuRow
+                icon="⬇"
+                title="Download sample file"
+                subtitle="Get the 1-column template (Address)"
+                onPress={() => {
+                  setBulkUploadVisible(false);
+                  downloadSampleTemplate();
+                }}
+              />
+
+              <MenuRow
+                icon="▤"
+                title="Upload Excel file"
+                subtitle="Upload CSV or Excel with your stop list"
+                onPress={() => {
+                  setBulkUploadVisible(false);
+                  if (onImportRouteManifest) {
+                    onImportRouteManifest();
+                  }
+                }}
+              />
+
+              <Pressable
+                style={[localStyles.secondaryButton, { marginTop: 16 }]}
+                onPress={() => setBulkUploadVisible(false)}
+              >
+                <Text style={localStyles.secondaryButtonText}>Close</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <Modal
+          visible={reviewStops && reviewStops.length > 0}
+          transparent
+          animationType="slide"
+          onRequestClose={handleCancelReview}
+        >
+          <View style={[localStyles.backdrop, { justifyContent: 'center' }]}>
+            <View style={localStyles.reviewContainer}>
+              <View style={localStyles.reviewHeader}>
+                <View>
+                  <Text style={localStyles.reviewTitle}>Review Imported Stops</Text>
+                  <Text style={localStyles.reviewSubtitle}>
+                    {reviewStops.length} address{reviewStops.length === 1 ? '' : 'es'} found in manifest
+                  </Text>
+                </View>
+              </View>
+
+              <ScrollView style={localStyles.reviewList} showsVerticalScrollIndicator={true}>
+                {reviewStops.map((item, idx) => (
+                  <View key={idx} style={localStyles.reviewRow}>
+                    <View style={localStyles.reviewRowContent}>
+                      <Text style={localStyles.reviewRowTitle} numberOfLines={1}>
+                        {item.title || `Stop ${idx + 1}`}
+                      </Text>
+                      <Text style={localStyles.reviewRowAddress} numberOfLines={2}>
+                        {item.address}
+                      </Text>
+                      <View style={localStyles.reviewRowBadgeRow}>
+                        {item.packages > 0 && (
+                          <Text style={localStyles.reviewRowBadge}>
+                            📦 {item.packages} pkg{item.packages === 1 ? '' : 's'}
+                          </Text>
+                        )}
+                        {item.stop_type && (
+                          <Text style={localStyles.reviewRowBadge}>
+                            🏷️ {item.stop_type === 'delivery' ? 'Delivery' : 'Pickup'}
+                          </Text>
+                        )}
+                        {item.notes ? (
+                          <Text
+                            style={[localStyles.reviewRowBadge, { backgroundColor: '#F1F5F9', color: '#475569' }]}
+                            numberOfLines={1}
+                          >
+                            📝 {item.notes}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+
+                    <Pressable
+                      style={localStyles.reviewDeleteButton}
+                      onPress={() => handleDeletePendingStop(idx)}
+                    >
+                      <Text style={localStyles.reviewDeleteText}>×</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <View style={localStyles.reviewFooter}>
+                <Pressable style={localStyles.reviewCancelButton} onPress={handleCancelReview}>
+                  <Text style={localStyles.reviewCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={localStyles.reviewConfirmButton} onPress={handleConfirmReview}>
+                  <Text style={localStyles.reviewConfirmText}>Confirm ({reviewStops.length})</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
         </Modal>
       </KeyboardAvoidingView>
     </DraggableRouteSheet>
@@ -677,5 +855,140 @@ const localStyles = StyleSheet.create({
   },
   dangerText: {
     color: '#D14343',
+  },
+  reviewContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    margin: 20,
+    maxHeight: '80%',
+    padding: 20,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F6',
+    paddingBottom: 14,
+    marginBottom: 14,
+  },
+  reviewTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#172033',
+  },
+  reviewSubtitle: {
+    fontSize: 13,
+    color: '#7C8CA5',
+    marginTop: 2,
+  },
+  reviewList: {
+    marginBottom: 20,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFD',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E4EAF3',
+    justifyContent: 'space-between',
+  },
+  reviewRowContent: {
+    flex: 1,
+    marginRight: 10,
+  },
+  reviewRowTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#172033',
+  },
+  reviewRowAddress: {
+    fontSize: 12,
+    color: '#7C8CA5',
+    marginTop: 2,
+  },
+  reviewRowBadgeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  reviewRowBadge: {
+    backgroundColor: '#EEF4FF',
+    color: '#286EF0',
+    fontSize: 10,
+    fontWeight: '600',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  reviewDeleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewDeleteText: {
+    fontSize: 18,
+    color: '#EF4444',
+    fontWeight: 'bold',
+    marginTop: -2,
+  },
+  reviewFooter: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  reviewConfirmButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#2F74F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  reviewCancelButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DEE6F2',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewCancelText: {
+    color: '#526174',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#172033',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#7C8CA5',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
 });

@@ -139,6 +139,9 @@ type UseRoutePreviewControllerResult = {
   handleSaveStopAddress: (suggestion: PlaceSuggestion) => Promise<void>;
   handleRemoveEditedStop: () => Promise<void>;
   handleReOptimizeEditedRoute: () => Promise<void>;
+  pendingManifestStops: any[];
+  handleConfirmManifestStops: (selectedStops: any[]) => Promise<void>;
+  handleCancelManifestStops: () => void;
 };
 
 function getLatestRouteId(response: any) {
@@ -296,6 +299,7 @@ export function useRoutePreviewController(
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
   const [isCancellingRoute, setIsCancellingRoute] = useState(false);
   const [isSavingRouteEdit, setIsSavingRouteEdit] = useState(false);
+  const [pendingManifestStops, setPendingManifestStops] = useState<any[]>([]);
 
   const effectiveRouteId = activeRouteId || routeIdFromParams;
 
@@ -1309,8 +1313,8 @@ const handleRemoveEditedStop = useCallback(async () => {
     setSelectedStop(null);
   }, []);
 
-  const addResolvedManifestRowsToRoute = useCallback(async (response: any, source: string) => {
-    if (!route || !effectiveRouteId || isAddingStop) return;
+  const prepareResolvedManifestRowsForReview = useCallback((response: any, source: string) => {
+    if (!route || !effectiveRouteId) return;
 
     const rows = getResolvedManifestRows(response).map((row) => ({
       ...row,
@@ -1328,11 +1332,22 @@ const handleRemoveEditedStop = useCallback(async () => {
       return;
     }
 
+    setPendingManifestStops(payloads);
+  }, [route, effectiveRouteId]);
+
+  const handleConfirmManifestStops = useCallback(async (selectedStops: any[]) => {
+    if (!route || !effectiveRouteId || isAddingStop) return;
+
+    if (!selectedStops || selectedStops.length === 0) {
+      setPendingManifestStops([]);
+      return;
+    }
+
     setIsAddingStop(true);
     setErrorMessage('');
 
     try {
-      const responseFromBackend = await addManifestStopsToBackend(payloads);
+      const responseFromBackend = await addManifestStopsToBackend(selectedStops);
 
       if (!isSuccessResponse(responseFromBackend)) {
         throw new Error(
@@ -1348,7 +1363,7 @@ const handleRemoveEditedStop = useCallback(async () => {
         rawPayload?.data?.orders ||
         [];
 
-      const fallbackStops: RouteStop[] = payloads.map((payload, index) => ({
+      const fallbackStops: RouteStop[] = selectedStops.map((payload, index) => ({
         id: `${Date.now()}-manifest-${index}`,
         sequence: route.stops.length + index + 1,
         sequenceNo: route.stops.length + index + 1,
@@ -1404,6 +1419,7 @@ const handleRemoveEditedStop = useCallback(async () => {
       setStopDetails({ ...DEFAULT_STOP_DETAILS });
       setPanelMode('setup');
       recenterMap();
+      setPendingManifestStops([]);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : 'Unable to add manifest stops.',
@@ -1458,13 +1474,13 @@ const handleRemoveEditedStop = useCallback(async () => {
 
       if (!response) return;
 
-      await addResolvedManifestRowsToRoute(response, 'scan_manifest');
+      prepareResolvedManifestRowsForReview(response, 'scan_manifest');
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : 'Unable to scan route manifest.',
       );
     }
-  }, [addResolvedManifestRowsToRoute]);
+  }, [prepareResolvedManifestRowsForReview]);
 
   const handleImportRouteManifest = useCallback(async () => {
     try {
@@ -1473,13 +1489,13 @@ const handleRemoveEditedStop = useCallback(async () => {
 
       if (!response) return;
 
-      await addResolvedManifestRowsToRoute(response, 'import_manifest');
+      prepareResolvedManifestRowsForReview(response, 'import_manifest');
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : 'Unable to import route manifest.',
       );
     }
-  }, [addResolvedManifestRowsToRoute]);
+  }, [prepareResolvedManifestRowsForReview]);
 
   const handleCopyStopsFromPastRoute = useCallback(() => {
     setErrorMessage('Copy stops from past route is not wired yet. Add a route picker here.');
@@ -1561,6 +1577,9 @@ const handleRemoveEditedStop = useCallback(async () => {
     handleOpenEditStopAddress,
     handleSaveStopAddress,
     handleRemoveEditedStop,
-    handleReOptimizeEditedRoute
+    handleReOptimizeEditedRoute,
+    pendingManifestStops,
+    handleConfirmManifestStops,
+    handleCancelManifestStops: () => setPendingManifestStops([])
   };
 }

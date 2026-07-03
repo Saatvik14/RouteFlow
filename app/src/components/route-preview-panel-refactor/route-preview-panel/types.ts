@@ -78,7 +78,9 @@ export type RoutePreviewPanelProps = {
   onSaveStopAddress?: (suggestion: PlaceSuggestion) => void;
   onRemoveEditedStop?: () => void;
   onReOptimizeEditedRoute?: () => void;
-
+  pendingManifestStops?: any[];
+  onConfirmManifestStops?: (stops: any[]) => Promise<void>;
+  onCancelManifestStops?: () => void;
 };
 
 

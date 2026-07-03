@@ -87,6 +87,9 @@ export default function RoutePreviewScreen() {
     handleSaveStopAddress,
     handleRemoveEditedStop,
     handleReOptimizeEditedRoute,
+    pendingManifestStops,
+    handleConfirmManifestStops,
+    handleCancelManifestStops,
   } = useRoutePreviewController(routeId);
 
   const handleScanAddress = () => {
@@ -300,7 +303,9 @@ export default function RoutePreviewScreen() {
           onRemoveEditedStop={handleRemoveEditedStop}
           onReOptimizeEditedRoute={handleReOptimizeEditedRoute}
           onAddAnotherStop={handleOpenSearch}
-
+          pendingManifestStops={pendingManifestStops}
+          onConfirmManifestStops={handleConfirmManifestStops}
+          onCancelManifestStops={handleCancelManifestStops}
         />
       ) : null}
 
