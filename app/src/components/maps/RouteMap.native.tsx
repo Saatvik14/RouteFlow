@@ -46,6 +46,12 @@ type MapScreenProps = {
   mapType?: RouteMapType;
   centerSignal?: number;
   confirmedRoute?: ConfirmedRoute | null;
+  isNavigating?: boolean;
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+    heading: number | null;
+  } | null;
 };
 
 const FALLBACK_REGION: Region = {
@@ -167,6 +173,8 @@ export default function MapScreen({
   mapType = 'standard',
   centerSignal = 0,
   confirmedRoute = null,
+  isNavigating = false,
+  userLocation = null,
 }: MapScreenProps) {
   const mapRef = useRef<MapView | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
@@ -263,11 +271,44 @@ export default function MapScreen({
   }, [confirmedRoute, fitRouteOnMap, moveToCurrentLocation]);
 
   useEffect(() => {
-    if (centerSignal > 0) {
-      if (confirmedRoute) fitRouteOnMap();
-      else moveToCurrentLocation();
+    if (isNavigating && userLocation) {
+      mapRef.current?.animateCamera(
+        {
+          center: {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+          },
+          pitch: 45,
+          heading: userLocation.heading ?? 0,
+          zoom: 18,
+        },
+        { duration: 800 }
+      );
     }
-  }, [centerSignal, confirmedRoute, fitRouteOnMap, moveToCurrentLocation]);
+  }, [isNavigating, userLocation]);
+
+  useEffect(() => {
+    if (centerSignal > 0) {
+      if (isNavigating && userLocation) {
+        mapRef.current?.animateCamera(
+          {
+            center: {
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+            },
+            pitch: 45,
+            heading: userLocation.heading ?? 0,
+            zoom: 18,
+          },
+          { duration: 800 }
+        );
+      } else if (confirmedRoute) {
+        fitRouteOnMap();
+      } else {
+        moveToCurrentLocation();
+      }
+    }
+  }, [centerSignal, confirmedRoute, fitRouteOnMap, moveToCurrentLocation, isNavigating, userLocation]);
 
   return (
     <View style={styles.container}>

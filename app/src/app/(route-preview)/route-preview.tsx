@@ -13,6 +13,8 @@ import { Sidebar } from './../../components/sidebar';
 import { getParam } from './route-preview.helpers';
 import { styles } from './route-preview.styles';
 import { useRoutePreviewController } from './use-route-preview-controller';
+import InAppNavigationOverlay from '../../components/maps/InAppNavigationOverlay';
+
 
 
 export default function RoutePreviewScreen() {
@@ -90,6 +92,12 @@ export default function RoutePreviewScreen() {
     pendingManifestStops,
     handleConfirmManifestStops,
     handleCancelManifestStops,
+    isNavigating,
+    navigationTargetStop,
+    handleExitNavigation,
+    userLocation,
+    setUserLocation,
+    handleToggleMockingLocation,
   } = useRoutePreviewController(routeId);
 
   const handleScanAddress = () => {
@@ -102,44 +110,56 @@ export default function RoutePreviewScreen() {
         confirmedRoute={mapRoute}
         mapType={mapType}
         centerSignal={centerSignal}
+        isNavigating={isNavigating}
+        userLocation={userLocation}
       />
 
-      <Pressable
-        style={[
-          styles.menuButton,
-          {
-            top: insets.top + 16,
-          },
-        ]}
-        onPress={() => setIsSidebarOpen(true)}
-      >
-        <View style={styles.hamburger}>
-          <View style={styles.hamburgerBar} />
-          <View style={styles.hamburgerBar} />
-          <View style={styles.hamburgerBar} />
-        </View>
-      </Pressable>
+      {isNavigating ? (
+        <InAppNavigationOverlay
+          targetStop={navigationTargetStop}
+          userLocation={userLocation}
+          onExit={handleExitNavigation}
+          onSimulateLocationUpdate={setUserLocation}
+          onToggleSimulationMode={handleToggleMockingLocation}
+        />
+      ) : (
+        <>
+          <Pressable
+            style={[
+              styles.menuButton,
+              {
+                top: insets.top + 16,
+              },
+            ]}
+            onPress={() => setIsSidebarOpen(true)}
+          >
+            <View style={styles.hamburger}>
+              <View style={styles.hamburgerBar} />
+              <View style={styles.hamburgerBar} />
+              <View style={styles.hamburgerBar} />
+            </View>
+          </Pressable>
 
-      <View
-        style={[
-          styles.mapControls,
-          {
-            top: insets.top + 16,
-          },
-        ]}
-      >
-        <Pressable style={styles.mapControlButton} onPress={handleToggleMapType}>
-          <MaterialCommunityIcons
-            name={mapType === 'standard' ? 'map' : 'satellite'}
-            size={22}
-            color="#2F76F6"
-          />
-        </Pressable>
+          <View
+            style={[
+              styles.mapControls,
+              {
+                top: insets.top + 16,
+              },
+            ]}
+          >
+            <Pressable style={styles.mapControlButton} onPress={handleToggleMapType}>
+              <MaterialCommunityIcons
+                name={mapType === 'standard' ? 'map' : 'satellite'}
+                size={22}
+                color="#2F76F6"
+              />
+            </Pressable>
 
-        <Pressable style={styles.mapControlButton} onPress={recenterMap}>
-          <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#2F76F6" />
-        </Pressable>
-      </View>
+            <Pressable style={styles.mapControlButton} onPress={recenterMap}>
+              <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#2F76F6" />
+            </Pressable>
+          </View>
 
       {isInitialLoading ? (
         <View
@@ -308,6 +328,8 @@ export default function RoutePreviewScreen() {
           onCancelManifestStops={handleCancelManifestStops}
         />
       ) : null}
+        </>
+      )}
 
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 

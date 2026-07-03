@@ -55,7 +55,7 @@ export type RoutePreviewPanelProps = {
   onConfirm: () => void | Promise<void>;
   onStartRoute?: () => void | Promise<void>;
 
-  onNavigateActiveStop?: () => void | Promise<void>;
+  onNavigateActiveStop?: (stop?: any) => void | Promise<void>;
   onMarkStopDelivered?: () => void | Promise<void>;
   onMarkStopFailed?: () => void | Promise<void>;
 

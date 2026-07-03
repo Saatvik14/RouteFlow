@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -633,6 +633,8 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
   const insets = useSafeAreaInsets();
   const [panelView, setPanelView] = useState<TransitPanelView>('current');
   const [selectedStop, setSelectedStop] = useState<any | null>(null);
+  const [navModalVisible, setNavModalVisible] = useState(false);
+  const [navModalStop, setNavModalStop] = useState<any | null>(null);
 
   const stop: any = activeStop || null;
 
@@ -689,17 +691,9 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     setPanelView('stop-detail');
   };
 
-  const handleNavigateStop = async (targetStop: any) => {
-    if (isSameStop(targetStop, stop) && onNavigateActiveStop) {
-      await onNavigateActiveStop();
-      return;
-    }
-
-    try {
-      await Linking.openURL(getNavigationUrl(targetStop));
-    } catch {
-      // Keep the UI silent here. The existing controller handles active-stop navigation errors.
-    }
+  const handleNavigateStop = (targetStop: any) => {
+    setNavModalStop(targetStop);
+    setNavModalVisible(true);
   };
 
   const handleCallStop = async (targetStop: any) => {
@@ -1165,16 +1159,92 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
   };
 
   return (
-    <DraggableRouteSheet
-      isWide={isWide}
-      mode="large"
-      variant="transit"
-      initialSnap="top"
-    >
-      {panelView === 'current' ? renderCurrentStop() : null}
-      {panelView === 'route' ? renderFullRoute() : null}
-      {panelView === 'stop-detail' ? renderStopDetail() : null}
-    </DraggableRouteSheet>
+    <>
+      <DraggableRouteSheet
+        isWide={isWide}
+        mode="large"
+        variant="transit"
+        initialSnap="top"
+      >
+        {panelView === 'current' ? renderCurrentStop() : null}
+        {panelView === 'route' ? renderFullRoute() : null}
+        {panelView === 'stop-detail' ? renderStopDetail() : null}
+      </DraggableRouteSheet>
+
+      <Modal
+        visible={navModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setNavModalVisible(false)}
+      >
+        <View style={localStyles.modalOverlay}>
+          <View style={localStyles.modalContainer}>
+            <View style={localStyles.modalHeaderIcon}>
+              <MaterialCommunityIcons name="navigation" size={32} color="#2563EB" />
+            </View>
+
+            <Text style={localStyles.modalTitle}>Choose Navigation</Text>
+            <Text style={localStyles.modalSubtitle}>
+              Select how you want to navigate to this stop:
+            </Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.modalOptionButton,
+                localStyles.routeFlowBtn,
+                pressed && localStyles.btnPressed,
+              ]}
+              onPress={async () => {
+                setNavModalVisible(false);
+                if (onNavigateActiveStop && navModalStop) {
+                  await onNavigateActiveStop(navModalStop);
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="compass-outline" size={24} color="#FFFFFF" />
+              <View style={localStyles.btnTextContainer}>
+                <Text style={localStyles.btnTitleLight}>RouteFlow Navigation</Text>
+                <Text style={localStyles.btnDescLight}>Stay in app with live GPS follow</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.modalOptionButton,
+                localStyles.googleMapsBtn,
+                pressed && localStyles.btnPressed,
+              ]}
+              onPress={async () => {
+                setNavModalVisible(false);
+                if (navModalStop) {
+                  try {
+                    await Linking.openURL(getNavigationUrl(navModalStop));
+                  } catch {
+                    Alert.alert('Error', 'Unable to open Google Maps.');
+                  }
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="google-maps" size={24} color="#1E293B" />
+              <View style={localStyles.btnTextContainer}>
+                <Text style={localStyles.btnTitleDark}>Google Maps</Text>
+                <Text style={localStyles.btnDescDark}>Open in external Google Maps app</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.modalCancelButton,
+                pressed && localStyles.btnPressed,
+              ]}
+              onPress={() => setNavModalVisible(false)}
+            >
+              <Text style={localStyles.modalCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -1915,5 +1985,105 @@ const localStyles = StyleSheet.create({
     lineHeight: 16,
     color: '#94A3B8',
     fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  modalOptionButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    gap: 14,
+    borderWidth: 1,
+  },
+  routeFlowBtn: {
+    backgroundColor: '#2F74F5',
+    borderColor: '#2F74F5',
+  },
+  googleMapsBtn: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  btnPressed: {
+    opacity: 0.85,
+  },
+  btnTextContainer: {
+    flex: 1,
+  },
+  btnTitleLight: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  btnDescLight: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  btnTitleDark: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  btnDescDark: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalCancelButton: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748B',
   },
 });

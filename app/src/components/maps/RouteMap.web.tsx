@@ -55,6 +55,12 @@ type MapScreenProps = {
   mapType?: RouteMapType;
   centerSignal?: number;
   confirmedRoute?: ConfirmedRoute | null;
+  isNavigating?: boolean;
+  userLocation?: {
+    latitude: number;
+    longitude: number;
+    heading: number | null;
+  } | null;
 };
 
 const FALLBACK_REGION = {
@@ -198,22 +204,31 @@ function createRouteMarkerIcon(marker: DisplayMarker) {
   });
 }
 
-function MapUpdater({
+function ChangeMapView({
   position,
   routeCoordinates,
   confirmedRoute,
   centerSignal,
+  isNavigating = false,
+  userLocation = null,
 }: {
   position: { lat: number; lng: number };
   routeCoordinates: RoutePoint[];
   confirmedRoute?: ConfirmedRoute | null;
   centerSignal: number;
+  isNavigating?: boolean;
+  userLocation?: any;
 }) {
   if (!useMap) return null;
 
   const map = useMap();
 
   useEffect(() => {
+    if (isNavigating && userLocation) {
+      map.setView([userLocation.latitude, userLocation.longitude], 17);
+      return;
+    }
+
     if (confirmedRoute && routeCoordinates.length) {
       const bounds = routeCoordinates.map(point => [
         point.latitude,
@@ -229,7 +244,7 @@ function MapUpdater({
     }
 
     map.setView([position.lat, position.lng], 13);
-  }, [map, position.lat, position.lng, confirmedRoute, routeCoordinates]);
+  }, [map, position.lat, position.lng, confirmedRoute, routeCoordinates, isNavigating, userLocation]);
 
   useEffect(() => {
     if (centerSignal > 0) {
@@ -256,6 +271,8 @@ export default function MapScreen({
   mapType = 'standard',
   centerSignal = 0,
   confirmedRoute = null,
+  isNavigating = false,
+  userLocation = null,
 }: MapScreenProps) {
   const [position, setPosition] = useState<{ lat: number; lng: number }>({
     lat: FALLBACK_REGION.latitude,
@@ -387,11 +404,13 @@ export default function MapScreen({
           </Marker>
         )}
 
-        <MapUpdater
+        <ChangeMapView
           position={position}
           routeCoordinates={routeCoordinates}
           confirmedRoute={confirmedRoute}
           centerSignal={centerSignal}
+          isNavigating={isNavigating}
+          userLocation={userLocation}
         />
       </MapContainer>
     </View>

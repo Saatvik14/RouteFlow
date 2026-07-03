@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Linking } from 'react-native';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { ordersService } from './../../services/api/orders';
 import { routesService } from './../../services/api/routes';
@@ -112,7 +113,7 @@ type UseRoutePreviewControllerResult = {
   handleRefineRoute: () => void;
   handleConfirmRoute: () => Promise<void>;
   handleStartRoute: () => Promise<void>;
-  handleNavigateActiveStop: () => Promise<void>;
+  handleNavigateActiveStop: (stop?: any) => Promise<void>;
   handleMarkStopDelivered: () => Promise<void>;
   handleMarkStopFailed: () => Promise<void>;
   handleCancelRoute: () => Promise<void>;
@@ -142,6 +143,12 @@ type UseRoutePreviewControllerResult = {
   pendingManifestStops: any[];
   handleConfirmManifestStops: (selectedStops: any[]) => Promise<void>;
   handleCancelManifestStops: () => void;
+  isNavigating: boolean;
+  navigationTargetStop: any | null;
+  handleExitNavigation: () => void;
+  userLocation: any;
+  setUserLocation: (location: any) => void;
+  handleToggleMockingLocation: (active: boolean) => void;
 };
 
 function getLatestRouteId(response: any) {
@@ -300,6 +307,15 @@ export function useRoutePreviewController(
   const [isCancellingRoute, setIsCancellingRoute] = useState(false);
   const [isSavingRouteEdit, setIsSavingRouteEdit] = useState(false);
   const [pendingManifestStops, setPendingManifestStops] = useState<any[]>([]);
+  const [navigationTargetStop, setNavigationTargetStop] = useState<any | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    heading: number | null;
+  } | null>(null);
+  const locationSubscriptionRef = useRef<any>(null);
+  const isMockingLocationRef = useRef(false);
 
   const effectiveRouteId = activeRouteId || routeIdFromParams;
 
@@ -1107,17 +1123,91 @@ const handleRemoveEditedStop = useCallback(async () => {
     }
   }, [effectiveRouteId, isStartingRoute, recenterMap, route]);
 
-  const handleNavigateActiveStop = useCallback(async () => {
-    const activeStop = activeStopInfo.stop;
+  const handleNavigateActiveStop = useCallback(async (stop?: any) => {
+    const targetStop = stop || activeStopInfo.stop;
 
-    if (!activeStop) return;
+    if (!targetStop) return;
+
+    setNavigationTargetStop(targetStop);
+    setIsNavigating(true);
 
     try {
-      await Linking.openURL(getMapsNavigationUrl(activeStop));
-    } catch {
-      setErrorMessage('Unable to open navigation.');
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setErrorMessage('Location permission was denied. Unable to navigate live.');
+      } else {
+        const initialLoc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High
+        });
+        if (initialLoc) {
+          setUserLocation({
+            latitude: initialLoc.coords.latitude,
+            longitude: initialLoc.coords.longitude,
+            heading: initialLoc.coords.heading,
+          });
+        }
+
+        if (locationSubscriptionRef.current) {
+          try {
+            locationSubscriptionRef.current.remove();
+          } catch (err) {
+            console.warn('Silent catch: expo-location remove subscription error:', err);
+          }
+          locationSubscriptionRef.current = null;
+        }
+
+        locationSubscriptionRef.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 1000,
+            distanceInterval: 1,
+          },
+          (location) => {
+            if (!isMockingLocationRef.current) {
+              setUserLocation({
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                heading: location.coords.heading,
+              });
+            }
+          }
+        );
+      }
+    } catch (e) {
+      console.log('Error watching position:', e);
     }
   }, [activeStopInfo.stop]);
+
+  const handleToggleMockingLocation = useCallback((active: boolean) => {
+    isMockingLocationRef.current = active;
+  }, []);
+
+  const handleExitNavigation = useCallback(() => {
+    isMockingLocationRef.current = false;
+    if (locationSubscriptionRef.current) {
+      try {
+        locationSubscriptionRef.current.remove();
+      } catch (err) {
+        console.warn('Silent catch: expo-location remove subscription error:', err);
+      }
+      locationSubscriptionRef.current = null;
+    }
+    setUserLocation(null);
+    setNavigationTargetStop(null);
+    setIsNavigating(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (locationSubscriptionRef.current) {
+        try {
+          locationSubscriptionRef.current.remove();
+        } catch (err) {
+          console.warn('Silent catch: expo-location remove subscription error:', err);
+        }
+      }
+    };
+  }, []);
 
   const handleUpdateActiveStopStatus = useCallback(async (nextStatus: string) => {
     if (!route || isUpdatingStopStatus) return;
@@ -1580,6 +1670,12 @@ const handleRemoveEditedStop = useCallback(async () => {
     handleReOptimizeEditedRoute,
     pendingManifestStops,
     handleConfirmManifestStops,
-    handleCancelManifestStops: () => setPendingManifestStops([])
+    handleCancelManifestStops: () => setPendingManifestStops([]),
+    isNavigating,
+    navigationTargetStop,
+    handleExitNavigation,
+    userLocation,
+    setUserLocation,
+    handleToggleMockingLocation
   };
 }
