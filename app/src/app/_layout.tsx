@@ -9,7 +9,7 @@ import { AppState, Platform, useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from './../components/animated-icon';
 import { SecurityLockScreen } from './../components/security-lock-screen';
-import { fetchAndStoreConfig, restoreAuthToken, setAuthToken } from './../services/api';
+import { fetchAndStoreConfig, restoreAuthToken, setAuthToken, userService } from './../services/api';
 
 // Simple Auth Context for demonstration
 const AuthContext = createContext({
@@ -28,6 +28,7 @@ export default function RootLayout() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isAppLocked, setIsAppLocked] = useState(false);
+  const [isTrialExpired, setIsTrialExpired] = useState(false);
   const appStateRef = useRef(AppState.currentState);
 
   const router = useRouter();
@@ -96,6 +97,36 @@ export default function RootLayout() {
   }), [isLoggedIn, isLoading]);
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setIsTrialExpired(false);
+      return;
+    }
+
+    const checkTrial = async () => {
+      try {
+        const profileRes = await userService.getProfile();
+        const profile = profileRes.success ? (profileRes.data ?? profileRes) as any : null;
+        const userObj = profile?.user || profile;
+
+        const subscriptionType = userObj.subscription_type || userObj.subscriptionType || 'trial';
+
+        if (subscriptionType === 'trial' && (userObj.created_at || userObj.createdAt)) {
+          const createdAt = new Date(userObj.created_at || userObj.createdAt);
+          const diffTime = Math.abs(Date.now() - createdAt.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays > 7) {
+            setIsTrialExpired(true);
+          }
+        }
+      } catch (err) {
+        console.log('Error checking user trial status:', err);
+      }
+    };
+
+    checkTrial();
+  }, [isLoggedIn]);
+
+  useEffect(() => {
     // Check if the current route is an auth screen
     const currentRoute = segments[1] ?? '';
     const inAuthGroup = PUBLIC_ROUTES.includes(currentRoute);
@@ -104,11 +135,19 @@ export default function RootLayout() {
     if (!isLoading && !isLoggedIn && !inAuthGroup) {
       // If not logged in and not on an auth screen, redirect to login
       router.replace('/login');
-    } else if (!isLoading && isLoggedIn && inAuthGroup) {
-      // If logged in and on an auth screen, redirect to home
-      router.replace('/');
+    } else if (!isLoading && isLoggedIn) {
+      if (isTrialExpired) {
+        // If trial has expired, only allow them to visit /subscription or auth screens
+        const isSubscriptionPage = segments.join('/').includes('subscription');
+        if (!isSubscriptionPage && !inAuthGroup) {
+          router.replace('/subscription');
+        }
+      } else if (inAuthGroup) {
+        // If logged in and on an auth screen, redirect to home
+        router.replace('/');
+      }
     }
-  }, [isLoggedIn, isLoading, segments, router]);
+  }, [isLoggedIn, isLoading, isTrialExpired, segments, router]);
 
   if (isLoading) {
     return (

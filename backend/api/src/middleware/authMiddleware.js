@@ -15,7 +15,7 @@ const protect = async (req, res, next) => {
 
       // Get user from the token
       const userResult = await runQuery(
-        'SELECT user_id, name, phone_no, email, role, status FROM users WHERE user_id = $1',
+        'SELECT user_id, name, phone_no, email, role, status, created_at, subscription_type FROM users WHERE user_id = $1',
         [decoded.id]
       );
 

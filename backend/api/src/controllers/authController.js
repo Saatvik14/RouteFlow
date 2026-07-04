@@ -56,9 +56,9 @@ const signup = async (req, res) => {
 
     // Create user in Supabase
     const insertQuery = `
-      INSERT INTO users (name, phone_no, email, password, role, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING user_id, name, phone_no, email, role, status, created_at, updated_at
+      INSERT INTO users (name, phone_no, email, password, role, status, subscription_type)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING user_id, name, phone_no, email, role, status, created_at, updated_at, subscription_type
     `;
     
     const newUserResult = await runQuery(insertQuery, [
@@ -67,7 +67,8 @@ const signup = async (req, res) => {
       email || null, 
       hashedPassword, 
       role || 'user', 
-      'active'
+      'active',
+      'trial'
     ]);
 
     const newUser = newUserResult.rows[0];
