@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import type { RouteHistoryRoute } from "../../types/route-history";
+import type { RouteHistoryRoute } from "./route-history";
 
 type ActionSheetProps = {
   visible: boolean;
@@ -23,14 +23,17 @@ type ActionRowProps = {
 
 function ActionRow({ icon, title, subtitle, danger, onPress }: ActionRowProps) {
   return (
-    <Pressable style={styles.actionRow} onPress={onPress}>
+    <Pressable
+      style={({ pressed }) => [styles.actionRow, pressed && styles.rowPressed]}
+      onPress={onPress}
+    >
       <View
         style={[
           styles.actionIcon,
           danger ? styles.actionIconDanger : styles.actionIconBlue,
         ]}
       >
-        <Feather name={icon} size={18} color={danger ? "#EF4444" : "#2563EB"} />
+        <Feather name={icon} size={17} color={danger ? "#DC2626" : "#2563EB"} />
       </View>
       <View style={styles.actionTextBox}>
         <Text style={[styles.actionTitle, danger && styles.actionTitleDanger]}>
@@ -38,6 +41,7 @@ function ActionRow({ icon, title, subtitle, danger, onPress }: ActionRowProps) {
         </Text>
         <Text style={styles.actionSubtitle}>{subtitle}</Text>
       </View>
+      <Feather name="chevron-right" size={17} color="#CBD5E1" />
     </Pressable>
   );
 }
@@ -56,7 +60,7 @@ export function RouteHistoryActionSheet({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
@@ -65,10 +69,12 @@ export function RouteHistoryActionSheet({
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.sheetTitle}>More actions</Text>
+            <View style={styles.headerTextBox}>
+              <Text style={styles.sheetTitle}>Route actions</Text>
               {route ? (
-                <Text style={styles.sheetSubtitle}>{route.title}</Text>
+                <Text numberOfLines={1} style={styles.sheetSubtitle}>
+                  {route.title}
+                </Text>
               ) : null}
             </View>
             <Pressable style={styles.closeButton} onPress={onClose}>
@@ -80,25 +86,25 @@ export function RouteHistoryActionSheet({
             <ActionRow
               icon="copy"
               title="Duplicate route"
-              subtitle="Create a copy to plan a new run"
+              subtitle="Create a reusable copy of this route"
               onPress={onDuplicate}
             />
             <ActionRow
               icon="download"
               title="Download report"
-              subtitle="Export route summary as PDF"
+              subtitle="Export the complete route summary"
               onPress={onDownloadReport}
             />
             <ActionRow
               icon="share-2"
               title="Share summary"
-              subtitle="Share route details with team"
+              subtitle="Share route information with the team"
               onPress={onShareSummary}
             />
             <ActionRow
               icon="image"
-              title="View proof of delivery"
-              subtitle="See photos and POD for each stop"
+              title="View delivery records"
+              subtitle="Review stop status and proof of delivery"
               onPress={onViewProof}
             />
           </View>
@@ -107,7 +113,7 @@ export function RouteHistoryActionSheet({
             <ActionRow
               icon="trash-2"
               title="Delete route"
-              subtitle="Permanently remove this route"
+              subtitle="Permanently remove this route from history"
               danger
               onPress={onDelete}
             />
@@ -121,19 +127,22 @@ export function RouteHistoryActionSheet({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    backgroundColor: "rgba(15, 23, 42, 0.42)",
     justifyContent: "flex-end",
   },
   sheet: {
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingHorizontal: 18,
-    paddingTop: 10,
+    paddingTop: 9,
     paddingBottom: 28,
   },
   handle: {
-    width: 44,
+    width: 42,
     height: 4,
     borderRadius: 2,
     backgroundColor: "#CBD5E1",
@@ -146,23 +155,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 14,
   },
+  headerTextBox: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
   sheetTitle: {
-    fontSize: 16,
-    lineHeight: 21,
-    fontWeight: "800",
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "600",
     color: "#0F172A",
   },
   sheetSubtitle: {
     marginTop: 3,
     fontSize: 12.5,
     lineHeight: 16,
-    fontWeight: "600",
+    fontWeight: "400",
     color: "#64748B",
   },
   closeButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F8FAFC",
@@ -170,14 +184,14 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   actionGroup: {
-    borderRadius: 18,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: "#E5EDF8",
     overflow: "hidden",
   },
   deleteGroup: {
     marginTop: 12,
-    borderRadius: 18,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: "#FEE2E2",
     overflow: "hidden",
@@ -192,10 +206,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#EEF2F7",
   },
+  rowPressed: {
+    backgroundColor: "#F8FAFC",
+  },
   actionIcon: {
     width: 38,
     height: 38,
-    borderRadius: 13,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -209,21 +226,22 @@ const styles = StyleSheet.create({
   actionTextBox: {
     flex: 1,
     minWidth: 0,
+    paddingRight: 8,
   },
   actionTitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     lineHeight: 18,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0F172A",
   },
   actionTitleDanger: {
-    color: "#EF4444",
+    color: "#DC2626",
   },
   actionSubtitle: {
     marginTop: 2,
-    fontSize: 12,
+    fontSize: 11.5,
     lineHeight: 16,
-    fontWeight: "500",
+    fontWeight: "400",
     color: "#64748B",
   },
 });
