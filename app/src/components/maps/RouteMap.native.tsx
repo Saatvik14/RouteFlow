@@ -1,13 +1,8 @@
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
-import MapView, {
-    Marker,
-    Polyline,
-    PROVIDER_GOOGLE,
-    Region,
-} from 'react-native-maps';
+import { StyleSheet, Text, View } from 'react-native';
+import { Map, Camera, CameraRef, Marker, UserLocation, GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import { useAuth } from '../../app/_layout';
 import { restoreAuthToken } from '../../services/api';
 import { isTokenValid } from '../../services/auth/jwtUtils';
@@ -54,11 +49,28 @@ type MapScreenProps = {
   } | null;
 };
 
-const FALLBACK_REGION: Region = {
-  latitude: 28.6139,
-  longitude: 77.209,
-  latitudeDelta: 0.012,
-  longitudeDelta: 0.012,
+const DEFAULT_CENTER_COORDINATE: [number, number] = [77.209, 28.6139]; // Delhi [lng, lat]
+
+// Custom OpenStreetMap style JSON object for keyless maps
+const OSM_STYLE = {
+  version: 8 as const,
+  sources: {
+    osm: {
+      type: 'raster' as const,
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    {
+      id: 'osm',
+      type: 'raster' as const,
+      source: 'osm',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
 };
 
 type DisplayMarker = {
@@ -134,13 +146,6 @@ function buildDisplayMarkers(route: ConfirmedRoute): DisplayMarker[] {
   );
 }
 
-function getMarkerTitle(marker: DisplayMarker) {
-  if (marker.point.title) return marker.point.title;
-  if (marker.type === 'start') return 'Start location';
-  if (marker.type === 'end') return 'End location';
-  return `Stop ${marker.label}`;
-}
-
 function renderMarker(marker: DisplayMarker) {
   if (marker.type === 'stop') {
     return (
@@ -176,20 +181,22 @@ export default function MapScreen({
   isNavigating = false,
   userLocation = null,
 }: MapScreenProps) {
-  const mapRef = useRef<MapView | null>(null);
+  const cameraRef = useRef<CameraRef | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [isTokenChecked, setIsTokenChecked] = useState(false);
   const { logout } = useAuth();
   const router = useRouter();
 
-  // Check for valid JWT token
+  // Validate JWT session token
   useEffect(() => {
     const validateToken = async () => {
       const token = await restoreAuthToken();
       if (!isTokenValid(token)) {
-        // Token is invalid or missing, redirect to login
-        console.log('Invalid or missing token, redirecting to login');
+        console.log('Invalid token, redirecting to login');
         logout();
         router.replace('/login');
+      } else {
+        setIsTokenChecked(true);
       }
     };
 
@@ -198,7 +205,6 @@ export default function MapScreen({
 
   const routePoints = useMemo(() => {
     if (!confirmedRoute) return [];
-
     return [
       confirmedRoute.start,
       ...(confirmedRoute.stops || []),
@@ -220,88 +226,79 @@ export default function MapScreen({
   const fitRouteOnMap = useCallback(() => {
     if (!confirmedRoute || !routeCoordinates.length) return;
 
+    const lats = routeCoordinates.map(c => c.latitude);
+    const lngs = routeCoordinates.map(c => c.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+
     setTimeout(() => {
-      mapRef.current?.fitToCoordinates(routeCoordinates, {
-        animated: true,
-        edgePadding: {
-          top: 120,
-          right: 70,
-          bottom: 360,
-          left: 70,
-        },
-      });
+      cameraRef.current?.fitBounds(
+        [minLng, minLat, maxLng, maxLat],
+        {
+          padding: { top: 70, right: 70, bottom: 320, left: 70 },
+          duration: 800,
+        }
+      );
     }, 450);
   }, [confirmedRoute, routeCoordinates]);
 
   const moveToCurrentLocation = useCallback(async () => {
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-
       if (permission.status !== 'granted') {
         setHasLocationPermission(false);
         return;
       }
 
       setHasLocationPermission(true);
-
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
 
-      mapRef.current?.animateToRegion(
-        {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.006,
-          longitudeDelta: 0.006,
-        },
-        700
-      );
+      cameraRef.current?.setStop({
+        center: [location.coords.longitude, location.coords.latitude],
+        zoom: 14,
+        duration: 700,
+      });
     } catch (error) {
       console.log('Location error:', error);
     }
   }, []);
 
   useEffect(() => {
+    if (!isTokenChecked) return;
+
     if (confirmedRoute) {
       fitRouteOnMap();
     } else {
       moveToCurrentLocation();
     }
-  }, [confirmedRoute, fitRouteOnMap, moveToCurrentLocation]);
+  }, [isTokenChecked, confirmedRoute, fitRouteOnMap, moveToCurrentLocation]);
 
   useEffect(() => {
     if (isNavigating && userLocation) {
-      mapRef.current?.animateCamera(
-        {
-          center: {
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-          },
-          pitch: 45,
-          heading: userLocation.heading ?? 0,
-          zoom: 18,
-        },
-        { duration: 800 }
-      );
+      cameraRef.current?.setStop({
+        center: [userLocation.longitude, userLocation.latitude],
+        pitch: 45,
+        bearing: userLocation.heading ?? 0,
+        zoom: 17.5,
+        duration: 800,
+      });
     }
   }, [isNavigating, userLocation]);
 
   useEffect(() => {
     if (centerSignal > 0) {
       if (isNavigating && userLocation) {
-        mapRef.current?.animateCamera(
-          {
-            center: {
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-            },
-            pitch: 45,
-            heading: userLocation.heading ?? 0,
-            zoom: 18,
-          },
-          { duration: 800 }
-        );
+        cameraRef.current?.setStop({
+          center: [userLocation.longitude, userLocation.latitude],
+          pitch: 45,
+          bearing: userLocation.heading ?? 0,
+          zoom: 17.5,
+          duration: 800,
+        });
       } else if (confirmedRoute) {
         fitRouteOnMap();
       } else {
@@ -310,46 +307,71 @@ export default function MapScreen({
     }
   }, [centerSignal, confirmedRoute, fitRouteOnMap, moveToCurrentLocation, isNavigating, userLocation]);
 
+  const polylineGeoJSON = useMemo(() => {
+    if (routeCoordinates.length < 2) return null;
+    return {
+      type: 'Feature' as const,
+      properties: {},
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: routeCoordinates.map(c => [c.longitude, c.latitude]),
+      },
+    };
+  }, [routeCoordinates]);
+
+  if (!isTokenChecked) {
+    return <View style={styles.container} />;
+  }
+
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
+      <Map
         style={styles.map}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        initialRegion={FALLBACK_REGION}
-        mapType={mapType}
-        showsUserLocation={hasLocationPermission}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        toolbarEnabled={false}
-        loadingEnabled
+        mapStyle={OSM_STYLE}
+        logo={false}
+        attribution={false}
       >
-        {confirmedRoute ? (
-          <>
-            {routeCoordinates.length > 1 ? (
-              <Polyline
-                coordinates={routeCoordinates}
-                strokeWidth={6}
-                strokeColor="#2F76F6"
-                lineCap="round"
-                lineJoin="round"
-              />
-            ) : null}
+        <Camera
+          ref={cameraRef}
+          initialViewState={{
+            center: DEFAULT_CENTER_COORDINATE,
+            zoom: 10,
+          }}
+        />
 
-            {displayMarkers.map(marker => (
-              <Marker
-                key={marker.key}
-                coordinate={marker.coordinate}
-                title={getMarkerTitle(marker)}
-                description={marker.point.description}
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                {renderMarker(marker)}
-              </Marker>
-            ))}
-          </>
-        ) : null}
-      </MapView>
+        {hasLocationPermission && (
+          <UserLocation />
+        )}
+
+        {confirmedRoute && polylineGeoJSON && (
+          <GeoJSONSource id="routePath" data={polylineGeoJSON}>
+            <Layer
+              id="routeLine"
+              type="line"
+              layout={{
+                'line-cap': 'round',
+                'line-join': 'round',
+              }}
+              paint={{
+                'line-color': '#2F76F6',
+                'line-width': 6,
+              }}
+            />
+          </GeoJSONSource>
+        )}
+
+        {confirmedRoute && displayMarkers.map(marker => (
+          <Marker
+            key={marker.key}
+            id={marker.key}
+            lngLat={[marker.coordinate.longitude, marker.coordinate.latitude]}
+          >
+            <View style={styles.annotationContainer}>
+              {renderMarker(marker)}
+            </View>
+          </Marker>
+        ))}
+      </Map>
     </View>
   );
 }
@@ -361,6 +383,13 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+  },
+  annotationContainer: {
+    width: 'auto',
+    height: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   startMarker: {
     minWidth: 42,

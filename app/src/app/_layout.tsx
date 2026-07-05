@@ -57,6 +57,8 @@ export default function RootLayout() {
     bootstrapAsync();
   }, []);
 
+  const lastUnlockTimeRef = useRef<number>(0);
+
   // Lock app when returning from background (native only)
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -66,8 +68,10 @@ export default function RootLayout() {
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        // App came to foreground — lock if user is logged in
-        if (isLoggedIn) {
+        // Ignore locking if the app was unlocked within the last 2 seconds
+        // to prevent the biometric dialog dismissal from re-locking the app.
+        const timeSinceUnlock = Date.now() - lastUnlockTimeRef.current;
+        if (isLoggedIn && timeSinceUnlock > 2000) {
           setIsAppLocked(true);
         }
       }
@@ -78,6 +82,7 @@ export default function RootLayout() {
   }, [isLoggedIn]);
 
   const handleUnlocked = useCallback(() => {
+    lastUnlockTimeRef.current = Date.now();
     setIsAppLocked(false);
   }, []);
 
@@ -105,8 +110,13 @@ export default function RootLayout() {
     const checkTrial = async () => {
       try {
         const profileRes = await userService.getProfile();
-        const profile = profileRes.success ? (profileRes.data ?? profileRes) as any : null;
+        const profile = profileRes?.success ? (profileRes.data ?? profileRes) as any : (profileRes || null);
         const userObj = profile?.user || profile;
+
+        if (!userObj) {
+          console.log("No user profile object resolved for trial check.");
+          return;
+        }
 
         const subscriptionType = userObj.subscription_type || userObj.subscriptionType || 'trial';
 
