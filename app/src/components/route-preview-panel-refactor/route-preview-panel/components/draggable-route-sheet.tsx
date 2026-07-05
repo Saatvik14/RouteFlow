@@ -1,195 +1,315 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Animated, PanResponder, Platform, useWindowDimensions, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  Animated,
+  PanResponder,
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
-import { styles } from '../styles';
-import { clamp } from '../utils';
+type SheetSnap = 'top' | 'middle' | 'bottom';
 
-type SheetSnapPoint = 'bottom' | 'middle' | 'top';
-
-type SheetBounds = {
-  bottom: number;
-  middle: number;
-  top: number;
+type DraggableRouteSheetProps = {
+  children: ReactNode;
+  isWide: boolean;
+  initialSnap?: SheetSnap;
+  collapsedHeight?: number;
+  onSnapChange?: (snap: SheetSnap) => void;
 };
 
-function getSnapHeight(bounds: SheetBounds, snapPoint: SheetSnapPoint) {
-  return bounds[snapPoint];
-}
+const TOP_SCREEN_GAP = 72;
+const DEFAULT_COLLAPSED_HEIGHT = 142;
+const HANDLE_AREA_HEIGHT = 28;
+const SNAP_VELOCITY = 0.55;
 
-function getNearestSnapPoint(height: number, bounds: SheetBounds): SheetSnapPoint {
-  const entries: Array<[SheetSnapPoint, number]> = [
-    ['bottom', bounds.bottom],
-    ['middle', bounds.middle],
-    ['top', bounds.top],
-  ];
-
-  return entries.reduce((nearest, current) => {
-    const nearestDistance = Math.abs(height - nearest[1]);
-    const currentDistance = Math.abs(height - current[1]);
-
-    return currentDistance < nearestDistance ? current : nearest;
-  })[0];
-}
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
 
 export function DraggableRouteSheet({
   children,
   isWide,
-  mode = 'default',
-  variant = 'default',
-  initialSnap,
-  bottomSnapHeight,
-}: {
-  children?: ReactNode;
-  isWide: boolean;
-  mode?: 'default' | 'large';
-  variant?: 'default' | 'transit';
-  initialSnap?: SheetSnapPoint;
-  bottomSnapHeight?: number;
-}) {
-  const { height } = useWindowDimensions();
-  const resolvedInitialSnap: SheetSnapPoint = initialSnap || (mode === 'large' ? 'top' : 'middle');
+  initialSnap = 'middle',
+  collapsedHeight = DEFAULT_COLLAPSED_HEIGHT,
+  onSnapChange,
+}: DraggableRouteSheetProps) {
+  const { height: windowHeight } = useWindowDimensions();
 
-  const sheetBounds = useMemo<SheetBounds>(() => {
-    const topSafeGap = isWide ? 72 : 58;
-    const maxHeight = Math.max(260, height - topSafeGap);
+  const snapHeights = useMemo(() => {
+    const top = Math.max(360, windowHeight - TOP_SCREEN_GAP);
+    const bottom = Math.min(
+      Math.max(collapsedHeight, 120),
+      Math.max(120, top - 120),
+    );
 
-    if (isWide) {
-      const defaultBottom = mode === 'large' ? 420 : 360;
-      const requestedBottom = typeof bottomSnapHeight === 'number' ? bottomSnapHeight : defaultBottom;
-      const bottom = Math.min(Math.max(requestedBottom, 72), maxHeight);
-      const middle = Math.min(mode === 'large' ? 620 : 540, maxHeight);
-      const top = Math.min(mode === 'large' ? maxHeight : 760, maxHeight);
-
-      return {
-        bottom: Math.min(bottom, middle, top),
-        middle: clamp(middle, bottom, top),
-        top,
-      };
-    }
-
-    const defaultBottom = Math.max(height * 0.13, 112);
-    const requestedBottom = typeof bottomSnapHeight === 'number' ? bottomSnapHeight : defaultBottom;
-    const bottom = Math.min(Math.max(requestedBottom, 72), maxHeight);
-    const middleRatio = mode === 'large' ? 0.58 : 0.5;
-    const middle = Math.min(Math.max(height * middleRatio, bottom + 150), maxHeight);
-    const top = maxHeight;
+    const middle = clamp(
+      Math.round(windowHeight * 0.58),
+      bottom + 80,
+      top - 80,
+    );
 
     return {
-      bottom: Math.min(bottom, middle, top),
-      middle: clamp(middle, bottom, top),
       top,
+      middle,
+      bottom,
     };
-  }, [bottomSnapHeight, height, isWide, mode]);
+  }, [collapsedHeight, windowHeight]);
 
-  const initialHeight = getSnapHeight(sheetBounds, resolvedInitialSnap);
-  const animatedHeight = useRef(new Animated.Value(initialHeight)).current;
-  const gestureStartHeight = useRef(initialHeight);
-  const currentHeightRef = useRef(initialHeight);
-  const currentSnapRef = useRef<SheetSnapPoint>(resolvedInitialSnap);
+  const animatedHeight = useRef(
+    new Animated.Value(snapHeights[initialSnap]),
+  ).current;
 
-  const snapToHeight = useCallback(
-    (nextHeight: number, animated = true) => {
-      const snapPoint = getNearestSnapPoint(nextHeight, sheetBounds);
-      const nextSnapHeight = getSnapHeight(sheetBounds, snapPoint);
-
-      currentSnapRef.current = snapPoint;
-      currentHeightRef.current = nextSnapHeight;
-
-      if (!animated) {
-        animatedHeight.stopAnimation();
-        animatedHeight.setValue(nextSnapHeight);
-        return;
-      }
-
-      Animated.spring(animatedHeight, {
-        toValue: nextSnapHeight,
-        useNativeDriver: false,
-        damping: 24,
-        stiffness: 230,
-        mass: 0.9,
-      }).start();
-    },
-    [animatedHeight, sheetBounds],
-  );
-
-  const setDragHeight = useCallback(
-    (nextHeight: number) => {
-      const nextClampedHeight = clamp(nextHeight, sheetBounds.bottom, sheetBounds.top);
-      currentHeightRef.current = nextClampedHeight;
-      animatedHeight.setValue(nextClampedHeight);
-    },
-    [animatedHeight, sheetBounds.bottom, sheetBounds.top],
-  );
+  const currentHeightRef = useRef(snapHeights[initialSnap]);
+  const gestureStartHeightRef = useRef(snapHeights[initialSnap]);
+  const activeSnapRef = useRef<SheetSnap>(initialSnap);
+  const movedRef = useRef(false);
 
   useEffect(() => {
-    const nextHeight = getSnapHeight(sheetBounds, currentSnapRef.current || resolvedInitialSnap);
+    const subscriptionId = animatedHeight.addListener(({ value }) => {
+      currentHeightRef.current = value;
+    });
+
+    return () => {
+      animatedHeight.removeListener(subscriptionId);
+    };
+  }, [animatedHeight]);
+
+  useEffect(() => {
+    if (isWide) return;
+
+    const nextHeight = snapHeights[activeSnapRef.current];
+
     currentHeightRef.current = nextHeight;
     animatedHeight.setValue(nextHeight);
-  }, [animatedHeight, resolvedInitialSnap, sheetBounds]);
+  }, [animatedHeight, isWide, snapHeights]);
+
+  const snapTo = (snap: SheetSnap) => {
+    const nextHeight = snapHeights[snap];
+
+    activeSnapRef.current = snap;
+
+    Animated.spring(animatedHeight, {
+      toValue: nextHeight,
+      useNativeDriver: false,
+      damping: 24,
+      stiffness: 240,
+      mass: 0.85,
+      overshootClamping: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        currentHeightRef.current = nextHeight;
+        onSnapChange?.(snap);
+      }
+    });
+  };
+
+  const findNearestSnap = (height: number): SheetSnap => {
+    const entries = Object.entries(snapHeights) as Array<
+      [SheetSnap, number]
+    >;
+
+    return entries.reduce<{
+      snap: SheetSnap;
+      distance: number;
+    }>(
+      (nearest, [snap, snapHeight]) => {
+        const distance = Math.abs(height - snapHeight);
+
+        return distance < nearest.distance
+          ? { snap, distance }
+          : nearest;
+      },
+      {
+        snap: 'middle',
+        distance: Number.POSITIVE_INFINITY,
+      },
+    ).snap;
+  };
+
+  const findNextSnap = (
+    currentHeight: number,
+    direction: 'up' | 'down',
+  ): SheetSnap => {
+    const ordered: Array<[SheetSnap, number]> = [
+      ['bottom', snapHeights.bottom],
+      ['middle', snapHeights.middle],
+      ['top', snapHeights.top],
+    ];
+
+    if (direction === 'up') {
+      return (
+        ordered.find(([, height]) => height > currentHeight + 16)?.[0] ||
+        'top'
+      );
+    }
+
+    return (
+      [...ordered]
+        .reverse()
+        .find(([, height]) => height < currentHeight - 16)?.[0] || 'bottom'
+    );
+  };
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
-        onStartShouldSetPanResponderCapture: () => true,
-        onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 2,
-        onMoveShouldSetPanResponderCapture: (_, gestureState) => Math.abs(gestureState.dy) > 2,
-        onPanResponderTerminationRequest: () => false,
-        onShouldBlockNativeResponder: () => true,
+
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > 3 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
 
         onPanResponderGrant: () => {
-          animatedHeight.stopAnimation(value => {
-            gestureStartHeight.current = value;
+          movedRef.current = false;
+
+          animatedHeight.stopAnimation((value) => {
+            gestureStartHeightRef.current = value;
             currentHeightRef.current = value;
           });
         },
 
         onPanResponderMove: (_, gestureState) => {
-          setDragHeight(gestureStartHeight.current - gestureState.dy);
+          if (Math.abs(gestureState.dy) > 3) {
+            movedRef.current = true;
+          }
+
+          const nextHeight = clamp(
+            gestureStartHeightRef.current - gestureState.dy,
+            snapHeights.bottom,
+            snapHeights.top,
+          );
+
+          animatedHeight.setValue(nextHeight);
         },
 
         onPanResponderRelease: (_, gestureState) => {
-          // Project the release position a little in the swipe direction so a quick flick
-          // feels natural, then settle to one of the 3 fixed points: bottom / middle / top.
-          const projectedHeight = gestureStartHeight.current - gestureState.dy - gestureState.vy * 140;
-          snapToHeight(projectedHeight);
+          const currentHeight = currentHeightRef.current;
+
+          if (!movedRef.current && Math.abs(gestureState.dy) < 4) {
+            const nearest = findNearestSnap(currentHeight);
+
+            snapTo(nearest === 'bottom' ? 'middle' : 'bottom');
+            return;
+          }
+
+          if (gestureState.vy < -SNAP_VELOCITY) {
+            snapTo(findNextSnap(currentHeight, 'up'));
+            return;
+          }
+
+          if (gestureState.vy > SNAP_VELOCITY) {
+            snapTo(findNextSnap(currentHeight, 'down'));
+            return;
+          }
+
+          snapTo(findNearestSnap(currentHeight));
         },
 
-        onPanResponderTerminate: (_, gestureState) => {
-          const projectedHeight = gestureStartHeight.current - gestureState.dy - gestureState.vy * 140;
-          snapToHeight(projectedHeight);
+        onPanResponderTerminate: () => {
+          snapTo(findNearestSnap(currentHeightRef.current));
         },
+
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
       }),
-    [animatedHeight, setDragHeight, snapToHeight],
+    [animatedHeight, snapHeights],
   );
+
+  if (isWide) {
+    return <View style={styles.wideSheet}>{children}</View>;
+  }
 
   return (
     <Animated.View
       style={[
-        styles.draggableSheet,
-        isWide && styles.draggableSheetWeb,
-        variant === 'transit' && isWide && styles.draggableTransitSheetWeb,
-        { height: animatedHeight, overflow: 'hidden' },
+        styles.mobileSheet,
+        {
+          height: animatedHeight,
+        },
       ]}
     >
       <View
-        collapsable={false}
-        style={[
-          styles.dragHandleZone,
-          { minHeight: 42 },
-          Platform.OS === 'web' &&
-            ({
-              cursor: 'ns-resize',
-              touchAction: 'none',
-              userSelect: 'none',
-            } as any),
-        ]}
         {...panResponder.panHandlers}
+        style={styles.dragArea}
+        accessibilityRole="adjustable"
+        accessibilityLabel="Drag route panel"
+        accessibilityHint="Drag up to expand or drag down to collapse"
       >
         <View style={styles.dragHandle} />
       </View>
 
-      {children}
+      <View style={styles.sheetBody}>{children}</View>
     </Animated.View>
   );
 }
+
+const styles = StyleSheet.create({
+  mobileSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 50,
+    elevation: 20,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+  },
+
+  dragArea: {
+    height: HANDLE_AREA_HEIGHT,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    ...(Platform.OS === 'web'
+      ? ({
+          cursor: 'grab',
+          userSelect: 'none',
+        } as any)
+      : null),
+  },
+
+  dragHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#CBD5E1',
+  },
+
+  sheetBody: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+
+  wideSheet: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    bottom: 16,
+    width: 420,
+    zIndex: 50,
+    elevation: 16,
+    overflow: 'hidden',
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+  },
+});

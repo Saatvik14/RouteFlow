@@ -99,7 +99,10 @@ export function ConfirmedRoutePanel({
   });
 
   return (
-    <DraggableRouteSheet isWide={isWide} initialSnap="middle">
+    <DraggableRouteSheet
+  isWide={isWide}
+  initialSnap="middle"
+>
       <View style={localStyles.sheetInner}>
         <View style={localStyles.header}>
 
@@ -155,7 +158,7 @@ export function ConfirmedRoutePanel({
           contentContainerStyle={[
             localStyles.scrollContent,
             {
-              paddingBottom: Math.max(insets.bottom + 178, 196),
+              paddingBottom: Math.max(insets.bottom + 120, 132),
             },
           ]}
           showsVerticalScrollIndicator
@@ -243,7 +246,7 @@ export function ConfirmedRoutePanel({
           style={[
             localStyles.footer,
             {
-              paddingBottom: Math.max(insets.bottom + 10, 16),
+              paddingBottom: Math.max(insets.bottom + 6, 8),
             },
           ]}
         >
@@ -253,6 +256,7 @@ export function ConfirmedRoutePanel({
               pressed && localStyles.buttonPressedLight,
             ]}
             onPress={onCancelRoute}
+            hitSlop={6}
           >
             <Feather name="trash-2" size={17} color="#EF4444" />
             <Text style={localStyles.cancelButtonText}>Cancel route</Text>
@@ -265,6 +269,7 @@ export function ConfirmedRoutePanel({
                 pressed && localStyles.buttonPressedLight,
               ]}
               onPress={onOpenEditRoute || onRefine}
+              hitSlop={6}
             >
               <Feather name="edit-2" size={15} color="#1E293B" />
               <Text style={localStyles.editButtonText}>
@@ -280,6 +285,7 @@ export function ConfirmedRoutePanel({
               ]}
               onPress={handlePrimaryAction}
               disabled={primaryButtonDisabled}
+              hitSlop={6}
             >
               <Feather name="play-circle" size={16} color="#FFFFFF" />
               <Text style={localStyles.startButtonText}>{primaryLabel}</Text>
@@ -1083,17 +1089,19 @@ const localStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: 10,
+    zIndex: 30,
+    elevation: 12,
+    paddingTop: 5,
     paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    gap: 10,
+    gap: 6,
   },
 
   cancelButton: {
     width: '100%',
-    height: 52,
+    height: 32,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#FECACA',
@@ -1106,8 +1114,8 @@ const localStyles = StyleSheet.create({
 
   cancelButtonText: {
     ...font('600'),
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 16,
     color: '#EF4444',
   },
 
@@ -1118,7 +1126,7 @@ const localStyles = StyleSheet.create({
 
   editButton: {
     flex: 1,
-    height: 50,
+    height: 42,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#CBD5E1',
@@ -1138,7 +1146,7 @@ const localStyles = StyleSheet.create({
 
   startButton: {
     flex: 1,
-    height: 50,
+    height: 42,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
