@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RoutePreviewPanelProps } from '../types';
@@ -11,6 +11,7 @@ type StopLike = {
   title?: string;
   name?: string;
   address?: string;
+  priority?: number | null;
   full_address?: string;
   fullAddress?: string;
   description?: string;
@@ -256,6 +257,7 @@ function StopRow({
       <View style={localStyles.stopTextBox}>
         <Text style={localStyles.stopTitle} numberOfLines={1}>
           {stopText.title}
+          {stop.priority ? ` ★ P${stop.priority}` : ''}
         </Text>
 
         <Text style={localStyles.stopSubtitle}>{stopText.subtitle}</Text>
@@ -281,8 +283,10 @@ export function RouteSetupPanel({
   onSelectStop,
   onOpenStopDetails,
   onStopPress,
+  onSaveStopPriority,
 }: RouteSetupPanelProps) {
   const insets = useSafeAreaInsets();
+  const [isPriorityModalOpen, setIsPriorityModalOpen] = useState(false);
 
   const stopLabel = `${stops.length} ${stops.length === 1 ? 'stop' : 'stops'}`;
 
@@ -328,6 +332,31 @@ export function RouteSetupPanel({
             />
 
             <BreakToggleRow />
+
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.breakRow,
+                pressed && { backgroundColor: '#F8FAFC' }
+              ]}
+              onPress={() => setIsPriorityModalOpen(true)}
+            >
+              <View style={localStyles.timelineCol}>
+                <View style={localStyles.timelineDot} />
+              </View>
+
+              <View style={localStyles.breakTextBox}>
+                <Text style={localStyles.setupTitle}>Set priority</Text>
+                <Text style={localStyles.setupSubtitle}>
+                  {stops && stops.some((s: any) => s.priority)
+                    ? `${stops.filter((s: any) => s.priority).length} stops prioritized`
+                    : 'Set custom priorities for stops'}
+                </Text>
+              </View>
+
+              <View style={localStyles.setupIconBox}>
+                <Feather name="star" size={18} color="#2E76F6" />
+              </View>
+            </Pressable>
           </View>
 
           <SectionLabel title="Stops" />
@@ -375,6 +404,128 @@ export function RouteSetupPanel({
           </Pressable>
         </View>
       </View>
+
+      <Modal
+        visible={isPriorityModalOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsPriorityModalOpen(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(15, 23, 42, 0.42)',
+            justifyContent: 'flex-end',
+          }}
+          onPress={() => setIsPriorityModalOpen(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              maxHeight: '80%',
+              paddingHorizontal: 20,
+              paddingTop: 20,
+              paddingBottom: Math.max(insets.bottom + 20, 30),
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A' }}>
+                Set stops priority
+              </Text>
+              <Pressable onPress={() => setIsPriorityModalOpen(false)} style={{ padding: 4 }}>
+                <Feather name="x" size={24} color="#64748B" />
+              </Pressable>
+            </View>
+
+            <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>
+              Prioritized stops are kept at their set positions and are skipped during route optimization.
+            </Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              {(stops ?? []).map((stop: any, index: number) => {
+                const maxPriority = (stops ?? []).length;
+                const stopText = getStopText(stop);
+                return (
+                  <View
+                    key={stop.id ?? `${index}`}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#F1F5F9',
+                    }}
+                  >
+                    <View style={{ flex: 1, marginRight: 16 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: '#334155' }} numberOfLines={1}>
+                        {stopText.title || `Stop ${index + 1}`}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748B' }} numberOfLines={1}>
+                        {stopText.subtitle || 'No address'}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 4 }}>
+                      <Pressable
+                        onPress={() => {
+                          const currentPriority = stop.priority;
+                          if (currentPriority === null || currentPriority === undefined) {
+                            // Already Auto
+                          } else if (currentPriority === 1) {
+                            onSaveStopPriority?.(stop.id, null);
+                          } else {
+                            onSaveStopPriority?.(stop.id, currentPriority - 1);
+                          }
+                        }}
+                        style={{ padding: 8 }}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#64748B' }}>−</Text>
+                      </Pressable>
+
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: stop.priority ? '#2E76F6' : '#64748B', minWidth: 40, textAlign: 'center' }}>
+                        {stop.priority ? `P${stop.priority}` : 'Auto'}
+                      </Text>
+
+                      <Pressable
+                        onPress={() => {
+                          const currentPriority = stop.priority;
+                          if (currentPriority === null || currentPriority === undefined) {
+                            onSaveStopPriority?.(stop.id, 1);
+                          } else if (currentPriority < maxPriority) {
+                            onSaveStopPriority?.(stop.id, currentPriority + 1);
+                          }
+                        }}
+                        style={{ padding: 8 }}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#64748B' }}>+</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setIsPriorityModalOpen(false)}
+              style={{
+                height: 52,
+                borderRadius: 12,
+                backgroundColor: '#2E76F6',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF' }}>
+                Done
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </DraggableRouteSheet>
   );
 }

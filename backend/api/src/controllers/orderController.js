@@ -75,7 +75,24 @@ const addOrder = async (req, res) => {
 // @route   PUT /order/edit
 // @access  Private
 const editOrder = async (req, res) => {
-  const { order_id, status, sequence_no, name, housenumber, street, city, postcode, country, latitude, longitude } = req.body;
+  const { 
+    order_id, 
+    status, 
+    sequence_no, 
+    name, 
+    housenumber, 
+    street, 
+    city, 
+    postcode, 
+    country, 
+    latitude, 
+    longitude,
+    notes,
+    packages,
+    stopType,
+    stop_type,
+    priority
+  } = req.body;
 
   if (!order_id) return res.status(400).json({ message: 'order_id is required' });
 
@@ -136,6 +153,27 @@ const editOrder = async (req, res) => {
     } else if (sequence_no !== undefined) {
       orderUpdateFields.push(`sequence_no = $${paramCounter++}`);
       orderUpdateValues.push(sequence_no);
+    }
+
+    if (notes !== undefined) {
+      orderUpdateFields.push(`notes = $${paramCounter++}`);
+      orderUpdateValues.push(notes);
+    }
+
+    if (packages !== undefined) {
+      orderUpdateFields.push(`packages = $${paramCounter++}`);
+      orderUpdateValues.push(Number(packages));
+    }
+
+    const effectiveStopType = stop_type || stopType;
+    if (effectiveStopType !== undefined) {
+      orderUpdateFields.push(`stop_type = $${paramCounter++}`);
+      orderUpdateValues.push(effectiveStopType);
+    }
+
+    if (priority !== undefined) {
+      orderUpdateFields.push(`priority = $${paramCounter++}`);
+      orderUpdateValues.push(priority === null || priority === '' ? null : Number(priority));
     }
 
     // If no order-specific fields or location was updated, return existing order data

@@ -461,6 +461,7 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
         stopType: item?.stopType || item?.stop_type || item?.type || 'delivery',
         notes: item?.notes || item?.note || '',
         status: item?.status || ROUTE_STATUS_PENDING,
+        priority: item?.priority !== undefined && item?.priority !== null ? Number(item.priority) : null,
       } as RouteStop;
     })
     .filter(Boolean) as RouteStop[];
@@ -984,6 +985,7 @@ export function buildStopDetailsFromStop(stop: RouteStop): StopDetails {
     order: stop.order || 'auto',
     stopType: stop.stopType || 'delivery',
     notes: stop.notes || '',
+    priority: (stop as any).priority !== undefined ? (stop as any).priority : null,
   };
 }
 

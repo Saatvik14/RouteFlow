@@ -117,6 +117,7 @@ export default function RoutePreviewScreen() {
     handleSwitchPastRoute,
     handleConfirmCopyStops,
     handleToggleMockingLocation,
+    handleSaveStopPriority,
   } = useRoutePreviewController(routeId);
 
   const handleScanAddress = () => {
@@ -471,6 +472,7 @@ export default function RoutePreviewScreen() {
           pendingManifestStops={pendingManifestStops}
           onConfirmManifestStops={handleConfirmManifestStops}
           onCancelManifestStops={handleCancelManifestStops}
+          onSaveStopPriority={handleSaveStopPriority}
         />
       ) : null}
         </>

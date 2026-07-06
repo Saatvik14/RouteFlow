@@ -19,6 +19,7 @@ export type StopDetails = {
   order: 'first' | 'auto' | 'last';
   stopType: 'delivery' | 'pickup';
   notes: string;
+  priority?: number | null;
 };
 
 export type RoutePreviewPanelProps = {
@@ -95,6 +96,7 @@ export type RoutePreviewPanelProps = {
   isOptimizing?: boolean;
   isCancellingRoute?: boolean;
   onCancelRoute?: () => void | Promise<void>;
+  onSaveStopPriority?: (stopId: string, priority: number | null) => Promise<void>;
 };
 
 

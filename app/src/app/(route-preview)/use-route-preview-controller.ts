@@ -162,6 +162,7 @@ type UseRoutePreviewControllerResult = {
   handleSwitchPastRoute: (routeId: string, title: string) => Promise<void>;
   handleConfirmCopyStops: () => Promise<void>;
   handleToggleMockingLocation: (active: boolean) => void;
+  handleSaveStopPriority: (stopId: string, priority: number | null) => Promise<void>;
 };
 
 function getLatestRouteId(response: any) {
@@ -351,6 +352,7 @@ export function useRoutePreviewController(
   }, [route?.stops]);
 
 const resolvedPanelMode = useMemo<PanelMode>(() => {
+  const stopsCount = route?.stops?.length || 0;
   if (isCancelledRouteStatus(routeStatus)) {
     return 'cancelled';
   }
@@ -359,8 +361,13 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
     return 'transit';
   }
 
+  // If the panel mode is 'empty' but we have stops, resolve to the correct non-empty mode
+  if (panelMode === 'empty' && stopsCount > 0) {
+    return getPanelModeFromStatus(routeStatus, stopsCount);
+  }
+
   return panelMode;
-}, [panelMode, routeStatus]);
+}, [panelMode, routeStatus, route?.stops?.length]);
 
   useEffect(() => {
     setActiveRouteId(routeIdFromParams);
@@ -624,6 +631,7 @@ const handleSaveEditedStop = useCallback(async (details: StopDetails) => {
       stopType: details.stopType,
       stop_type: details.stopType,
       notes: details.notes,
+      priority: details.priority,
     });
     if (!isSuccessResponse(response)) {
       throw new Error(getResponseErrorMessage(response, 'Unable to save stop.'));
@@ -647,6 +655,33 @@ const handleSaveEditedStop = useCallback(async (details: StopDetails) => {
     setIsSavingRouteEdit(false);
   }
 }, [effectiveRouteId, markRouteNeedsReOptimization, route, selectedStop]);
+
+const handleSaveStopPriority = useCallback(async (stopId: string, priority: number | null) => {
+  if (!route || !effectiveRouteId) return;
+  const targetStop = route.stops.find(s => s.id === stopId);
+  if (!targetStop) return;
+  const orderId = getStopBackendId(targetStop);
+  if (!orderId) return;
+
+  try {
+    const response = await ordersService.editOrder({
+      order_id: orderId,
+      priority: priority,
+    });
+
+    if (isSuccessResponse(response)) {
+      const nextStops = route.stops.map(stop =>
+        stop.id === stopId
+          ? { ...stop, priority: priority }
+          : stop,
+      );
+      setRoute({ ...route, stops: nextStops });
+      await markRouteNeedsReOptimization();
+    }
+  } catch (error) {
+    console.error('Error saving stop priority:', error);
+  }
+}, [route, effectiveRouteId, markRouteNeedsReOptimization]);
 
 const handleOpenEditStopAddress = useCallback((stop?: RouteStop) => {
   const targetStop = stop || selectedStop;
@@ -1843,6 +1878,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     togglePastStopsBatch,
     handleSwitchPastRoute,
     handleConfirmCopyStops,
-    handleToggleMockingLocation
+    handleToggleMockingLocation,
+    handleSaveStopPriority
   };
 }

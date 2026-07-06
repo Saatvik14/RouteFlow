@@ -502,9 +502,9 @@ const optimizeRoute = async (req, res) => {
     const startCoords = [parseFloat(startLocRes.rows[0].longitude), parseFloat(startLocRes.rows[0].latitude)];
     const endCoords = [parseFloat(endLocRes.rows[0].longitude), parseFloat(endLocRes.rows[0].latitude)];
 
-    // 3. Fetch all orders for this route with their coordinates
+    // 3. Fetch all orders for this route with their coordinates and priority
     const ordersQuery = `
-      SELECT o.order_id, l.latitude, l.longitude 
+      SELECT o.order_id, o.priority, l.latitude, l.longitude 
       FROM orders o 
       JOIN locations l ON o.location_id = l.location_id 
       WHERE o.route_id = $1
@@ -515,7 +515,43 @@ const optimizeRoute = async (req, res) => {
       return res.status(400).json({ message: 'No orders found for this route to optimize.' });
     }
 
-    const jobs = ordersRes.rows.map(order => ({
+    const allOrders = ordersRes.rows;
+    // Filter orders for optimization: only those WITHOUT priority
+    const ordersToOptimize = allOrders.filter(order => order.priority === null);
+    const prioritizedOrders = allOrders.filter(order => order.priority !== null);
+
+    let data;
+    if (ordersToOptimize.length === 0) {
+      // Sort all by priority
+      const sorted = [...prioritizedOrders].sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0));
+      // Update database sequence
+      for (let i = 0; i < sorted.length; i++) {
+        await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [i + 1, sorted[i].order_id]);
+      }
+      
+      const finalSteps = [
+        { type: 'start' },
+        ...sorted.map((order, index) => ({
+          type: 'job',
+          id: order.order_id,
+          sequence_no: index + 1
+        })),
+        { type: 'end' }
+      ];
+
+      return res.status(200).json({
+        code: 0,
+        routes: [{
+          steps: finalSteps,
+          summary: {
+            distance: 0,
+            duration: 0
+          }
+        }]
+      });
+    }
+
+    const jobs = ordersToOptimize.map(order => ({
       id: order.order_id,
       location: [parseFloat(order.longitude), parseFloat(order.latitude)]
     }));
@@ -541,7 +577,7 @@ const optimizeRoute = async (req, res) => {
       body: JSON.stringify(payload)
     });
 
-    const data = await pharmdelResponse.json();
+    data = await pharmdelResponse.json();
 
     if (data.code !== 0 || !data.routes || data.routes.length === 0) {
       return res.status(502).json({ message: 'Optimization service error', details: data });
@@ -549,17 +585,80 @@ const optimizeRoute = async (req, res) => {
 
     // 6. Process sequence updates and clean response fields
     const steps = data.routes[0].steps;
-    let sequenceCounter = 1;
+    const optimizedJobs = steps.filter((step) => step.type === 'job');
 
-    for (let step of steps) {
-      if (step.type === 'job') {
-        // Update sequence_no in the orders table based on optimized order
-        await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [sequenceCounter, step.id]);
-        step.sequence_no = sequenceCounter; // Add sequence_no to the response
+    // Create final array of size N
+    const N = allOrders.length;
+    const finalSequence = new Array(N).fill(null);
+
+    // First, place prioritized orders
+    prioritizedOrders.forEach(order => {
+      const targetIdx = Math.min(Math.max(1, Number(order.priority)), N) - 1;
+      let idx = targetIdx;
+      while (idx < N && finalSequence[idx] !== null) {
+        idx++;
+      }
+      if (idx >= N) {
+        idx = 0;
+        while (idx < N && finalSequence[idx] !== null) {
+          idx++;
+        }
+      }
+      if (idx < N) {
+        finalSequence[idx] = { order_id: order.order_id, source: 'priority' };
+      }
+    });
+
+    // Next, fill in optimized jobs in order
+    let optIdx = 0;
+    for (let i = 0; i < N; i++) {
+      if (finalSequence[i] === null && optIdx < optimizedJobs.length) {
+        finalSequence[i] = { order_id: optimizedJobs[optIdx].id, source: 'optimized', step: optimizedJobs[optIdx] };
+        optIdx++;
+      }
+    }
+
+    // Any remaining null slots fallback
+    for (let i = 0; i < N; i++) {
+      if (finalSequence[i] === null) {
+        const unplaced = allOrders.find(o => !finalSequence.some(f => f && f.order_id === o.order_id));
+        if (unplaced) {
+          finalSequence[i] = { order_id: unplaced.order_id, source: 'fallback' };
+        }
+      }
+    }
+
+    // Now update database and construct final steps response list
+    const finalSteps = [];
+    const startStep = steps.find(s => s.type === 'start') || { type: 'start' };
+    finalSteps.push(startStep);
+
+    let sequenceCounter = 1;
+    for (let i = 0; i < N; i++) {
+      const item = finalSequence[i];
+      if (item) {
+        await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [sequenceCounter, item.order_id]);
+        
+        let stepObj;
+        if (item.source === 'optimized' && item.step) {
+          stepObj = item.step;
+        } else {
+          stepObj = {
+            type: 'job',
+            id: item.order_id
+          };
+        }
+        stepObj.sequence_no = sequenceCounter;
+        finalSteps.push(stepObj);
         sequenceCounter++;
       }
+    }
 
-      // Remove unwanted fields from the response
+    const endStep = steps.find(s => s.type === 'end') || { type: 'end' };
+    finalSteps.push(endStep);
+
+    // Remove unwanted fields from all steps
+    for (let step of finalSteps) {
       delete step.arrival;
       delete step.distance;
       delete step.duration;
@@ -570,6 +669,7 @@ const optimizeRoute = async (req, res) => {
       delete step.job;
     }
 
+    data.routes[0].steps = finalSteps;
     res.status(200).json(data);
   } catch (error) {
     console.error('Optimize Route Error:', error);

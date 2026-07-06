@@ -1162,8 +1162,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     <>
       <DraggableRouteSheet
         isWide={isWide}
-        mode="large"
-        variant="transit"
         initialSnap="top"
       >
         {panelView === 'current' ? renderCurrentStop() : null}

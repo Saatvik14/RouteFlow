@@ -392,15 +392,6 @@ export function buildManifestOrderPayloads({
 }
 
 export async function addManifestStopsToBackend(payloads: any[]) {
-  const addBulkOrders = getOrderMethod<(payload: any) => Promise<any>>('addBulkOrders');
-
-  if (addBulkOrders && payloads.length > 1) {
-    return addBulkOrders({
-      route_id: payloads[0].route_id,
-      stops: payloads,
-    });
-  }
-
   const created = [];
 
   for (const payload of payloads) {

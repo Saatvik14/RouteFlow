@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS orders (
     route_id INTEGER REFERENCES routes(route_id) ON DELETE CASCADE,
     status VARCHAR(50) DEFAULT 'pending',
     sequence_no INTEGER DEFAULT NULL,
+    priority INTEGER DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -14,3 +15,6 @@ CREATE INDEX IF NOT EXISTS idx_orders_route_id ON orders(route_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_sequence ON orders(sequence_no);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT NULL

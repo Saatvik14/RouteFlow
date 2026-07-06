@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +26,7 @@ type StopDetails = {
   stop_type?: StopType;
   timeAtStopMinutes?: number;
   arrivalTime?: string;
+  priority?: number | null;
 };
 
 type PlaceSuggestion = {
@@ -68,6 +70,7 @@ type BaseEditProps = {
   onSaveEditedStop?: (details: StopDetails) => void;
   onRemoveEditedStop?: () => void;
   onSaveStopAddress?: (suggestion: PlaceSuggestion) => void;
+  onSaveStopPriority?: (stopId: string, priority: number | null) => Promise<void>;
 };
 
 function getAddress(item: any) {
@@ -239,11 +242,13 @@ export function EditRoutePanel({
   onOpenEditStop,
   onAddAnotherStop,
   onReOptimizeEditedRoute,
+  onSaveStopPriority,
 }: BaseEditProps) {
   const insets = useSafeAreaInsets();
+  const [isPriorityModalOpen, setIsPriorityModalOpen] = useState(false);
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
+    <DraggableRouteSheet isWide={isWide} initialSnap="top">
       <View style={styles.panel}>
         <Header title="Edit route" onBack={onCancelEditRoute} rightLabel="⋮" />
 
@@ -303,6 +308,14 @@ export function EditRoutePanel({
 
               <Switch value={false} />
             </View>
+
+            <Row
+              icon={<Feather name="star" size={20} color="#0B6BFF" />}
+              title="Set priority"
+              subtitle="Set custom priorities for stops"
+              value={stops && stops.some((s: any) => s.priority) ? `${stops.filter((s: any) => s.priority).length} prioritized` : 'Auto'}
+              onPress={() => setIsPriorityModalOpen(true)}
+            />
           </Card>
 
           <SectionTitle>Stops</SectionTitle>
@@ -323,6 +336,7 @@ export function EditRoutePanel({
                 <View style={styles.rowTextWrap}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
                     {getTitle(stop, `Stop ${index + 1}`)}
+                    {stop.priority ? ` ★ P${stop.priority}` : ''}
                   </Text>
 
                   <Text style={styles.rowSubtitle}>{getStopSubtitle(stop)}</Text>
@@ -367,6 +381,127 @@ export function EditRoutePanel({
           </Pressable>
         </View>
       </View>
+
+      <Modal
+        visible={isPriorityModalOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsPriorityModalOpen(false)}
+      >
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(15, 23, 42, 0.42)',
+            justifyContent: 'flex-end',
+          }}
+          onPress={() => setIsPriorityModalOpen(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              maxHeight: '80%',
+              paddingHorizontal: 20,
+              paddingTop: 20,
+              paddingBottom: Math.max(insets.bottom + 20, 30),
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A' }}>
+                Set stops priority
+              </Text>
+              <Pressable onPress={() => setIsPriorityModalOpen(false)} style={{ padding: 4 }}>
+                <Feather name="x" size={24} color="#64748B" />
+              </Pressable>
+            </View>
+
+            <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 20 }}>
+              Prioritized stops are kept at their set positions and are skipped during route optimization.
+            </Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              {(stops ?? []).map((stop, index) => {
+                const maxPriority = (stops ?? []).length;
+                return (
+                  <View
+                    key={stop.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#F1F5F9',
+                    }}
+                  >
+                    <View style={{ flex: 1, marginRight: 16 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: '#334155' }} numberOfLines={1}>
+                        {stop.title || `Stop ${index + 1}`}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748B' }} numberOfLines={1}>
+                        {stop.address || 'No address'}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 4 }}>
+                      <Pressable
+                        onPress={() => {
+                          const currentPriority = stop.priority;
+                          if (currentPriority === null || currentPriority === undefined) {
+                            // Already Auto
+                          } else if (currentPriority === 1) {
+                            onSaveStopPriority?.(stop.id, null);
+                          } else {
+                            onSaveStopPriority?.(stop.id, currentPriority - 1);
+                          }
+                        }}
+                        style={{ padding: 8 }}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#64748B' }}>−</Text>
+                      </Pressable>
+
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: stop.priority ? '#2F76F6' : '#64748B', minWidth: 40, textAlign: 'center' }}>
+                        {stop.priority ? `P${stop.priority}` : 'Auto'}
+                      </Text>
+
+                      <Pressable
+                        onPress={() => {
+                          const currentPriority = stop.priority;
+                          if (currentPriority === null || currentPriority === undefined) {
+                            onSaveStopPriority?.(stop.id, 1);
+                          } else if (currentPriority < maxPriority) {
+                            onSaveStopPriority?.(stop.id, currentPriority + 1);
+                          }
+                        }}
+                        style={{ padding: 8 }}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#64748B' }}>+</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setIsPriorityModalOpen(false)}
+              style={{
+                height: 52,
+                borderRadius: 12,
+                backgroundColor: '#2F76F6',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF' }}>
+                Done
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </DraggableRouteSheet>
   );
 }
@@ -412,7 +547,7 @@ export function EditLocationPanel({
   };
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
+    <DraggableRouteSheet isWide={isWide} initialSnap="top">
       <View style={styles.panel}>
         <Header title={title} rightLabel="Save" onBack={onCancelEditRoute} onRightPress={handleSave} />
 
@@ -644,7 +779,7 @@ export function EditTimePanel({
   };
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
+    <DraggableRouteSheet isWide={isWide} initialSnap="top">
       <View style={styles.panel}>
         <Header
           title={target === 'start' ? 'Edit start time' : 'Edit end time'}
@@ -792,6 +927,7 @@ export function EditStopPanel({
   onSaveEditedStop,
   onRemoveEditedStop,
   onOpenEditStopAddress,
+  stops,
 }: BaseEditProps) {
   const insets = useSafeAreaInsets();
 
@@ -800,6 +936,7 @@ export function EditStopPanel({
     packages: Number(stopDetails?.packages || 1),
     order: stopDetails?.order || 'auto',
     stopType: stopDetails?.stopType || stopDetails?.stop_type || 'delivery',
+    priority: stopDetails?.priority !== undefined ? stopDetails.priority : (editingStop?.priority ?? null),
   });
 
   const patchDetails = (patch: StopDetails) => {
@@ -815,7 +952,7 @@ export function EditStopPanel({
   const packages = Math.max(1, Number(details.packages || 1));
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
+    <DraggableRouteSheet isWide={isWide} initialSnap="top">
       <View style={styles.panel}>
         <Header
           title="Edit stop"
@@ -922,6 +1059,51 @@ export function EditStopPanel({
                       packages: packages + 1,
                     })
                   }
+                >
+                  <Text style={styles.counterText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={styles.rowIcon}>
+                <Feather name="star" size={20} color="#0B6BFF" />
+              </View>
+
+              <Text style={styles.rowTitle}>Set priority</Text>
+
+              <View style={styles.counter}>
+                <Pressable
+                  style={styles.counterButton}
+                  onPress={() => {
+                    const currentPriority = details.priority;
+                    if (currentPriority === null || currentPriority === undefined) {
+                      // Do nothing
+                    } else if (currentPriority === 1) {
+                      patchDetails({ priority: null });
+                    } else {
+                      patchDetails({ priority: currentPriority - 1 });
+                    }
+                  }}
+                >
+                  <Text style={styles.counterText}>−</Text>
+                </Pressable>
+
+                <Text style={styles.counterValue}>
+                  {details.priority === null || details.priority === undefined ? 'Auto' : details.priority}
+                </Text>
+
+                <Pressable
+                  style={styles.counterButton}
+                  onPress={() => {
+                    const currentPriority = details.priority;
+                    const maxPriority = (stops ?? []).length;
+                    if (currentPriority === null || currentPriority === undefined) {
+                      patchDetails({ priority: 1 });
+                    } else if (currentPriority < maxPriority) {
+                      patchDetails({ priority: currentPriority + 1 });
+                    }
+                  }}
                 >
                   <Text style={styles.counterText}>+</Text>
                 </Pressable>

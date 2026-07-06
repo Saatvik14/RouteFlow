@@ -362,11 +362,11 @@ export function StopDetailsPanel({
           outputRange: [0.985, 1],
         }),
       },
-    ],
+    ] as any,
   };
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
+    <DraggableRouteSheet isWide={isWide} initialSnap="top">
       <Animated.View style={[localStyles.panel, animatedPanelStyle, isWide && localStyles.panelWeb]}>
         <Header
           title={isEditMode ? 'Edit stop' : 'Add stop'}
@@ -439,7 +439,7 @@ export function StopDetailsPanel({
               </View>
             </View>
 
-            <SegmentedOptionRow
+            {/* <SegmentedOptionRow
               icon="≡"
               label="Order"
               value={details.order}
@@ -449,7 +449,7 @@ export function StopDetailsPanel({
                 { label: 'Last', value: 'last' },
               ]}
               onChange={value => updateDetails({ order: value as StopDetails['order'] })}
-            />
+            /> */}
 
             <OptionRow icon="◷" label="Arrival time" value="Anytime" />
             <OptionRow icon="⏱" label="Estimated time at stop" value="Default (1 min)" />

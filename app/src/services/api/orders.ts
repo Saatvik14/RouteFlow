@@ -64,7 +64,4 @@ export const ordersService = {
    */
   getVehiclePlacementByOrderId: (orderId: string) =>
     apiGet(API_ENDPOINTS.ORDERS.GET_VEHICLE_PLACE(orderId)),
-
-  addBulkOrders: (payload: any) =>
-  apiPost('/order/add/bulk', payload),
 };

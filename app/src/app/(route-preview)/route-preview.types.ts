@@ -20,6 +20,7 @@ export type StopDetails = {
   order: 'first' | 'auto' | 'last';
   stopType: 'delivery' | 'pickup';
   notes: string;
+  priority?: number | null;
 };
 
 export type RouteStop = RoutePoint & {
