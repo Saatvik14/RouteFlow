@@ -57,32 +57,7 @@ export default function RootLayout() {
     bootstrapAsync();
   }, []);
 
-  const lastUnlockTimeRef = useRef<number>(0);
-
-  // Lock app when returning from background (native only)
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (
-        appStateRef.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        // Ignore locking if the app was unlocked within the last 2 seconds
-        // to prevent the biometric dialog dismissal from re-locking the app.
-        const timeSinceUnlock = Date.now() - lastUnlockTimeRef.current;
-        if (isLoggedIn && timeSinceUnlock > 2000) {
-          setIsAppLocked(true);
-        }
-      }
-      appStateRef.current = nextAppState;
-    });
-
-    return () => subscription.remove();
-  }, [isLoggedIn]);
-
   const handleUnlocked = useCallback(() => {
-    lastUnlockTimeRef.current = Date.now();
     setIsAppLocked(false);
   }, []);
 
