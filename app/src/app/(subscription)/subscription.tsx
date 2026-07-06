@@ -108,7 +108,7 @@ export default function SubscriptionScreen() {
           <PlanCard
             title="Lite"
             subtitle="Perfect for individual drivers"
-            price="£10/month"
+            price="£7.99/month"
             icon={
               <Feather
                 name="navigation"
@@ -127,7 +127,7 @@ export default function SubscriptionScreen() {
             popular
             title="Standard"
             subtitle="Best for professionals"
-            price="£15/month"
+            price="£9.99/month"
             icon={
               <MaterialCommunityIcons
                 name="crown"

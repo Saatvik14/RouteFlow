@@ -3,12 +3,18 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type {
   RouteHistoryRoute,
   RouteHistoryTone,
-} from "../../types/route-history";
+} from "./route-history";
 
 type RouteHistoryCardProps = {
   route: RouteHistoryRoute;
   onPress: () => void;
   onMorePress: () => void;
+};
+
+const normalizeDistance = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return "--";
+  const km = value > 10000 ? value / 1000 : value;
+  return km >= 100 ? `${km.toFixed(1)} km` : `${km.toFixed(1)} km`;
 };
 
 const getToneStyles = (tone: RouteHistoryTone) => {
@@ -27,10 +33,13 @@ const getToneStyles = (tone: RouteHistoryTone) => {
 };
 
 function RouteMiniPreview({ pointsCount }: { pointsCount: number }) {
-  const dots = Array.from({ length: Math.min(Math.max(pointsCount, 4), 8) });
+  const dots = Array.from({ length: Math.min(Math.max(pointsCount, 3), 6) });
 
   return (
     <View style={styles.mapPreview}>
+      <View style={styles.roadOne} />
+      <View style={styles.roadTwo} />
+      <View style={styles.routeLineBase} />
       <View style={styles.routeLine} />
       <View style={styles.startPin} />
       {dots.map((_, index) => (
@@ -39,13 +48,32 @@ function RouteMiniPreview({ pointsCount }: { pointsCount: number }) {
           style={[
             styles.routeDot,
             {
-              left: 16 + index * 14,
-              top: index % 2 === 0 ? 24 : 14,
+              left: 17 + index * 11,
+              top: index % 2 === 0 ? 50 - index * 4 : 39 - index * 3,
             },
           ]}
         />
       ))}
       <View style={styles.endPin} />
+    </View>
+  );
+}
+
+function LocationRow({
+  icon,
+  color,
+  text,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  color: string;
+  text: string;
+}) {
+  return (
+    <View style={styles.locationRow}>
+      <Feather name={icon} size={12} color={color} />
+      <Text numberOfLines={1} style={styles.locationText}>
+        {text || "Not available"}
+      </Text>
     </View>
   );
 }
@@ -58,108 +86,168 @@ export function RouteHistoryCard({
   const tone = getToneStyles(route.statusTone);
 
   return (
-    <Pressable style={styles.card} onPress={onPress}>
-      <RouteMiniPreview
-        pointsCount={route.mapPoints.length || route.stopsCount}
-      />
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      onPress={onPress}
+    >
+      <View style={styles.topRow}>
+        <RouteMiniPreview
+          pointsCount={route.mapPoints.length || route.stopsCount}
+        />
 
-      <View style={styles.content}>
-        <View style={styles.titleRow}>
-          <Text numberOfLines={1} style={styles.title}>
-            {route.title}
-          </Text>
-          <View style={[styles.badge, tone.badge]}>
-            <Text style={[styles.badgeText, tone.text]}>
-              {route.statusLabel}
+        <View style={styles.content}>
+          <View style={styles.titleRow}>
+            <Text numberOfLines={1} style={styles.title}>
+              {route.title}
             </Text>
+            <View style={[styles.badge, tone.badge]}>
+              <Text style={[styles.badgeText, tone.text]}>
+                {route.statusLabel}
+              </Text>
+            </View>
+          </View>
+
+          <Text numberOfLines={1} style={styles.dateText}>
+            {route.fullDateLabel || route.dateLabel} · {route.startTime} - {route.endTime}
+          </Text>
+
+          <View style={styles.locationsBox}>
+            <LocationRow
+              icon="play-circle"
+              color="#16A34A"
+              text={route.startLocation}
+            />
+            <LocationRow
+              icon="map-pin"
+              color="#EF4444"
+              text={route.endLocation}
+            />
           </View>
         </View>
 
-        <Text style={styles.timeText}>
-          {route.startTime} - {route.endTime}
-        </Text>
-
-        <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <Feather name="map-pin" size={12} color="#64748B" />
-            <Text style={styles.metaText}>{route.stopsCount} stops</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Feather name="navigation" size={12} color="#64748B" />
-            <Text style={styles.metaText}>{route.distanceKm || "--"} km</Text>
-          </View>
-        </View>
+        <Pressable
+          hitSlop={10}
+          style={styles.moreButton}
+          onPress={(event) => {
+            event.stopPropagation();
+            onMorePress();
+          }}
+        >
+          <Feather name="more-vertical" size={18} color="#64748B" />
+        </Pressable>
       </View>
 
-      <Pressable
-        hitSlop={10}
-        style={styles.moreButton}
-        onPress={(event) => {
-          event.stopPropagation();
-          onMorePress();
-        }}
-      >
-        <Feather name="more-vertical" size={18} color="#94A3B8" />
-      </Pressable>
+      <View style={styles.footerRow}>
+        <View style={styles.metaItem}>
+          <Feather name="map-pin" size={13} color="#64748B" />
+          <Text style={styles.metaText}>{route.stopsCount} stops</Text>
+        </View>
+        <View style={styles.metaDivider} />
+        <View style={styles.metaItem}>
+          <Feather name="navigation" size={13} color="#64748B" />
+          <Text style={styles.metaText}>{normalizeDistance(route.distanceKm)}</Text>
+        </View>
+        <View style={styles.metaDivider} />
+        <View style={styles.metaItem}>
+          <Feather name="clock" size={13} color="#64748B" />
+          <Text numberOfLines={1} style={styles.metaText}>
+            {route.durationText || "--"}
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={17} color="#CBD5E1" />
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 96,
+    width: "100%",
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E5EDF8",
+    borderColor: "#E2EAF3",
     backgroundColor: "#FFFFFF",
-    padding: 10,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
+    padding: 12,
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.035,
+    shadowRadius: 14,
+    elevation: 1,
+  },
+  cardPressed: {
+    backgroundColor: "#FAFCFF",
+    transform: [{ scale: 0.997 }],
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   mapPreview: {
-    width: 106,
-    height: 72,
+    width: 82,
+    height: 86,
     borderRadius: 14,
-    backgroundColor: "#F1F8EF",
+    backgroundColor: "#F2F7F0",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     overflow: "hidden",
     marginRight: 11,
   },
+  roadOne: {
+    position: "absolute",
+    left: -10,
+    right: -8,
+    top: 18,
+    height: 8,
+    backgroundColor: "#FFFFFF",
+    transform: [{ rotate: "13deg" }],
+  },
+  roadTwo: {
+    position: "absolute",
+    left: -8,
+    right: -8,
+    bottom: 17,
+    height: 7,
+    backgroundColor: "#E4EADF",
+    transform: [{ rotate: "-18deg" }],
+  },
+  routeLineBase: {
+    position: "absolute",
+    left: 12,
+    right: 10,
+    top: 42,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FFFFFF",
+    transform: [{ rotate: "-28deg" }],
+  },
   routeLine: {
     position: "absolute",
-    left: 15,
-    right: 14,
-    top: 33,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: "#2F76F6",
-    transform: [{ rotate: "-18deg" }],
+    left: 13,
+    right: 11,
+    top: 43.5,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#2F6FED",
+    transform: [{ rotate: "-28deg" }],
   },
   startPin: {
     position: "absolute",
     left: 9,
-    top: 41,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    bottom: 14,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
     backgroundColor: "#16A34A",
     borderWidth: 2,
     borderColor: "#FFFFFF",
   },
   endPin: {
     position: "absolute",
-    right: 9,
-    top: 20,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    right: 8,
+    top: 13,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
     backgroundColor: "#EF4444",
     borderWidth: 2,
     borderColor: "#FFFFFF",
@@ -170,7 +258,7 @@ const styles = StyleSheet.create({
     height: 7,
     borderRadius: 3.5,
     backgroundColor: "#2563EB",
-    borderWidth: 1.5,
+    borderWidth: 1.4,
     borderColor: "#FFFFFF",
   },
   content: {
@@ -180,37 +268,72 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 7,
   },
   title: {
     flex: 1,
     fontSize: 14.5,
     lineHeight: 19,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#0F172A",
   },
-  timeText: {
-    marginTop: 5,
-    fontSize: 12.5,
-    lineHeight: 16,
-    fontWeight: "600",
+  dateText: {
+    marginTop: 4,
+    fontSize: 11.5,
+    lineHeight: 15,
+    fontWeight: "400",
     color: "#64748B",
   },
-  metaRow: {
+  locationsBox: {
+    marginTop: 9,
+    gap: 5,
+  },
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 9,
-    gap: 12,
+    gap: 6,
+  },
+  locationText: {
+    flex: 1,
+    fontSize: 11.5,
+    lineHeight: 15,
+    fontWeight: "400",
+    color: "#475569",
+  },
+  moreButton: {
+    width: 28,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
+    marginTop: -4,
+  },
+  footerRow: {
+    minHeight: 38,
+    marginTop: 11,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#EEF2F7",
+    flexDirection: "row",
+    alignItems: "center",
   },
   metaItem: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    gap: 5,
+  },
+  metaDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: "#E2E8F0",
   },
   metaText: {
     fontSize: 11.5,
     lineHeight: 15,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#475569",
   },
   badge: {
@@ -223,23 +346,16 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10.5,
     lineHeight: 14,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   badgeGreen: { backgroundColor: "#ECFDF5", borderColor: "#BBF7D0" },
-  badgeTextGreen: { color: "#16A34A" },
+  badgeTextGreen: { color: "#15803D" },
   badgeAmber: { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" },
-  badgeTextAmber: { color: "#D97706" },
+  badgeTextAmber: { color: "#B45309" },
   badgeRed: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
   badgeTextRed: { color: "#DC2626" },
   badgeBlue: { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE" },
   badgeTextBlue: { color: "#2563EB" },
   badgeSlate: { backgroundColor: "#F8FAFC", borderColor: "#E2E8F0" },
   badgeTextSlate: { color: "#64748B" },
-  moreButton: {
-    width: 30,
-    height: 52,
-    alignItems: "flex-end",
-    justifyContent: "center",
-    marginLeft: 6,
-  },
 });
