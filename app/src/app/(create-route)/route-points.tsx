@@ -920,17 +920,17 @@ export default function RoutePointsScreen() {
             ) : null}
           </View>
 
-          <View style={styles.section}>
+          {/* <View style={styles.section}>
             <Text style={styles.sectionTitle}>Break</Text>
 
             <InfoCard
               icon="☕"
               iconColor="#2F76F6"
-              title="No break"
+              title="No break"g
               subtitle="Tap to plan a break later"
               onPress={() => {}}
             />
-          </View>
+          </View> */}
         </ScrollView>
 
         <View
