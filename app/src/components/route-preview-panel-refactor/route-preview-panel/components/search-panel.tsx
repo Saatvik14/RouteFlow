@@ -209,7 +209,7 @@ export function SearchPanel({
   const hasSearch = searchText.trim().length >= 2;
 
   return (
-    <DraggableRouteSheet isWide={isWide} mode="large" initialSnap="top">
+    <DraggableRouteSheet isWide={isWide} initialSnap="top">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}

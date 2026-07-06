@@ -2,6 +2,8 @@ import { useAuth } from './../_layout';
 import { fetchAndStoreConfig, restoreAuthToken } from './../../services/api';
 import { routesService } from './../../services/api/routes';
 import { isTokenValid } from './../../services/auth/jwtUtils';
+import { addManifestStopsToBackend } from '../(route-preview)/route-preview-input.service';
+import { ROUTE_STATUS_PENDING } from './../(route-preview)/route-preview.helpers';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -432,6 +434,16 @@ export default function RoutePointsScreen() {
     [params.carryPastStops]
   );
 
+  const stopsToCopy = useMemo(() => {
+    const stopsParam = getParam(params.stopsToCopy, '');
+    try {
+      return stopsParam ? JSON.parse(stopsParam) : [];
+    } catch (e) {
+      console.error('Error parsing stopsToCopy:', e);
+      return [];
+    }
+  }, [params.stopsToCopy]);
+
   const defaultStartAddress = useConfigStore(
     (state) => state.config?.defaultStartAddress
   );
@@ -733,12 +745,34 @@ export default function RoutePointsScreen() {
       const responseData = response.data;
       console.log('Route created successfully:', responseData);
 
+      const newRouteId = responseData ? String((responseData as any).route_id || (responseData as any).id || '') : '';
+
+      if (newRouteId && stopsToCopy.length > 0) {
+        const orderPayloads = stopsToCopy.map((stop: any, index: number) => {
+          return {
+            route_id: newRouteId,
+            sequence: index + 1,
+            latitude: stop.latitude,
+            longitude: stop.longitude,
+            title: stop.title || `Stop ${index + 1}`,
+            address: stop.address || stop.description || '',
+            packages: Number(stop.packages || 1),
+            stop_type: stop.stopType || 'delivery',
+            notes: stop.notes || '',
+            status: ROUTE_STATUS_PENDING,
+          };
+        });
+
+        const stopsResponse = await addManifestStopsToBackend(orderPayloads);
+        console.log('Copied stops saved successfully:', stopsResponse);
+      }
+
       await fetchAndStoreConfig();
       
       router.push({
         pathname: '/route-preview',
         params: {
-         id : String(responseData?.route_id || responseData?.id || ''),
+         id : String(newRouteId),
         },
       } as never);
     } catch (error) {

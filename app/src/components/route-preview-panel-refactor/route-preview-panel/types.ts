@@ -81,6 +81,20 @@ export type RoutePreviewPanelProps = {
   pendingManifestStops?: any[];
   onConfirmManifestStops?: (stops: any[]) => Promise<void>;
   onCancelManifestStops?: () => void;
+  onSelectStop?: (stop: any, index?: number) => void;
+  onStopPress?: (stop: any) => void;
+  onOpenStopDetails?: (stop: any) => void;
+  onScanAddress?: () => void;
+  onVoiceAddress?: () => void;
+  onScanRouteManifest?: () => void;
+  onImportRouteManifest?: () => void;
+  onCopyStopsFromPastRoute?: () => void;
+  onSkipOptimization?: () => void;
+  onRemoveStops?: () => void;
+  onAddAnotherStop?: () => void;
+  isOptimizing?: boolean;
+  isCancellingRoute?: boolean;
+  onCancelRoute?: () => void | Promise<void>;
 };
 
 

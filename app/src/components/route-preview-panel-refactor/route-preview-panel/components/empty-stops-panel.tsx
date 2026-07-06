@@ -8,6 +8,7 @@ import { DraggableRouteSheet } from './draggable-route-sheet';
 export function EmptyStopsPanel({
   isWide,
   onOpenSearch,
+  onCopyStopsFromPastRoute,
 }: RoutePreviewPanelProps & { isWide: boolean }) {
   const insets = useSafeAreaInsets();
 
@@ -33,7 +34,7 @@ export function EmptyStopsPanel({
           <Text style={styles.primaryFullButtonText}>＋ Add stops</Text>
         </Pressable>
 
-        <Pressable style={styles.secondaryFullButton}>
+        <Pressable style={styles.secondaryFullButton} onPress={onCopyStopsFromPastRoute}>
           <Text style={styles.secondaryFullButtonText}>Copy stops from a past route</Text>
         </Pressable>
       </View>

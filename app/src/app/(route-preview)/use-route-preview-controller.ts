@@ -148,6 +148,19 @@ type UseRoutePreviewControllerResult = {
   handleExitNavigation: () => void;
   userLocation: any;
   setUserLocation: (location: any) => void;
+  isCopyStopsModalOpen: boolean;
+  setIsCopyStopsModalOpen: (value: boolean) => void;
+  allPastRoutes: any[];
+  pastRouteStops: RouteStop[];
+  pastRouteTitle: string;
+  selectedPastRouteId: string;
+  selectedPastStopKeys: Record<string, boolean>;
+  isLoadingPastRoutes: boolean;
+  isLoadingStops: boolean;
+  togglePastStopSelection: (stopId: string) => void;
+  togglePastStopsBatch: (stopIds: string[], select: boolean) => void;
+  handleSwitchPastRoute: (routeId: string, title: string) => Promise<void>;
+  handleConfirmCopyStops: () => Promise<void>;
   handleToggleMockingLocation: (active: boolean) => void;
 };
 
@@ -316,6 +329,15 @@ export function useRoutePreviewController(
   } | null>(null);
   const locationSubscriptionRef = useRef<any>(null);
   const isMockingLocationRef = useRef(false);
+
+  const [isCopyStopsModalOpen, setIsCopyStopsModalOpen] = useState(false);
+  const [allPastRoutes, setAllPastRoutes] = useState<any[]>([]);
+  const [pastRouteStops, setPastRouteStops] = useState<RouteStop[]>([]);
+  const [pastRouteTitle, setPastRouteTitle] = useState('');
+  const [selectedPastRouteId, setSelectedPastRouteId] = useState('');
+  const [selectedPastStopKeys, setSelectedPastStopKeys] = useState<Record<string, boolean>>({});
+  const [isLoadingPastRoutes, setIsLoadingPastRoutes] = useState(false);
+  const [isLoadingStops, setIsLoadingStops] = useState(false);
 
   const effectiveRouteId = activeRouteId || routeIdFromParams;
 
@@ -1587,9 +1609,141 @@ const handleRemoveEditedStop = useCallback(async () => {
     }
   }, [prepareResolvedManifestRowsForReview]);
 
-  const handleCopyStopsFromPastRoute = useCallback(() => {
-    setErrorMessage('Copy stops from past route is not wired yet. Add a route picker here.');
+  const handleCopyStopsFromPastRoute = useCallback(async () => {
+    setIsCopyStopsModalOpen(true);
+    setIsLoadingPastRoutes(true);
+    setErrorMessage('');
+    setPastRouteStops([]);
+    setPastRouteTitle('');
+    setSelectedPastRouteId('');
+    setSelectedPastStopKeys({});
+    try {
+      const response = (await routesService.getRoutes(50, 0)) as any;
+      const rawData = response?.data ?? response;
+      const routesList = Array.isArray(rawData) ? rawData : rawData?.routes || [];
+
+      // Filter out current route
+      const filteredRoutes = routesList.filter((r: any) => {
+        const rId = String(r.route_id || r.id || r.routeId || '');
+        return rId && rId !== String(effectiveRouteId);
+      });
+
+      setAllPastRoutes(filteredRoutes);
+
+      const lastRoute = filteredRoutes[0];
+      if (!lastRoute) {
+        throw new Error('No past routes found to copy stops from.');
+      }
+
+      const lastRouteId = String(lastRoute.route_id || lastRoute.id || lastRoute.routeId);
+      setSelectedPastRouteId(lastRouteId);
+      setPastRouteTitle(lastRoute.name || lastRoute.routeName || lastRoute.title || 'Last Route');
+
+      setIsLoadingStops(true);
+      const routeDetailResponse = await routesService.getRoute(lastRouteId);
+      const result = await buildRouteFromBackendResponse(routeDetailResponse, lastRouteId);
+      const stops = result.route.stops;
+
+      setPastRouteStops(stops);
+
+      // Initialize selection: default to all stops checked
+      const initialSelection: Record<string, boolean> = {};
+      stops.forEach((stop) => {
+        initialSelection[stop.id] = true;
+      });
+      setSelectedPastStopKeys(initialSelection);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load past route stops.');
+      setIsCopyStopsModalOpen(false);
+    } finally {
+      setIsLoadingPastRoutes(false);
+      setIsLoadingStops(false);
+    }
+  }, [effectiveRouteId]);
+
+  const handleSwitchPastRoute = useCallback(async (routeId: string, title: string) => {
+    setSelectedPastRouteId(routeId);
+    setPastRouteTitle(title);
+    setIsLoadingStops(true);
+    setErrorMessage('');
+    try {
+      const routeDetailResponse = await routesService.getRoute(routeId);
+      const result = await buildRouteFromBackendResponse(routeDetailResponse, routeId);
+      const stops = result.route.stops;
+
+      setPastRouteStops(stops);
+
+      // Initialize selection: default to all stops checked
+      const initialSelection: Record<string, boolean> = {};
+      stops.forEach((stop) => {
+        initialSelection[stop.id] = true;
+      });
+      setSelectedPastStopKeys(initialSelection);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Unable to load stops for selected route.');
+    } finally {
+      setIsLoadingStops(false);
+    }
   }, []);
+
+  const togglePastStopSelection = useCallback((stopId: string) => {
+    setSelectedPastStopKeys((prev) => ({
+      ...prev,
+      [stopId]: !prev[stopId],
+    }));
+  }, []);
+
+  const togglePastStopsBatch = useCallback((stopIds: string[], select: boolean) => {
+    setSelectedPastStopKeys((prev) => {
+      const next = { ...prev };
+      stopIds.forEach((id) => {
+        next[id] = select;
+      });
+      return next;
+    });
+  }, []);
+
+  const handleConfirmCopyStops = useCallback(async () => {
+    if (!route || !effectiveRouteId) return;
+
+    const stopsToCopy = pastRouteStops.filter((stop) => selectedPastStopKeys[stop.id]);
+
+    if (stopsToCopy.length === 0) {
+      setErrorMessage('Please select at least one stop to copy.');
+      return;
+    }
+
+    setIsCopyStopsModalOpen(false);
+    setIsAddingStop(true);
+    setErrorMessage('');
+
+    try {
+      const payloads = stopsToCopy.map((stop, index) => {
+        return {
+          route_id: effectiveRouteId,
+          sequence: route.stops.length + index + 1,
+          latitude: stop.latitude,
+          longitude: stop.longitude,
+          title: stop.title || `Stop ${route.stops.length + index + 1}`,
+          address: stop.address || stop.description || '',
+          packages: Number(stop.packages || 1),
+          stop_type: stop.stopType || 'delivery',
+          notes: stop.notes || '',
+          status: ROUTE_STATUS_PENDING,
+        };
+      });
+
+      await handleConfirmManifestStops(payloads);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to copy stops from past route.',
+      );
+    } finally {
+      setIsAddingStop(false);
+    }
+  }, [route, effectiveRouteId, pastRouteStops, selectedPastStopKeys, handleConfirmManifestStops]);
 
   const handleSkipOptimization = useCallback(async () => {
     await handleConfirmRoute();
@@ -1676,6 +1830,19 @@ const handleRemoveEditedStop = useCallback(async () => {
     handleExitNavigation,
     userLocation,
     setUserLocation,
+    isCopyStopsModalOpen,
+    setIsCopyStopsModalOpen,
+    allPastRoutes,
+    pastRouteStops,
+    pastRouteTitle,
+    selectedPastRouteId,
+    selectedPastStopKeys,
+    isLoadingPastRoutes,
+    isLoadingStops,
+    togglePastStopSelection,
+    togglePastStopsBatch,
+    handleSwitchPastRoute,
+    handleConfirmCopyStops,
     handleToggleMockingLocation
   };
 }

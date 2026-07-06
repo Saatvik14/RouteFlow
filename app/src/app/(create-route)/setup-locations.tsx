@@ -112,16 +112,28 @@ export default function SetupLocationsScreen() {
   const handleConfirm = () => {
     if (isConfirmDisabled) return;
 
-    router.push({
-      pathname: '/route-points',
-      params: {
-        routeName: routeName.trim(),
-        routeDate: toISODate(routeDate),
-        routeDateLabel: formatDateLabel(routeDate),
-        routeDay: getDayName(routeDate),
-        carryPastStops: String(carryPastStops),
-      },
-    } as never);
+    if (carryPastStops) {
+      router.push({
+        pathname: '/carry-over-stops',
+        params: {
+          routeName: routeName.trim(),
+          routeDate: toISODate(routeDate),
+          routeDateLabel: formatDateLabel(routeDate),
+          routeDay: getDayName(routeDate),
+        },
+      } as never);
+    } else {
+      router.push({
+        pathname: '/route-points',
+        params: {
+          routeName: routeName.trim(),
+          routeDate: toISODate(routeDate),
+          routeDateLabel: formatDateLabel(routeDate),
+          routeDay: getDayName(routeDate),
+          carryPastStops: 'false',
+        },
+      } as never);
+    }
   };
 
   return (
@@ -237,7 +249,7 @@ export default function SetupLocationsScreen() {
             disabled={isConfirmDisabled}
             onPress={handleConfirm}
           >
-            <Text style={styles.confirmText}>Confirm</Text>
+            <Text style={styles.confirmText}>{carryPastStops ? 'Proceed to copy' : 'Confirm'}</Text>
           </Pressable>
         </View>
 
