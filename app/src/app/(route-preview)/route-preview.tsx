@@ -9,8 +9,17 @@ import { CameraScanner } from '../../components/camera-scanner';
 import { RoutePanel } from './../../components/route-panel';
 import { RoutePreviewPanel } from './../../components/route-preview-panel-refactor/route-preview-panel';
 import { TransitStopPanel } from './../../components/route-preview-panel-refactor/route-preview-panel/components/transit-stop-panel';
+import {
+  RouteCompletedPanel,
+  RouteCompletionPromptPanel,
+} from './../../components/route-preview-panel-refactor/route-preview-panel/components/completion-panels';
 import { Sidebar } from './../../components/sidebar';
-import { getParam } from './route-preview.helpers';
+import {
+  getParam,
+  isFinishedStopStatus,
+  isStatus,
+  ROUTE_STATUS_COMPLETED,
+} from './route-preview.helpers';
 import { styles } from './route-preview.styles';
 import { useRoutePreviewController } from './use-route-preview-controller';
 import InAppNavigationOverlay from '../../components/maps/InAppNavigationOverlay';
@@ -54,6 +63,8 @@ export default function RoutePreviewScreen() {
     stopDetails,
     isUpdatingStopStatus,
     isCancellingRoute,
+    isCompletingRoute,
+    isRetryingFailedStops,
     activeStopInfo,
     setSearchText,
     setIsSidebarOpen,
@@ -72,6 +83,8 @@ export default function RoutePreviewScreen() {
     handleNavigateActiveStop,
     handleMarkStopDelivered,
     handleMarkStopFailed,
+    handleMarkRouteCompleted,
+    handleRetryFailedStops,
     handleCancelRoute,
     handleCreateNewRoute,
     handleScanAddress: controllerHandleScanAddress,
@@ -144,6 +157,20 @@ export default function RoutePreviewScreen() {
   const skippedStops = useMemo(() => {
     return pastRouteStops.filter((item: any) => item.status !== 'failed' && item.status !== 'delivered' && item.status !== 'completed');
   }, [pastRouteStops]);
+
+  const allStopsResolved = useMemo(() => {
+    if (!route?.stops?.length) return false;
+
+    return route.stops.every((stop: any) =>
+      isFinishedStopStatus(stop?.status || stop?.orderStatus || stop?.order_status),
+    );
+  }, [route?.stops]);
+
+  const isCompletedRoute = useMemo(
+    () => isStatus(routeStatus, ROUTE_STATUS_COMPLETED),
+    [routeStatus],
+  );
+
 
   const handleToggleCategory = (categoryStops: any[]) => {
     const allSelected = categoryStops.length > 0 && categoryStops.every(s => !!selectedPastStopKeys[s.id]);
@@ -338,6 +365,33 @@ export default function RoutePreviewScreen() {
 
       {!isInitialLoading && !route ? (
         <RoutePanel />
+      ) : !isInitialLoading && route && isCompletedRoute ? (
+        <RouteCompletedPanel
+          isWide={isWide}
+          routeName={routeTitle}
+          stops={route.stops}
+          durationLabel={routeMeta.durationLabel}
+          distanceLabel={routeMeta.distanceLabel}
+          isRetryingFailedStops={isRetryingFailedStops}
+          onRetryFailedStops={handleRetryFailedStops}
+          onCreateNewRoute={handleCreateNewRoute}
+        />
+      ) : !isInitialLoading &&
+        route &&
+        resolvedPanelMode === 'transit' &&
+        allStopsResolved ? (
+        <RouteCompletionPromptPanel
+          isWide={isWide}
+          routeName={routeTitle}
+          startTime={previewStartTime}
+          start={route.start}
+          end={route.end}
+          stops={route.stops}
+          durationLabel={routeMeta.durationLabel}
+          distanceLabel={routeMeta.distanceLabel}
+          isCompletingRoute={isCompletingRoute}
+          onMarkRouteCompleted={handleMarkRouteCompleted}
+        />
       ) : !isInitialLoading && route && resolvedPanelMode === 'transit' ? (
         <TransitStopPanel
           isWide={isWide}
@@ -355,7 +409,7 @@ export default function RoutePreviewScreen() {
           totalActiveStops={activeStopInfo.total}
           isUpdatingStopStatus={isUpdatingStopStatus}
           isCancellingRoute={isCancellingRoute}
-          isCompletingRoute={false}
+          isCompletingRoute={isCompletingRoute}
           searchText={searchText}
           suggestions={suggestions}
           selectedSuggestion={selectedSuggestion}
@@ -378,7 +432,7 @@ export default function RoutePreviewScreen() {
           onNavigateActiveStop={handleNavigateActiveStop}
           onMarkStopDelivered={handleMarkStopDelivered}
           onMarkStopFailed={handleMarkStopFailed}
-          onMarkRouteCompleted={handleCreateNewRoute}
+          onMarkRouteCompleted={handleMarkRouteCompleted}
           onCancelRoute={handleCancelRoute}
           onCreateNewRoute={handleCreateNewRoute}
           onScanAddress={handleScanAddress}

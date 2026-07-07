@@ -461,6 +461,46 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
         stopType: item?.stopType || item?.stop_type || item?.type || 'delivery',
         notes: item?.notes || item?.note || '',
         status: item?.status || ROUTE_STATUS_PENDING,
+        actualArrivalTime:
+          item?.actualArrivalTime ||
+          item?.actual_arrival_time ||
+          item?.arrivedAt ||
+          item?.arrived_at ||
+          item?.deliveredAt ||
+          item?.delivered_at ||
+          item?.completedAt ||
+          item?.completed_at ||
+          null,
+        actual_arrival_time:
+          item?.actual_arrival_time ||
+          item?.actualArrivalTime ||
+          item?.arrived_at ||
+          item?.arrivedAt ||
+          item?.delivered_at ||
+          item?.deliveredAt ||
+          item?.completed_at ||
+          item?.completedAt ||
+          null,
+        arrivedAt: item?.arrivedAt || item?.arrived_at || null,
+        arrived_at: item?.arrived_at || item?.arrivedAt || null,
+        deliveredAt: item?.deliveredAt || item?.delivered_at || null,
+        delivered_at: item?.delivered_at || item?.deliveredAt || null,
+        failedAt: item?.failedAt || item?.failed_at || item?.attemptedAt || item?.attempted_at || null,
+        failed_at: item?.failed_at || item?.failedAt || item?.attempted_at || item?.attemptedAt || null,
+        completedAt: item?.completedAt || item?.completed_at || null,
+        completed_at: item?.completed_at || item?.completedAt || null,
+        statusUpdatedAt:
+          item?.statusUpdatedAt ||
+          item?.status_updated_at ||
+          item?.updatedAt ||
+          item?.updated_at ||
+          null,
+        status_updated_at:
+          item?.status_updated_at ||
+          item?.statusUpdatedAt ||
+          item?.updated_at ||
+          item?.updatedAt ||
+          null,
         priority: item?.priority !== undefined && item?.priority !== null ? Number(item.priority) : null,
       } as RouteStop;
     })
@@ -961,7 +1001,87 @@ export function buildStopFromSavedOrder(
       'delivery',
     notes: savedOrder.notes || savedOrder.note || fallbackStop.notes || '',
     status: savedOrder.status || fallbackStop.status,
-  };
+    actualArrivalTime:
+      savedOrder.actualArrivalTime ||
+      savedOrder.actual_arrival_time ||
+      savedOrder.arrivedAt ||
+      savedOrder.arrived_at ||
+      savedOrder.deliveredAt ||
+      savedOrder.delivered_at ||
+      savedOrder.completedAt ||
+      savedOrder.completed_at ||
+      (fallbackStop as any).actualArrivalTime ||
+      (fallbackStop as any).actual_arrival_time ||
+      null,
+    actual_arrival_time:
+      savedOrder.actual_arrival_time ||
+      savedOrder.actualArrivalTime ||
+      savedOrder.arrived_at ||
+      savedOrder.arrivedAt ||
+      savedOrder.delivered_at ||
+      savedOrder.deliveredAt ||
+      savedOrder.completed_at ||
+      savedOrder.completedAt ||
+      (fallbackStop as any).actual_arrival_time ||
+      (fallbackStop as any).actualArrivalTime ||
+      null,
+    arrivedAt: savedOrder.arrivedAt || savedOrder.arrived_at || (fallbackStop as any).arrivedAt || null,
+    arrived_at: savedOrder.arrived_at || savedOrder.arrivedAt || (fallbackStop as any).arrived_at || null,
+    deliveredAt:
+      savedOrder.deliveredAt ||
+      savedOrder.delivered_at ||
+      (fallbackStop as any).deliveredAt ||
+      (fallbackStop as any).delivered_at ||
+      null,
+    delivered_at:
+      savedOrder.delivered_at ||
+      savedOrder.deliveredAt ||
+      (fallbackStop as any).delivered_at ||
+      (fallbackStop as any).deliveredAt ||
+      null,
+    failedAt:
+      savedOrder.failedAt ||
+      savedOrder.failed_at ||
+      savedOrder.attemptedAt ||
+      savedOrder.attempted_at ||
+      (fallbackStop as any).failedAt ||
+      (fallbackStop as any).failed_at ||
+      null,
+    failed_at:
+      savedOrder.failed_at ||
+      savedOrder.failedAt ||
+      savedOrder.attempted_at ||
+      savedOrder.attemptedAt ||
+      (fallbackStop as any).failed_at ||
+      (fallbackStop as any).failedAt ||
+      null,
+    completedAt:
+      savedOrder.completedAt ||
+      savedOrder.completed_at ||
+      (fallbackStop as any).completedAt ||
+      (fallbackStop as any).completed_at ||
+      null,
+    completed_at:
+      savedOrder.completed_at ||
+      savedOrder.completedAt ||
+      (fallbackStop as any).completed_at ||
+      (fallbackStop as any).completedAt ||
+      null,
+    statusUpdatedAt:
+      savedOrder.statusUpdatedAt ||
+      savedOrder.status_updated_at ||
+      savedOrder.updatedAt ||
+      savedOrder.updated_at ||
+      (fallbackStop as any).statusUpdatedAt ||
+      null,
+    status_updated_at:
+      savedOrder.status_updated_at ||
+      savedOrder.statusUpdatedAt ||
+      savedOrder.updated_at ||
+      savedOrder.updatedAt ||
+      (fallbackStop as any).status_updated_at ||
+      null,
+  } as RouteStop;
 }
 
 export function buildSuggestionFromStop(stop: RouteStop): PlaceSuggestion {

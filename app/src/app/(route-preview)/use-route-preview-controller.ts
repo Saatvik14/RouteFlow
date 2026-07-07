@@ -100,6 +100,8 @@ type UseRoutePreviewControllerResult = {
   stopDetails: StopDetails;
   isUpdatingStopStatus: boolean;
   isCancellingRoute: boolean;
+  isCompletingRoute: boolean;
+  isRetryingFailedStops: boolean;
   activeStopInfo: ReturnType<typeof getActiveStop>;
   setSearchText: (value: string) => void;
   setIsSidebarOpen: (value: boolean) => void;
@@ -118,6 +120,8 @@ type UseRoutePreviewControllerResult = {
   handleNavigateActiveStop: (stop?: any) => Promise<void>;
   handleMarkStopDelivered: () => Promise<void>;
   handleMarkStopFailed: () => Promise<void>;
+  handleMarkRouteCompleted: () => Promise<void>;
+  handleRetryFailedStops: (failedStops: RouteStop[]) => Promise<void>;
   handleCancelRoute: () => Promise<void>;
   handleCreateNewRoute: () => void;
   handleScanAddress: () => Promise<void>;
@@ -287,6 +291,52 @@ function buildStopWithStatusUpdate(stop: RouteStop, nextStatus: string, updatedO
   } as RouteStop;
 }
 
+
+function getCreatedRouteId(response: any) {
+  const payload = response?.data ?? response;
+
+  return String(
+    payload?.route_id ||
+      payload?.routeId ||
+      payload?.id ||
+      payload?._id ||
+      payload?.route?.route_id ||
+      payload?.route?.routeId ||
+      payload?.route?.id ||
+      payload?.data?.route_id ||
+      payload?.data?.routeId ||
+      payload?.data?.id ||
+      payload?.data?.route?.route_id ||
+      payload?.data?.route?.id ||
+      '',
+  );
+}
+
+function buildRetryRouteLocation(point: any) {
+  const address = String(point?.description || point?.address || point?.title || '');
+
+  return {
+    mode: 'manual_address',
+    address,
+    selectedFromSuggestion: true,
+    latitude: Number(point?.latitude),
+    longitude: Number(point?.longitude),
+    details: {
+      placeId: '',
+      addressLine1: String(point?.title || address),
+      addressLine2: address,
+      city: '',
+      district: '',
+      state: '',
+      country: '',
+      countryCode: '',
+      postalCode: '',
+      latitude: Number(point?.latitude),
+      longitude: Number(point?.longitude),
+    },
+  };
+}
+
 export function useRoutePreviewController(
   routeIdFromParams: string,
 ): UseRoutePreviewControllerResult {
@@ -321,6 +371,8 @@ export function useRoutePreviewController(
   const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
   const [isCancellingRoute, setIsCancellingRoute] = useState(false);
+  const [isCompletingRoute, setIsCompletingRoute] = useState(false);
+  const [isRetryingFailedStops, setIsRetryingFailedStops] = useState(false);
   const [isSavingRouteEdit, setIsSavingRouteEdit] = useState(false);
   const [pendingManifestStops, setPendingManifestStops] = useState<any[]>([]);
   const [navigationTargetStop, setNavigationTargetStop] = useState<any | null>(null);
@@ -1335,21 +1387,9 @@ const handleRemoveEditedStop = useCallback(async () => {
 
       setRoute(nextRoute);
 
-      const nextActiveStop = getActiveStop(nextStops).stop;
-
-      if (!nextActiveStop && effectiveRouteId) {
-        try {
-          await persistRouteSnapshot({
-            routeId: effectiveRouteId,
-            status: ROUTE_STATUS_COMPLETED,
-            route: nextRoute,
-          });
-          setRouteStatus(ROUTE_STATUS_COMPLETED);
-        } catch {
-          // Order status was updated; route completion update failed.
-        }
-      }
-
+      // Keep the route in transit after the last stop is resolved.
+      // The user must explicitly confirm completion from the completion panel.
+      setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_IN_TRANSIT));
       setPanelMode('transit');
       recenterMap();
     } catch (error) {
@@ -1374,6 +1414,158 @@ const handleRemoveEditedStop = useCallback(async () => {
   const handleMarkStopFailed = useCallback(() => {
     return handleUpdateActiveStopStatus(ORDER_STATUS_FAILED);
   }, [handleUpdateActiveStopStatus]);
+
+  const handleMarkRouteCompleted = useCallback(async () => {
+    if (!route || !effectiveRouteId || isCompletingRoute) return;
+
+    const unresolvedStop = getActiveStop(route.stops).stop;
+    if (unresolvedStop) {
+      setErrorMessage('Resolve every stop before completing this route.');
+      return;
+    }
+
+    setIsCompletingRoute(true);
+    setErrorMessage('');
+
+    try {
+      await persistRouteSnapshot({
+        routeId: effectiveRouteId,
+        status: ROUTE_STATUS_COMPLETED,
+        route,
+      });
+
+      setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_COMPLETED));
+      setPanelMode('transit');
+      recenterMap();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to complete this route.',
+      );
+    } finally {
+      setIsCompletingRoute(false);
+    }
+  }, [effectiveRouteId, isCompletingRoute, recenterMap, route]);
+
+  const handleRetryFailedStops = useCallback(async (failedStops: RouteStop[]) => {
+    if (
+      !route ||
+      !effectiveRouteId ||
+      isRetryingFailedStops ||
+      !Array.isArray(failedStops) ||
+      failedStops.length === 0
+    ) {
+      return;
+    }
+
+    setIsRetryingFailedStops(true);
+    setErrorMessage('');
+
+    try {
+      const routeService = routesService as any;
+      const failedStopIds = failedStops
+        .map((stop) => getStopBackendId(stop))
+        .filter(Boolean);
+
+      let retryResponse: any;
+      let retryRouteId = '';
+      let retryWasCreatedWithStops = false;
+
+      // Prefer a dedicated backend endpoint when the service already exposes one.
+      if (typeof routeService.retryFailedStops === 'function') {
+        retryResponse = await routeService.retryFailedStops(effectiveRouteId, {
+          failed_stop_ids: failedStopIds,
+        });
+        retryWasCreatedWithStops = true;
+      } else if (typeof routeService.createRetryRoute === 'function') {
+        retryResponse = await routeService.createRetryRoute({
+          source_route_id: effectiveRouteId,
+          failed_stop_ids: failedStopIds,
+        });
+        retryWasCreatedWithStops = true;
+      } else if (typeof routeService.createRoute === 'function') {
+        const startDate = new Date();
+        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+
+        retryResponse = await routeService.createRoute({
+          name: `${routeTitle || 'Route'} - Failed stops retry`,
+          start_location: buildRetryRouteLocation(route.start),
+          end_location: buildRetryRouteLocation(route.end),
+          start_datetime: startDate.toISOString(),
+          end_datetime: endDate.toISOString(),
+          status: ROUTE_STATUS_PENDING,
+          source_route_id: effectiveRouteId,
+          route_type: 'failed_stops_retry',
+        });
+      } else {
+        throw new Error(
+          'Retry route API is missing. Add createRoute, createRetryRoute, or retryFailedStops to routesService.',
+        );
+      }
+
+      if (!isSuccessResponse(retryResponse)) {
+        throw new Error(
+          getResponseErrorMessage(retryResponse, 'Unable to create retry route.'),
+        );
+      }
+
+      retryRouteId = getCreatedRouteId(retryResponse);
+      if (!retryRouteId) {
+        throw new Error('The retry route was created without returning a route id.');
+      }
+
+      // A generic createRoute call creates only the route shell, so copy failed
+      // stops as fresh pending orders. The original completed route remains unchanged.
+      if (!retryWasCreatedWithStops) {
+        for (let index = 0; index < failedStops.length; index += 1) {
+          const failedStop = failedStops[index];
+          const suggestion = buildSuggestionFromStop(failedStop);
+          const details = buildStopDetailsFromStop(failedStop);
+          const payload = buildOrderPayload({
+            routeId: retryRouteId,
+            sequence: index + 1,
+            suggestion,
+            details,
+          });
+
+          const orderResponse = await ordersService.addOrder({
+            ...payload,
+            status: ROUTE_STATUS_PENDING,
+            source_order_id: getStopBackendId(failedStop),
+          });
+
+          if (!isSuccessResponse(orderResponse)) {
+            throw new Error(
+              getResponseErrorMessage(
+                orderResponse,
+                `Unable to copy failed stop ${index + 1}.`,
+              ),
+            );
+          }
+        }
+      }
+
+      router.replace({
+        pathname: '/route-preview',
+        params: {
+          id: retryRouteId,
+          mode: 'retry-failed',
+          sourceRouteId: effectiveRouteId,
+        },
+      } as any);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to prepare failed stops.',
+      );
+    } finally {
+      setIsRetryingFailedStops(false);
+    }
+  }, [
+    effectiveRouteId,
+    isRetryingFailedStops,
+    route,
+    routeTitle,
+    router,
+  ]);
 
 
   const handleCancelRoute = async () => {
@@ -1862,6 +2054,8 @@ const handleRemoveEditedStop = useCallback(async () => {
     stopDetails,
     isUpdatingStopStatus,
     isCancellingRoute,
+    isCompletingRoute,
+    isRetryingFailedStops,
     activeStopInfo,
     setSearchText,
     setIsSidebarOpen,
@@ -1880,6 +2074,8 @@ const handleRemoveEditedStop = useCallback(async () => {
     handleNavigateActiveStop,
     handleMarkStopDelivered,
     handleMarkStopFailed,
+    handleMarkRouteCompleted,
+    handleRetryFailedStops,
     handleCancelRoute,
     handleCreateNewRoute,
     handleScanAddress,

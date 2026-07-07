@@ -71,6 +71,17 @@
           "faceIDPermission": "RouteFlow uses Face ID to secure your account."
         }
       ]
+      ,
+      [
+         "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableBundleCompression": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
