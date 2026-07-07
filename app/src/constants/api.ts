@@ -103,6 +103,7 @@ export const API_ENDPOINTS = {
     AUTOCOMPLETE_ADDRESS: '/route/autocomplete',
     OPTIMIZE: '/route/optimize',
     CANCEL_ROUTE: (id: string) => `/route/cancel?route_id=${id}`,
+    REVERSE_GEOCODE: (lat: number, lon: number) => `/route/reverse-geocode?lat=${lat}&lon=${lon}`,
   },
 
   // Order endpoints

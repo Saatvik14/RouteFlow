@@ -473,6 +473,35 @@ const autocompleteAddress = async (req, res) => {
   }
 };
 
+// @desc    Reverse geocode latitude and longitude
+// @route   GET /route/reverse-geocode
+// @access  Private
+const reverseGeocode = async (req, res) => {
+  const { lat, lon } = req.query;
+  const apiKey = process.env.GEOAPIFY_API_KEY;
+
+  if (!lat || !lon) {
+    return res.status(400).json({ message: 'lat and lon query parameters are required' });
+  }
+
+  if (!apiKey) {
+    return res.status(500).json({ message: 'Geoapify API key is missing' });
+  }
+
+  try {
+    const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${apiKey}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Geoapify responded with status: ${response.status}`);
+    }
+    const data = await response.json();
+    return res.status(200).json(data);
+  } catch (error) {
+    console.error('Reverse Geocode Error:', error);
+    return res.status(500).json({ message: 'Server error during reverse geocoding', error: error.message });
+  }
+};
+
 // @desc    Optimize route using Pharmdel API
 // @route   POST /route/optimize
 // @access  Private
@@ -747,4 +776,4 @@ module.exports = {
 };
 
 
-module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, optimizeRoute, cancelRoute };
+module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, optimizeRoute, cancelRoute, reverseGeocode };

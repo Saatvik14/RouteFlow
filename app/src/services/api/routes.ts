@@ -140,4 +140,7 @@ export const routesService = {
 
   resolveAddressText: (text: string) =>
     apiPost('/route/address/resolve', { text }),
+
+  reverseGeocode: (lat: number, lon: number) =>
+    apiGet<any>(API_ENDPOINTS.ROUTES.REVERSE_GEOCODE(lat, lon)),
 };

@@ -300,9 +300,10 @@ function buildLocationPayload(location: LocationValue | null) {
       location.selectedFromSuggestion || location.mode === 'current_location'
         ? location.longitude
         : null,
-    details: location.selectedFromSuggestion
-      ? location.details
-      : emptyAddressDetails(),
+    details:
+      location.selectedFromSuggestion || location.mode === 'current_location'
+        ? location.details || emptyAddressDetails()
+        : emptyAddressDetails(),
   };
 }
 
@@ -613,18 +614,52 @@ export default function RoutePointsScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      const reverseAddress = await Location.reverseGeocodeAsync({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
+      let details: AddressDetails | null = null;
+      let addressString = '';
+
+      try {
+        const response = await routesService.reverseGeocode(
+          currentLocation.coords.latitude,
+          currentLocation.coords.longitude
+        );
+        if (response.success && response.data?.results?.length > 0) {
+          const result = response.data.results[0];
+          details = {
+            housenumber: String(result.housenumber || ''),
+            street: String(result.street || ''),
+            placeId: String(result.place_id || ''),
+            addressLine1: String(result.address_line1 || result.name || ''),
+            addressLine2: String(result.address_line2 || result.formatted || ''),
+            city: String(result.city || ''),
+            district: String(result.county || result.district || ''),
+            state: String(result.state || ''),
+            country: String(result.country || ''),
+            countryCode: String(result.country_code || ''),
+            postalCode: String(result.postcode || ''),
+            latitude: Number(result.lat),
+            longitude: Number(result.lon),
+          };
+          addressString = result.formatted || details.addressLine1;
+        }
+      } catch (error) {
+        console.error('Geoapify reverse geocoding failed, falling back to Expo Location:', error);
+      }
+
+      if (!addressString) {
+        const reverseAddress = await Location.reverseGeocodeAsync({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        });
+        addressString = getReadableAddress(reverseAddress[0]);
+      }
 
       setStartLocation({
         mode: 'current_location',
-        address: getReadableAddress(reverseAddress[0]),
+        address: addressString,
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
-        selectedFromSuggestion: false,
-        details: null,
+        selectedFromSuggestion: true,
+        details: details,
       });
     } finally {
       setIsFetchingLocation(false);

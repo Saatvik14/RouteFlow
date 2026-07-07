@@ -248,6 +248,7 @@ const sendOtpEmail = async (req, res) => {
     );
 
     console.log(`Hashed OTP stored safely for ${email} in database, expires at ${expiresAt.toISOString()}`);
+    console.log(`[DEVELOPMENT OTP] Generated OTP for ${email}: ${otp}`);
 
     // Send email
     const mailOptions = {
@@ -263,7 +264,14 @@ const sendOtpEmail = async (req, res) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    // Send email asynchronously to prevent blocking the HTTP response and causing a timeout
+    transporter.sendMail(mailOptions)
+      .then(() => {
+        console.log(`OTP email sent successfully to ${email}`);
+      })
+      .catch((err) => {
+        console.error(`Failed to send OTP email to ${email}:`, err.message);
+      });
 
     res.status(200).json({
       message: 'OTP email sent successfully.'
