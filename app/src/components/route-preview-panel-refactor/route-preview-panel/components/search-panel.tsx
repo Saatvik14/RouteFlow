@@ -125,6 +125,7 @@ export function SearchPanel({
   onConfirmManifestStops,
   onCancelManifestStops,
   subscriptionType,
+  errorMessage,
 }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [bulkUploadVisible, setBulkUploadVisible] = useState(false);

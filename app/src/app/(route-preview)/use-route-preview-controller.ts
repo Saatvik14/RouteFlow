@@ -493,10 +493,23 @@ useEffect(() => {
 
     if (!shouldFetchSuggestions) return;
 
+    if (searchText.trim().length < 3) {
+      if (mounted) {
+        setSuggestions([]);
+        setErrorMessage('');
+      }
+      return;
+    }
+
     const data = await fetchPlaceSuggestions(searchText);
 
     if (mounted) {
       setSuggestions(data);
+      if (data.length === 0) {
+        setErrorMessage('Address does not exists, Please type the correct address.');
+      } else {
+        setErrorMessage('');
+      }
     }
   }, 350);
 
@@ -814,6 +827,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     setSuggestions([]);
     setSelectedSuggestion(null);
     setSelectedStop(null);
+    setErrorMessage('');
     setPanelMode('search');
   }, []);
 
@@ -822,6 +836,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     setSuggestions([]);
     setSelectedSuggestion(null);
     setSelectedStop(null);
+    setErrorMessage('');
     setPanelMode(getPanelModeFromStatus(routeStatus, route?.stops?.length || 0));
   }, [route?.stops?.length, routeStatus]);
 
@@ -829,6 +844,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     setSelectedSuggestion(suggestion);
     setSelectedStop(null);
     setStopDetails({ ...DEFAULT_STOP_DETAILS });
+    setErrorMessage('');
     setPanelMode('details');
   }, []);
 
@@ -1469,7 +1485,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     const resolvedSuggestions = getResolvedAddressSuggestions(response, fallbackQuery);
 
     if (!resolvedSuggestions.length) {
-      setErrorMessage('No matching address found. Please try again or type manually.');
+      setErrorMessage('Address does not exists, Please type the correct address.');
       return;
     }
 
@@ -1478,6 +1494,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     setSuggestions(resolvedSuggestions);
     setSelectedSuggestion(null);
     setSelectedStop(null);
+    setErrorMessage('');
   }, []);
 
   const prepareResolvedManifestRowsForReview = useCallback((response: any, source: string) => {
@@ -1488,6 +1505,13 @@ const handleRemoveEditedStop = useCallback(async () => {
       source,
     }));
 
+    const invalidRows = rows.filter((row) => row && row.valid === false);
+    if (invalidRows.length > 0) {
+      setErrorMessage('Address does not exists, Please type the correct address.');
+    } else {
+      setErrorMessage('');
+    }
+
     const payloads = buildManifestOrderPayloads({
       routeId: effectiveRouteId,
       rows,
@@ -1495,7 +1519,9 @@ const handleRemoveEditedStop = useCallback(async () => {
     });
 
     if (!payloads.length) {
-      setErrorMessage('No valid geocoded addresses found in this manifest.');
+      if (invalidRows.length === 0) {
+        setErrorMessage('No valid geocoded addresses found in this manifest.');
+      }
       return;
     }
 

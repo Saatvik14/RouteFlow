@@ -475,6 +475,7 @@ export default function RoutePreviewScreen() {
           onConfirmManifestStops={handleConfirmManifestStops}
           onCancelManifestStops={handleCancelManifestStops}
           onSaveStopPriority={handleSaveStopPriority}
+          errorMessage={errorMessage}
         />
       ) : null}
         </>
