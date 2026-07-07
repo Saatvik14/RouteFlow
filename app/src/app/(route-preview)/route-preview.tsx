@@ -47,6 +47,7 @@ export default function RoutePreviewScreen() {
     routeStatus,
     isSidebarOpen,
     errorMessage,
+    subscriptionType,
     searchText,
     suggestions,
     selectedSuggestion,
@@ -409,6 +410,7 @@ export default function RoutePreviewScreen() {
       ) : !isInitialLoading && route ? (
         <RoutePreviewPanel
           mode={resolvedPanelMode}
+          subscriptionType={subscriptionType}
           routeName={routeTitle}
           startTime={previewStartTime}
           start={route.start}

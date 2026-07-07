@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { ordersService } from './../../services/api/orders';
 import { routesService } from './../../services/api/routes';
+import { userService } from './../../services/api/users';
 import {
   addManifestStopsToBackend,
   buildManifestOrderPayloads,
@@ -92,6 +93,7 @@ type UseRoutePreviewControllerResult = {
   routeStatus: RouteStatus;
   isSidebarOpen: boolean;
   errorMessage: string;
+  subscriptionType: string;
   searchText: string;
   suggestions: PlaceSuggestion[];
   selectedSuggestion: PlaceSuggestion | null;
@@ -330,6 +332,24 @@ export function useRoutePreviewController(
   } | null>(null);
   const locationSubscriptionRef = useRef<any>(null);
   const isMockingLocationRef = useRef(false);
+  const [subscriptionType, setSubscriptionType] = useState<string>('trial');
+
+  useEffect(() => {
+    async function loadSubscription() {
+      try {
+        const response = await userService.getProfile();
+        const profile = response?.success ? (response.data ?? response) as any : (response || null);
+        const userObj = profile?.user || profile;
+        if (userObj) {
+          const subType = String(userObj.subscription_type || userObj.subscriptionType || 'trial').toLowerCase();
+          setSubscriptionType(subType);
+        }
+      } catch (err) {
+        console.error('Error fetching subscription type for route preview permissions:', err);
+      }
+    }
+    loadSubscription();
+  }, []);
 
   const [isCopyStopsModalOpen, setIsCopyStopsModalOpen] = useState(false);
   const [allPastRoutes, setAllPastRoutes] = useState<any[]>([]);
@@ -1502,7 +1522,7 @@ const handleRemoveEditedStop = useCallback(async () => {
         );
       }
 
-      const rawPayload = responseFromBackend?.data ?? responseFromBackend;
+      const rawPayload = (responseFromBackend as any)?.data ?? responseFromBackend;
       const createdOrders =
         rawPayload?.created ||
         rawPayload?.data?.created ||
@@ -1809,6 +1829,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     routeStatus,
     isSidebarOpen,
     errorMessage,
+    subscriptionType,
     searchText,
     suggestions,
     selectedSuggestion,

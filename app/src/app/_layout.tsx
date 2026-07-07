@@ -93,7 +93,7 @@ export default function RootLayout() {
           return;
         }
 
-        const subscriptionType = userObj.subscription_type || userObj.subscriptionType || 'trial';
+        const subscriptionType = String(userObj.subscription_type || userObj.subscriptionType || 'trial').toLowerCase();
 
         if (subscriptionType === 'trial' && (userObj.created_at || userObj.createdAt)) {
           const createdAt = new Date(userObj.created_at || userObj.createdAt);

@@ -11,6 +11,8 @@ import {
   View,
 } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { styles } from '../styles';
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
@@ -120,9 +122,11 @@ export function SearchPanel({
   pendingManifestStops,
   onConfirmManifestStops,
   onCancelManifestStops,
+  subscriptionType,
 }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [bulkUploadVisible, setBulkUploadVisible] = useState(false);
+  const insets = useSafeAreaInsets();
   const { isListening, transcript, error, startListening, stopListening } = useVoiceAddress();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reviewStops, setReviewStops] = useState<any[]>([]);
@@ -266,19 +270,23 @@ export function SearchPanel({
               </Pressable>
             ) : (
               <>
-                <Pressable
-                  onPress={onScanAddress}
-                  style={localStyles.smallIconButton}
-                >
-                  <Text style={localStyles.headerIcon}>⌗</Text>
-                </Pressable>
+                {subscriptionType !== 'lite' && (
+                  <Pressable
+                    onPress={onScanAddress}
+                    style={localStyles.smallIconButton}
+                  >
+                    <Text style={localStyles.headerIcon}>⌗</Text>
+                  </Pressable>
+                )}
 
-                <Pressable
-                  onPress={handleVoicePress}
-                  style={localStyles.smallIconButton}
-                >
-                  <Text style={localStyles.headerIcon}>🎙</Text>
-                </Pressable>
+                {subscriptionType !== 'lite' && (
+                  <Pressable
+                    onPress={handleVoicePress}
+                    style={localStyles.smallIconButton}
+                  >
+                    <Text style={localStyles.headerIcon}>🎙</Text>
+                  </Pressable>
+                )}
               </>
             )}
 
@@ -313,49 +321,53 @@ export function SearchPanel({
               </Text>
             </Text>
 
-            <View style={localStyles.actionGrid}>
-              <ActionCard
-                icon="+"
-                title="Add stop"
-                subtitle="Search address manually"
+            {subscriptionType !== 'lite' && (
+              <View style={localStyles.actionGrid}>
+                <ActionCard
+                  icon="+"
+                  title="Add stop"
+                  subtitle="Search address manually"
+                  onPress={() => onSearchTextChange(' ')}
+                />
+                <ActionCard
+                  icon="⌗"
+                  title="Scan address"
+                  subtitle="Use camera on parcel label"
+                  onPress={onScanAddress}
+                />
+                <ActionCard
+                  icon="🎙"
+                  title={isListening ? 'Stop listening' : 'Voice address'}
+                  subtitle={isListening ? 'Listening... Speak now' : 'Speak the delivery address'}
+                  onPress={handleVoicePress}
+                  isActive={isListening}
+                />
+                <ActionCard
+                  icon="▤"
+                  title="Bulk upload orders"
+                  subtitle="Upload Excel sheet with multiple stops"
+                  onPress={() => setBulkUploadVisible(true)}
+                />
+              </View>
+            )}
+
+            <View style={subscriptionType === 'lite' ? [localStyles.liteFooter, { paddingBottom: Math.max(insets.bottom, 16) }] : localStyles.footer}>
+              <Pressable
+                style={localStyles.primaryButton}
                 onPress={() => onSearchTextChange(' ')}
-              />
-              <ActionCard
-                icon="⌗"
-                title="Scan address"
-                subtitle="Use camera on parcel label"
-                onPress={onScanAddress}
-              />
-              <ActionCard
-                icon="🎙"
-                title={isListening ? 'Stop listening' : 'Voice address'}
-                subtitle={isListening ? 'Listening... Speak now' : 'Speak the delivery address'}
-                onPress={handleVoicePress}
-                isActive={isListening}
-              />
-              <ActionCard
-                icon="▤"
-                title="Bulk upload orders"
-                subtitle="Upload Excel sheet with multiple stops"
-                onPress={() => setBulkUploadVisible(true)}
-              />
+              >
+                <Text style={localStyles.primaryButtonText}>+ Add stops</Text>
+              </Pressable>
+
+              <Pressable
+                style={localStyles.secondaryButton}
+                onPress={onCopyStopsFromPastRoute}
+              >
+                <Text style={localStyles.secondaryButtonText}>
+                  Copy stops from a past route
+                </Text>
+              </Pressable>
             </View>
-
-            <Pressable
-              style={localStyles.primaryButton}
-              onPress={() => onSearchTextChange(' ')}
-            >
-              <Text style={localStyles.primaryButtonText}>+ Add stops</Text>
-            </Pressable>
-
-            <Pressable
-              style={localStyles.secondaryButton}
-              onPress={onCopyStopsFromPastRoute}
-            >
-              <Text style={localStyles.secondaryButtonText}>
-                Copy stops from a past route
-              </Text>
-            </Pressable>
           </View>
         ) : (
           <ScrollView
@@ -415,31 +427,37 @@ export function SearchPanel({
             <Pressable style={localStyles.bottomMenu}>
               <View style={localStyles.menuHandle} />
 
-              <MenuRow
-                icon="⌗"
-                title="Scan address"
-                subtitle="Scan one package or address label"
-                onPress={() => closeMenuAndRun(onScanAddress)}
-              />
+              {subscriptionType !== 'lite' && (
+                <MenuRow
+                  icon="⌗"
+                  title="Scan address"
+                  subtitle="Scan one package or address label"
+                  onPress={() => closeMenuAndRun(onScanAddress)}
+                />
+              )}
 
-              <MenuRow
-                icon="🎙"
-                title={isListening ? 'Stop listening' : 'Add address by voice'}
-                subtitle={
-                  isListening
-                    ? 'Listening... Tap to stop'
-                    : 'Speak and convert it into address suggestions'
-                }
-                onPress={() => closeMenuAndRun(handleVoicePress)}
-                destructive={isListening}
-              />
+              {subscriptionType !== 'lite' && (
+                <MenuRow
+                  icon="🎙"
+                  title={isListening ? 'Stop listening' : 'Add address by voice'}
+                  subtitle={
+                    isListening
+                      ? 'Listening... Tap to stop'
+                      : 'Speak and convert it into address suggestions'
+                  }
+                  onPress={() => closeMenuAndRun(handleVoicePress)}
+                  destructive={isListening}
+                />
+              )}
 
-              <MenuRow
-                icon="▣"
-                title="Bulk upload orders"
-                subtitle="Import stops using Excel or CSV spreadsheet"
-                onPress={() => closeMenuAndRun(() => setBulkUploadVisible(true))}
-              />
+              {subscriptionType !== 'lite' && (
+                <MenuRow
+                  icon="▣"
+                  title="Bulk upload orders"
+                  subtitle="Import stops using Excel or CSV spreadsheet"
+                  onPress={() => closeMenuAndRun(() => setBulkUploadVisible(true))}
+                />
+              )}
 
               <View style={localStyles.menuDivider} />
 
@@ -731,6 +749,13 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 24,
+  },
+  liteFooter: {
+    marginTop: 'auto',
+    width: '100%',
+  },
+  footer: {
+    width: '100%',
   },
   primaryButtonText: {
     color: '#FFFFFF',
