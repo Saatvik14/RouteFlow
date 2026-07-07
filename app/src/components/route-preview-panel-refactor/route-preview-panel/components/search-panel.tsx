@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 import { styles } from '../styles';
 import type { RoutePreviewPanelProps } from '../types';
@@ -161,14 +163,14 @@ export function SearchPanel({
     }
   };
 
-  const downloadSampleTemplate = () => {
-    if (Platform.OS === 'web') {
-      const csvContent =
-        'Address\n' +
-        '"1600 Amphitheatre Pkwy, Mountain View, CA 94043"\n' +
-        '"1 Infinite Loop, Cupertino, CA 95014"\n' +
-        '"350 Fifth Ave, New York, NY 10118"';
+  const downloadSampleTemplate = async () => {
+    const csvContent =
+      'Address\n' +
+      '"1600 Amphitheatre Pkwy, Mountain View, CA 94043"\n' +
+      '"1 Infinite Loop, Cupertino, CA 95014"\n' +
+      '"350 Fifth Ave, New York, NY 10118"';
 
+    if (Platform.OS === 'web') {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -179,11 +181,30 @@ export function SearchPanel({
       link.click();
       document.body.removeChild(link);
     } else {
-      alert(
-        'Excel/CSV Template Columns:\n\n' +
-          '1. Address\n\n' +
-          'Please create a spreadsheet with only this single header column.'
-      );
+      try {
+        const fileUri = FileSystem.documentDirectory + 'sample-route-manifest.csv';
+        await FileSystem.writeAsStringAsync(fileUri, csvContent, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        const isSharingAvailable = await Sharing.isAvailableAsync();
+        if (isSharingAvailable) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Download Sample Route Manifest',
+            UTI: 'public.comma-separated-values-text',
+          });
+        } else {
+          alert(
+            'Excel/CSV Template Columns:\n\n' +
+              '1. Address\n\n' +
+              'Please create a spreadsheet with only this single header column.'
+          );
+        }
+      } catch (error) {
+        console.error('Error sharing sample file:', error);
+        alert('Failed to save and share the sample template file.');
+      }
     }
   };
 

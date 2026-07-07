@@ -21,7 +21,16 @@ function getOrderMethod<T extends (...args: any[]) => any>(name: string): T | nu
 }
 
 function getAssetName(asset: any, fallbackName: string) {
-  return String(asset?.fileName || asset?.name || fallbackName);
+  if (asset?.fileName) return String(asset.fileName);
+  if (asset?.name) return String(asset.name);
+  if (asset?.uri) {
+    const parts = asset.uri.split('/');
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && lastPart.includes('.')) {
+      return lastPart;
+    }
+  }
+  return fallbackName;
 }
 
 function getAssetMimeType(asset: any, fallbackType: string) {
@@ -104,8 +113,11 @@ export async function importRouteManifestFromFile() {
   const result = await DocumentPicker.getDocumentAsync({
     type: [
       'text/csv',
+      'text/comma-separated-values',
+      'application/csv',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/octet-stream',
     ],
     copyToCacheDirectory: true,
     multiple: false,
@@ -113,13 +125,31 @@ export async function importRouteManifestFromFile() {
 
   if (result.canceled || !result.assets?.[0]) return null;
 
+  const pickedFile = result.assets[0];
+  let fallbackName = 'route-manifest.xlsx';
+  let fallbackMime = 'application/octet-stream';
+
+  if (pickedFile.uri) {
+    const uri = pickedFile.uri.toLowerCase();
+    if (uri.endsWith('.csv')) {
+      fallbackName = 'route-manifest.csv';
+      fallbackMime = 'text/csv';
+    } else if (uri.endsWith('.xls')) {
+      fallbackName = 'route-manifest.xls';
+      fallbackMime = 'application/vnd.ms-excel';
+    } else if (uri.endsWith('.xlsx')) {
+      fallbackName = 'route-manifest.xlsx';
+      fallbackMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+  }
+
   const formData = new FormData();
   await appendAssetToFormData(
     formData,
     'file',
-    result.assets[0],
-    'route-manifest.xlsx',
-    'application/octet-stream',
+    pickedFile,
+    fallbackName,
+    fallbackMime,
   );
 
   const importRouteManifest = getRouteMethod<(formData: FormData) => Promise<any>>(
