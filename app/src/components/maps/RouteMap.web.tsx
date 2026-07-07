@@ -364,6 +364,7 @@ export default function MapScreen({
       <MapContainer
         center={[position.lat, position.lng]}
         zoom={13}
+        maxZoom={18}
         style={styles.leafletMap}
         zoomControl={false}>
         <TileLayer

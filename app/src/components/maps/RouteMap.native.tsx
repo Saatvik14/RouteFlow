@@ -337,6 +337,7 @@ export default function MapScreen({
             center: DEFAULT_CENTER_COORDINATE,
             zoom: 10,
           }}
+          maxZoom={18}
         />
 
         {hasLocationPermission && (
