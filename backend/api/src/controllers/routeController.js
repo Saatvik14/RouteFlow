@@ -771,9 +771,5 @@ const cancelRoute = async (req, res) => {
 };
 
 
-module.exports = {
-  cancelRoute,
-};
-
 
 module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, optimizeRoute, cancelRoute, reverseGeocode };

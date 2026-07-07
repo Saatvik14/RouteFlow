@@ -385,7 +385,6 @@ const insertOrderStop = async stop => {
     route_id,
     status,
     title,
-    customer_name,
     phone,
     address,
     latitude,
@@ -414,7 +413,7 @@ const insertOrderStop = async stop => {
   `;
 
   const locRes = await runQuery(locationQuery, [
-    title || customer_name || null,
+    title || null,
     details.housenumber || null,
     details.street || details.addressLine1 || null,
     details.city || null,
@@ -433,8 +432,7 @@ const insertOrderStop = async stop => {
         location_id,
         status,
         route_id,
-        sequence_no,
-        customer_name,
+        sequence_no,,
         phone,
         notes,
         packages,
@@ -443,7 +441,7 @@ const insertOrderStop = async stop => {
         raw_manifest_row
       )
     VALUES
-      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     RETURNING *
   `;
 
@@ -452,7 +450,6 @@ const insertOrderStop = async stop => {
     status || ROUTE_STATUS.PENDING,
     route_id,
     sequence || null,
-    customer_name || null,
     phone || null,
     notes || null,
     packages || 1,
