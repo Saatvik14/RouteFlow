@@ -211,7 +211,7 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
 
-              <View style={styles.dividerRow}>
+              {/* <View style={styles.dividerRow}>
                 <View style={styles.divider} />
                 <Text style={styles.orText}>OR</Text>
                 <View style={styles.divider} />
@@ -226,7 +226,7 @@ export default function LoginScreen() {
               >
                 <GoogleMark />
                 <Text style={styles.googleText}>Continue with Google</Text>
-              </Pressable>
+              </Pressable> */}
 
               <View style={styles.signupRow}>
                 <Text style={styles.signupText}>Don’t have an account?</Text>

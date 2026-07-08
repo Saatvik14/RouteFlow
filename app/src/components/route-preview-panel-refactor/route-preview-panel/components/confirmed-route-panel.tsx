@@ -126,12 +126,12 @@ export function ConfirmedRoutePanel({
             </Text>
           </View>
 
-          <Pressable style={localStyles.iconButton}>
+          {/* <Pressable style={localStyles.iconButton}>
             <Text style={localStyles.iconButtonText}>⋮</Text>
-          </Pressable>
+          </Pressable> */}
         </View>
 
-        <View style={localStyles.quickActions}>
+        {/* <View style={localStyles.quickActions}>
           <Pressable style={localStyles.quickActionButton}>
             <Feather
               name="share-2"
@@ -151,7 +151,7 @@ export function ConfirmedRoutePanel({
             />
             <Text style={localStyles.quickActionText}>Load vehicle</Text>
           </Pressable>
-        </View>
+        </View> */}
 
         <ScrollView
           style={localStyles.scroll}
