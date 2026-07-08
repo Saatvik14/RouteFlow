@@ -73,6 +73,14 @@ export default function SubscriptionScreen() {
     console.log("Standard selected");
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/');
+    }
+  };
+
   return (
     <>
       <Stack.Screen
@@ -88,7 +96,7 @@ export default function SubscriptionScreen() {
         >
           <Pressable
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={handleBack}
           >
             <Feather
               name="arrow-left"

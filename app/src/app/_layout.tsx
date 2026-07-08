@@ -5,7 +5,7 @@ import {
   DefaultTheme,
 } from '@react-navigation/native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Platform, useColorScheme } from 'react-native';
+import { AppState, Platform, useColorScheme, Modal, Text, Pressable, View, StyleSheet } from 'react-native';
 
 import { AnimatedSplashOverlay } from './../components/animated-icon';
 import { SecurityLockScreen } from './../components/security-lock-screen';
@@ -113,7 +113,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Check if the current route is an auth screen
-    const currentRoute = segments[1] ?? '';
+    const currentRoute = (segments as any)[1] ?? '';
     const inAuthGroup = PUBLIC_ROUTES.includes(currentRoute);
     // console.log('Current route:', segments[1], 'In auth group:', inAuthGroup);
 
@@ -122,11 +122,8 @@ export default function RootLayout() {
       router.replace('/login');
     } else if (!isLoading && isLoggedIn) {
       if (isTrialExpired) {
-        // If trial has expired, only allow them to visit /subscription or auth screens
-        const isSubscriptionPage = segments.join('/').includes('subscription');
-        if (!isSubscriptionPage && !inAuthGroup) {
-          router.replace('/subscription');
-        }
+        // Trial has expired; a blocking modal dialog box is shown on top of the app.
+        // No automatic redirect to /subscription here.
       } else if (inAuthGroup) {
         // If logged in and on an auth screen, redirect to home
         router.replace('/');
@@ -142,18 +139,49 @@ export default function RootLayout() {
     );
   }
 
+  const isSubscriptionPage = segments.join('/').includes('subscription');
+  const inAuthGroup = PUBLIC_ROUTES.includes((segments as any)[1] ?? '');
+
   return (
     <AuthContext.Provider value={authContext}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         {isLoggedIn && isAppLocked && Platform.OS !== 'web' ? (
           <SecurityLockScreen onUnlocked={handleUnlocked} />
         ) : isLoggedIn ? (
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(MapScreen)/MapScreen" />
-            <Stack.Screen name="route-points" />
-            <Stack.Screen name="route-preview" />
-          </Stack>
+          <>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(MapScreen)/MapScreen" />
+              <Stack.Screen name="route-points" />
+              <Stack.Screen name="route-preview" />
+            </Stack>
+
+            <Modal
+              visible={isTrialExpired && !isSubscriptionPage && !inAuthGroup}
+              transparent={true}
+              animationType="fade"
+            >
+              <View style={layoutStyles.modalOverlay}>
+                <View style={layoutStyles.modalContainer}>
+                  <View style={layoutStyles.iconCircle}>
+                    <Text style={layoutStyles.iconText}>⏳</Text>
+                  </View>
+                  <Text style={layoutStyles.modalTitle}>Trial Expired</Text>
+                  <Text style={layoutStyles.modalMessage}>
+                    Your 7-day free trial has expired. Subscribe to RouteFlow to continue organizing, scanning, and optimizing routes.
+                  </Text>
+                  <Pressable
+                    style={layoutStyles.upgradeButton}
+                    onPress={() => {
+                      router.push('/subscription');
+                    }}
+                  >
+                    <Text style={layoutStyles.upgradeButtonText}>Upgrade Subscription</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </Modal>
+          </>
         ) : (
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)/login" />
@@ -165,3 +193,65 @@ export default function RootLayout() {
     </AuthContext.Provider>
   );
 }
+
+const layoutStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)', // Sleek dark slate glassmorphism backdrop
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  iconText: {
+    fontSize: 32,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  upgradeButton: {
+    backgroundColor: '#2F74F5',
+    borderRadius: 12,
+    height: 48,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  upgradeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+});
