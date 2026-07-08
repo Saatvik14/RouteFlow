@@ -271,7 +271,7 @@ export function SearchPanel({
               ]}
             />
 
-            {isListening ? (
+            {/* {isListening ? (
               <Pressable
                 onPress={handleVoicePress}
                 style={[
@@ -308,7 +308,7 @@ export function SearchPanel({
                   </Pressable>
                 )}
               </>
-            )}
+            )} */}
 
             {/* <Pressable
               onPress={() => setMenuVisible(true)}

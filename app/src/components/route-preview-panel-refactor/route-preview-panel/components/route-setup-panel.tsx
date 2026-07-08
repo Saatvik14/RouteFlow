@@ -142,9 +142,9 @@ function HeaderSearchBar({ onOpenSearch }: { onOpenSearch?: () => void }) {
         <Text style={localStyles.searchPlaceholder} numberOfLines={1}>
           Tap to add more stops
         </Text>
-
+{/* 
         <Text style={localStyles.searchActionIcon}>⌗</Text>
-        <Text style={localStyles.searchActionIcon}>♬</Text>
+        <Text style={localStyles.searchActionIcon}>♬</Text> */}
       </Pressable>
 
       <Pressable style={localStyles.moreButton} hitSlop={10}>
