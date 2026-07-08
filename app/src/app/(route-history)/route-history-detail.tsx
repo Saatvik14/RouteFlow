@@ -30,7 +30,7 @@ type DetailTab = "summary" | "map";
 
 const TABS: { key: DetailTab; label: string }[] = [
   { key: "summary", label: "Summary" },
-  { key: "map", label: "Map" },
+  // { key: "map", label: "Map" },
 ];
 
 const normalizeDistanceValue = (value?: number) => {
@@ -724,9 +724,9 @@ export default function RouteHistoryDetailScreen() {
     return (
       <View>
         {renderProgressCard()}
-        <View style={styles.mobileSectionSpacing}>
+        {/* <View style={styles.mobileSectionSpacing}>
           <RouteHistoryMap route={route} height={250} />
-        </View>
+        </View> */}
         {renderStopsCard()}
         {renderDetailsCard()}
       </View>
@@ -793,7 +793,7 @@ export default function RouteHistoryDetailScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.tabBar}>
+        {/* <View style={styles.tabBar}>
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
             return (
@@ -809,7 +809,7 @@ export default function RouteHistoryDetailScreen() {
               </Pressable>
             );
           })}
-        </View>
+        </View> */}
       </View>
 
       {isLoading ? (
