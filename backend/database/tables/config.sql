@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS config_model (
 
     break_time INTEGER NOT NULL DEFAULT 0,
 
+    subscription_type VARCHAR(50) DEFAULT 'trial',
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -34,6 +36,9 @@ CREATE TABLE IF NOT EXISTS config_model (
     CONSTRAINT break_time_max_limit
         CHECK (break_time <= 86400)
 );
+
+-- Migration query to add column to existing tables and transition legacy users to 'trial':
+ALTER TABLE config_model ADD COLUMN IF NOT EXISTS subscription_type VARCHAR(50) DEFAULT 'trial';
 
 INSERT INTO config_model (user_id)
 SELECT user_id

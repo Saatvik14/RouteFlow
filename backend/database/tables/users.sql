@@ -7,13 +7,8 @@ CREATE TABLE users (
   role TEXT DEFAULT 'user', -- Default role is 'user'
   status TEXT DEFAULT 'active', -- Default status
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  subscription_type VARCHAR(50) DEFAULT 'trial'
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
--- Migration query to add column to existing tables and transition legacy users to 'free':
-ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_type VARCHAR(50) DEFAULT 'trial';
--- UPDATE users SET subscription_type = 'free';
 
 -- Indices for performance optimization
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);

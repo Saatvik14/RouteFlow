@@ -13,9 +13,13 @@ const protect = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, JWT_ACCESS_SECRET);
 
-      // Get user from the token
+      // Get user from the token with subscription_type from config_model
       const userResult = await runQuery(
-        'SELECT user_id, name, phone_no, email, role, status, created_at, subscription_type FROM users WHERE user_id = $1',
+        `SELECT u.user_id, u.name, u.phone_no, u.email, u.role, u.status, u.created_at,
+                COALESCE(cm.subscription_type, 'trial') AS subscription_type
+         FROM users u
+         LEFT JOIN config_model cm ON cm.user_id = u.user_id
+         WHERE u.user_id = $1`,
         [decoded.id]
       );
 

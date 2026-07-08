@@ -56,9 +56,9 @@ const signup = async (req, res) => {
 
     // Create user in Supabase
     const insertQuery = `
-      INSERT INTO users (name, phone_no, email, password, role, status, subscription_type)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING user_id, name, phone_no, email, role, status, created_at, updated_at, subscription_type
+      INSERT INTO users (name, phone_no, email, password, role, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING user_id, name, phone_no, email, role, status, created_at, updated_at
     `;
     
     const newUserResult = await runQuery(insertQuery, [
@@ -67,18 +67,17 @@ const signup = async (req, res) => {
       email || null, 
       hashedPassword, 
       role || 'user', 
-      'active',
-      'trial'
+      'active'
     ]);
 
     const newUser = newUserResult.rows[0];
 
-    // Create default configuration entry for the new user
+    // Create default configuration entry for the new user, set subscription_type to 'trial'
     await runQuery(
-      `INSERT INTO config_model (user_id)
-       VALUES ($1)
-       ON CONFLICT (user_id) DO NOTHING`,
-      [newUser.user_id]
+      `INSERT INTO config_model (user_id, subscription_type)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET subscription_type = $2`,
+      [newUser.user_id, 'trial']
     );
 
     res.status(201).json({
