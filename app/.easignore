@@ -1,0 +1,7 @@
+# Ignore local Android configuration files which leaks machine-specific SDK paths
+android/local.properties
+local.properties
+.env
+.env.local
+.expo/
+node_modules/
