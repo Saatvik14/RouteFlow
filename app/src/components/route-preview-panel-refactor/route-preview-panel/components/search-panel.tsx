@@ -310,12 +310,12 @@ export function SearchPanel({
               </>
             )}
 
-            <Pressable
+            {/* <Pressable
               onPress={() => setMenuVisible(true)}
               style={localStyles.smallIconButton}
             >
               <Text style={localStyles.dots}>⋮</Text>
-            </Pressable>
+            </Pressable> */}
           </View>
 
           <Pressable onPress={onCloseSearch} style={localStyles.closeButton}>
