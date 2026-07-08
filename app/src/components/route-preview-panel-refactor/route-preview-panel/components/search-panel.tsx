@@ -14,8 +14,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-
-import { styles } from '../styles';
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
 import { useVoiceAddress } from '../../../../hooks/useVoiceAddress';
