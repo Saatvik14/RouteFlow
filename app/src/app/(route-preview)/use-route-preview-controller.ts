@@ -779,6 +779,20 @@ const handleOpenEditStopAddress = useCallback((stop?: RouteStop) => {
 
 const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) => {
   if (!route || !selectedStop || !effectiveRouteId) return;
+
+  const isUk = 
+    suggestion.fullAddress.toLowerCase().includes('united kingdom') || 
+    suggestion.fullAddress.toLowerCase().includes(', uk') || 
+    suggestion.fullAddress.toLowerCase().includes(', gb') || 
+    suggestion.subtitle?.toLowerCase().includes('united kingdom') || 
+    suggestion.subtitle?.toLowerCase().includes(', uk') || 
+    suggestion.subtitle?.toLowerCase().includes(', gb');
+
+  if (!isUk) {
+    setErrorMessage('Only locations within the United Kingdom are supported.');
+    return;
+  }
+
   const orderId = getStopBackendId(selectedStop);
   if (!orderId) {
     setErrorMessage('Order id is missing. Unable to save stop address.');
@@ -915,6 +929,21 @@ const handleRemoveEditedStop = useCallback(async () => {
 
   const handleConfirmStopDetails = useCallback(async () => {
     if (!route || !selectedSuggestion || isAddingStop) return;
+
+    if (!selectedStop) {
+      const isUk = 
+        selectedSuggestion.fullAddress.toLowerCase().includes('united kingdom') || 
+        selectedSuggestion.fullAddress.toLowerCase().includes(', uk') || 
+        selectedSuggestion.fullAddress.toLowerCase().includes(', gb') || 
+        selectedSuggestion.subtitle?.toLowerCase().includes('united kingdom') || 
+        selectedSuggestion.subtitle?.toLowerCase().includes(', uk') || 
+        selectedSuggestion.subtitle?.toLowerCase().includes(', gb');
+
+      if (!isUk) {
+        setErrorMessage('Only locations within the United Kingdom are supported.');
+        return;
+      }
+    }
 
     if (selectedStop) {
       const selectedStopKey = getStopIdentity(selectedStop);

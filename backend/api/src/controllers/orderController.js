@@ -31,6 +31,24 @@ const addOrder = async (req, res) => {
 
   const details = location?.details || {};
 
+  const isUkAddress = (loc) => {
+    if (!loc) return true;
+    const cc = (loc.countryCode || loc.country_code || loc.isoCountryCode || '').toLowerCase();
+    const name = (loc.country || '').toLowerCase();
+    const addr = (loc.full_address || loc.address || '').toLowerCase();
+    return cc === 'gb' || name.includes('united kingdom') || name === 'uk' || addr.includes('united kingdom') || addr.includes(', uk') || addr.includes(', gb');
+  };
+
+  const stopLoc = {
+    countryCode: details.countryCode || details.country_code || details.countryCode,
+    country: details.country || details.country_name || details.country,
+    full_address: address
+  };
+
+  if (!isUkAddress(stopLoc)) {
+    return res.status(400).json({ message: 'Only stops within the United Kingdom are supported.' });
+  }
+
   try {
     // 1. Create entry in locations table
     const locationQuery = `
@@ -95,6 +113,23 @@ const editOrder = async (req, res) => {
   } = req.body;
 
   if (!order_id) return res.status(400).json({ message: 'order_id is required' });
+
+  const isUkAddress = (loc) => {
+    if (!loc) return true;
+    const cc = (loc.countryCode || loc.country_code || loc.isoCountryCode || '').toLowerCase();
+    const name = (loc.country || '').toLowerCase();
+    const addr = (loc.full_address || loc.address || '').toLowerCase();
+    return cc === 'gb' || name.includes('united kingdom') || name === 'uk' || addr.includes('united kingdom') || addr.includes(', uk') || addr.includes(', gb');
+  };
+
+  const stopLoc = {
+    country: country,
+    full_address: `${housenumber || ''} ${street || ''} ${city || ''} ${postcode || ''} ${country || ''}`.trim()
+  };
+
+  if ((country || latitude || longitude) && !isUkAddress(stopLoc)) {
+    return res.status(400).json({ message: 'Only stops within the United Kingdom are supported.' });
+  }
 
   try {
     // 1. Identify the location associated with the order

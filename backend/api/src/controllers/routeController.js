@@ -42,6 +42,7 @@ const getGeocodingData = async (address) => {
   url.searchParams.append('city', city || '');
   url.searchParams.append('country', country || '');
   url.searchParams.append('format', 'json');
+  url.searchParams.append('filter', 'countrycode:gb');
   url.searchParams.append('apiKey', apiKey);
 
   try {
@@ -86,6 +87,18 @@ const createRoute = async (req, res) => {
     return res.status(400).json({ 
       message: 'Missing required fields. name, start_location (with full_address, latitude, longitude), end_location (with full_address, latitude, longitude), start_datetime, and end_datetime are required.' 
     });
+  }
+
+  const isUkAddress = (loc) => {
+    if (!loc) return true;
+    const cc = (loc.countryCode || loc.country_code || '').toLowerCase();
+    const name = (loc.country || '').toLowerCase();
+    const addr = (loc.full_address || loc.address || '').toLowerCase();
+    return cc === 'gb' || name.includes('united kingdom') || name === 'uk' || addr.includes('united kingdom') || addr.includes(', uk');
+  };
+
+  if (!isUkAddress(start_location) || (end_location && !isUkAddress(end_location))) {
+    return res.status(400).json({ message: 'Only locations within the United Kingdom are supported.' });
   }
 
   try {
@@ -438,6 +451,7 @@ const autocompleteAddress = async (req, res) => {
     autocompleteUrl.searchParams.append('limit', limit || '3');
     autocompleteUrl.searchParams.append('lang', lang || 'en');
     autocompleteUrl.searchParams.append('format', 'json');
+    autocompleteUrl.searchParams.append('filter', 'countrycode:gb');
     autocompleteUrl.searchParams.append('apiKey', apiKey);
 
     const autocompleteResponse = await fetch(autocompleteUrl.toString());
@@ -450,6 +464,7 @@ const autocompleteAddress = async (req, res) => {
       geocodeUrl.searchParams.append('limit', limit || '3');
       geocodeUrl.searchParams.append('lang', lang || 'en');
       geocodeUrl.searchParams.append('format', 'json');
+      geocodeUrl.searchParams.append('filter', 'countrycode:gb');
       geocodeUrl.searchParams.append('apiKey', apiKey);
 
       const geocodeResponse = await fetch(geocodeUrl.toString());

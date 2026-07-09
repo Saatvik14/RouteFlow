@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useConfigStore } from './../../store/useConfigStore';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -531,6 +532,7 @@ export default function RoutePointsScreen() {
 
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [activeSearch, setActiveSearch] = useState<'start' | 'end' | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isStartValid =
     startLocation.mode === 'current_location'
@@ -595,6 +597,7 @@ export default function RoutePointsScreen() {
   const handleUseCurrentLocation = async () => {
     try {
       setIsFetchingLocation(true);
+      setErrorMessage(null);
 
       const permission = await Location.requestForegroundPermissionsAsync();
 
@@ -645,12 +648,38 @@ export default function RoutePointsScreen() {
         console.error('Geoapify reverse geocoding failed, falling back to Expo Location:', error);
       }
 
+      let isUk = false;
+      if (details) {
+        const cc = String(details.countryCode || '').toLowerCase();
+        const cname = String(details.country || '').toLowerCase();
+        isUk = cc === 'gb' || cname.includes('united kingdom') || cname === 'uk';
+      }
+
+      let reverseAddress: Location.LocationGeocodedAddress[] = [];
       if (!addressString) {
-        const reverseAddress = await Location.reverseGeocodeAsync({
+        reverseAddress = await Location.reverseGeocodeAsync({
           latitude: currentLocation.coords.latitude,
           longitude: currentLocation.coords.longitude,
         });
-        addressString = getReadableAddress(reverseAddress[0]);
+        if (reverseAddress && reverseAddress.length > 0) {
+          addressString = getReadableAddress(reverseAddress[0]);
+          const item = reverseAddress[0];
+          const cc = String(item.isoCountryCode || '').toLowerCase();
+          const cname = String(item.country || '').toLowerCase();
+          if (!isUk) {
+            isUk = cc === 'gb' || cname.includes('united kingdom') || cname === 'uk';
+          }
+        }
+      }
+
+      if (!isUk && addressString) {
+        const addrLower = addressString.toLowerCase();
+        isUk = addrLower.includes('united kingdom') || addrLower.includes(', uk') || addrLower.includes(', gb');
+      }
+
+      if (!isUk) {
+        setErrorMessage('Only locations within the United Kingdom are supported. Your current location is outside the UK.');
+        return;
       }
 
       setStartLocation({
@@ -667,6 +696,7 @@ export default function RoutePointsScreen() {
   };
 
   const handleManualStartAddress = (value: string) => {
+    setErrorMessage(null);
     setStartLocation({
       mode: 'manual_address',
       address: value,
@@ -679,6 +709,7 @@ export default function RoutePointsScreen() {
   };
 
   const handleManualEndAddress = (value: string) => {
+    setErrorMessage(null);
     setEndLocation({
       mode: 'manual_address',
       address: value,
@@ -714,6 +745,7 @@ export default function RoutePointsScreen() {
   };
 
   const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
+    setErrorMessage(null);
     if (activeSearch === 'start') {
       setStartLocation({
         mode: 'manual_address',
@@ -765,6 +797,27 @@ export default function RoutePointsScreen() {
 
   const handleDone = async () => {
     if (!canSubmit) return;
+
+    const isLocationInUk = (location: LocationValue) => {
+      if (!location.address) return true;
+      if (location.mode === 'current_location' && !location.details) {
+        return true;
+      }
+      const cc = String(location.details?.countryCode || '').toLowerCase();
+      const country = String(location.details?.country || '').toLowerCase();
+      const addr = location.address.toLowerCase();
+      return cc === 'gb' || country.includes('united kingdom') || country === 'uk' || addr.includes('united kingdom') || addr.includes(', uk') || addr.includes(', gb');
+    };
+
+    if (!isLocationInUk(startLocation)) {
+      setErrorMessage('Start Location must be within the United Kingdom.');
+      return;
+    }
+
+    if (endMode === 'other_address' && !isLocationInUk(endLocation)) {
+      setErrorMessage('End Location must be within the United Kingdom.');
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -845,6 +898,12 @@ export default function RoutePointsScreen() {
             <Text style={styles.routeSummaryTitle}>{routeName}</Text>
             <Text style={styles.routeSummaryDate}>{routeDateLabel}</Text>
           </View>
+
+          {!!errorMessage && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{errorMessage}</Text>
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Start location</Text>
@@ -1312,6 +1371,23 @@ function DateTimePickerSheet({
 }
 
 const styles = StyleSheet.create({
+  errorBanner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+
+  errorBannerText: {
+    color: '#B91C1C',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+
   root: {
     flex: 1,
     backgroundColor: '#FFFFFF',
