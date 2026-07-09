@@ -301,10 +301,10 @@ export function EditRoutePanel({
                 <MaterialCommunityIcons name="coffee-outline" size={21} color="#0B6BFF" />
               </View>
 
-              <View style={styles.rowTextWrap}>
+              {/* <View style={styles.rowTextWrap}>
                 <Text style={styles.rowTitle}>Break</Text>
                 <Text style={styles.rowSubtitle}>Tap to plan a break</Text>
-              </View>
+              </View> */}
 
               <Switch value={false} />
             </View>

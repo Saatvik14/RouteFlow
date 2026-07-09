@@ -423,15 +423,15 @@ function buildTimelineItems({
     },
   ];
 
-  items.push({
-    id: 'break-row',
-    type: 'break',
-    title: 'Break',
-    address: 'Tap to plan a break',
-    time: {
-      clock: '',
-    },
-  });
+  // items.push({
+  //   id: 'break-row',
+  //   type: 'break',
+  //   title: 'Break',
+  //   address: 'Tap to plan a break',
+  //   time: {
+  //     clock: '',
+  //   },
+  // });
 
   stops.forEach((stop: any, index: number) => {
     const sequence = stop?.sequence_no || stop?.sequenceNo || index + 1;
