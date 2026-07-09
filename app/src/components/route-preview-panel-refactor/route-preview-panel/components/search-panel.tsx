@@ -271,7 +271,7 @@ export function SearchPanel({
               ]}
             />
 
-            {isListening ? (
+            {/* {isListening ? (
               <Pressable
                 onPress={handleVoicePress}
                 style={[
@@ -308,14 +308,14 @@ export function SearchPanel({
                   </Pressable>
                 )}
               </>
-            )}
+            )} */}
 
-            <Pressable
+            {/* <Pressable
               onPress={() => setMenuVisible(true)}
               style={localStyles.smallIconButton}
             >
               <Text style={localStyles.dots}>⋮</Text>
-            </Pressable>
+            </Pressable> */}
           </View>
 
           <Pressable onPress={onCloseSearch} style={localStyles.closeButton}>

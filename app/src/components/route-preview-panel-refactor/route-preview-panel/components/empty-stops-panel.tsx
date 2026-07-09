@@ -17,9 +17,9 @@ export function EmptyStopsPanel({
       <Pressable style={styles.searchRow} onPress={onOpenSearch}>
         <Text style={styles.searchIcon}>⌕</Text>
         <Text style={styles.searchPlaceholder}>Tap to add stops</Text>
-        <Text style={styles.searchSideIcon}>⌗</Text>
+        {/* <Text style={styles.searchSideIcon}>⌗</Text>
         <Text style={styles.searchSideIcon}>🎙</Text>
-        <Text style={styles.moreText}>⋮</Text>
+        <Text style={styles.moreText}>⋮</Text> */}
       </Pressable>
 
       <View style={styles.emptyBody}>
