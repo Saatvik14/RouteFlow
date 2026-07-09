@@ -1163,6 +1163,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
       <DraggableRouteSheet
         isWide={isWide}
         initialSnap="top"
+        collapsedHeight={92}
       >
         {panelView === 'current' ? renderCurrentStop() : null}
         {panelView === 'route' ? renderFullRoute() : null}

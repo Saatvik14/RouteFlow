@@ -153,7 +153,7 @@ function getMarkerPopupText(marker: DisplayMarker) {
   );
 }
 
-function createRouteMarkerIcon(marker: DisplayMarker) {
+function createRouteMarkerIcon(marker: DisplayMarker, isOptimized: boolean) {
   if (!L) return undefined;
 
   const color =
@@ -166,41 +166,54 @@ function createRouteMarkerIcon(marker: DisplayMarker) {
   const label = String(marker.label || '').slice(0, 3);
   const iconText = String(marker.icon || '').slice(0, 2);
 
-  const svg = marker.type === 'stop'
+  const svg = (marker.type === 'stop' && isOptimized)
     ? `
       <svg xmlns="http://www.w3.org/2000/svg" width="64" height="42" viewBox="0 0 64 42">
         <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
           <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.24"/>
         </filter>
         <g filter="url(#shadow)">
-          <circle cx="21" cy="21" r="17" fill="${color}" stroke="#FFFFFF" stroke-width="3"/>
-          <rect x="31" y="8" width="28" height="26" rx="13" fill="${badgeColor}"/>
-          <text x="21" y="26" text-anchor="middle" font-size="13" font-family="Arial, sans-serif" font-weight="800" fill="#FFFFFF">${iconText}</text>
-          <text x="45" y="26" text-anchor="middle" font-size="13" font-family="Arial, sans-serif" font-weight="800" fill="#FFFFFF">${label}</text>
+          <path d="M21 3C14.37 3 9 8.37 9 15c0 9 12 19.5 12 19.5s12-10.5 12-19.5c0-6.63-5.37-12-12-12z" fill="#EA4335" stroke="#FFFFFF" stroke-width="2.5"/>
+          <circle cx="21" cy="15" r="4.5" fill="#B31412"/>
+          <rect x="36" y="8" width="24" height="24" rx="12" fill="${badgeColor}"/>
+          <text x="48" y="24" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" font-weight="800" fill="#FFFFFF">${label}</text>
         </g>
       </svg>
     `
-    : `
+    : marker.type === 'stop'
+      ? `
+      <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+        <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.24"/>
+        </filter>
+        <g filter="url(#shadow)">
+          <path d="M22 2C15.37 2 10 7.37 10 14c0 9 12 24 12 24s12-15 12-24c0-6.63-5.37-12-12-12z" fill="#EA4335" stroke="#FFFFFF" stroke-width="2.5"/>
+          <circle cx="22" cy="14" r="4.5" fill="#B31412"/>
+        </g>
+      </svg>
+      `
+      : `
       <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
         <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
           <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.22"/>
         </filter>
         <g filter="url(#shadow)">
           <circle cx="22" cy="22" r="19" fill="#FFFFFF" stroke="${color}" stroke-width="3"/>
-          <text x="22" y="20" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" font-weight="800" fill="${color}">${iconText}</text>
-          <text x="22" y="32" text-anchor="middle" font-size="11" font-family="Arial, sans-serif" font-weight="900" fill="${color}">${label}</text>
+          <text x="22" y="${isOptimized ? 20 : 27}" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" font-weight="800" fill="${color}">${iconText}</text>
+          ${isOptimized ? `<text x="22" y="32" text-anchor="middle" font-size="11" font-family="Arial, sans-serif" font-weight="900" fill="${color}">${label}</text>` : ''}
         </g>
       </svg>
     `;
 
-  const size = marker.type === 'stop' ? [64, 42] : [44, 44];
-  const anchor = marker.type === 'stop' ? [32, 21] : [22, 22];
+  const isStopWithBadge = marker.type === 'stop' && isOptimized;
+  const size = isStopWithBadge ? [64, 42] : [44, 44];
+  const anchor = isStopWithBadge ? [32, 21] : [22, 22];
 
   return L.icon({
     iconUrl: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
     iconSize: size,
     iconAnchor: anchor,
-    popupAnchor: [0, marker.type === 'stop' ? -24 : -26],
+    popupAnchor: [0, isStopWithBadge ? -24 : -26],
   });
 }
 
@@ -307,6 +320,12 @@ export default function MapScreen({
     return routePoints;
   }, [confirmedRoute, routePoints]);
 
+  const isOptimized = useMemo(() => {
+    if (!confirmedRoute) return false;
+    const pointsCount = 2 + (confirmedRoute.stops?.length || 0);
+    return Boolean(confirmedRoute.coordinates && confirmedRoute.coordinates.length > pointsCount);
+  }, [confirmedRoute]);
+
   const displayMarkers = useMemo(() => {
     if (!confirmedRoute) return [];
     return buildDisplayMarkers(confirmedRoute);
@@ -378,14 +397,16 @@ export default function MapScreen({
 
         {confirmedRoute ? (
           <>
-            <Polyline
-              positions={leafletRouteCoordinates}
-              pathOptions={{
-                color: '#4285F4',
-                weight: 6,
-                opacity: 0.95,
-              }}
-            />
+            {isOptimized && (
+              <Polyline
+                positions={leafletRouteCoordinates}
+                pathOptions={{
+                  color: '#4285F4',
+                  weight: 6,
+                  opacity: 0.95,
+                }}
+              />
+            )}
 
             {displayMarkers.map(marker => (
               <Marker
@@ -394,7 +415,7 @@ export default function MapScreen({
                   marker.coordinate.latitude,
                   marker.coordinate.longitude,
                 ]}
-                icon={createRouteMarkerIcon(marker)}>
+                icon={createRouteMarkerIcon(marker, isOptimized)}>
                 <Popup>{getMarkerPopupText(marker)}</Popup>
               </Marker>
             ))}

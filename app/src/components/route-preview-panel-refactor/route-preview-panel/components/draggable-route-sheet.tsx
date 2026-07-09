@@ -39,8 +39,8 @@ export function DraggableRouteSheet({
   const snapHeights = useMemo(() => {
     const top = Math.max(360, windowHeight - TOP_SCREEN_GAP);
     const bottom = Math.min(
-      Math.max(collapsedHeight, 120),
-      Math.max(120, top - 120),
+      Math.max(collapsedHeight, 80),
+      Math.max(80, top - 80),
     );
 
     const middle = clamp(

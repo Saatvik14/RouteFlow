@@ -146,16 +146,21 @@ function buildDisplayMarkers(route: ConfirmedRoute): DisplayMarker[] {
   );
 }
 
-function renderMarker(marker: DisplayMarker) {
+function renderMarker(marker: DisplayMarker, isOptimized: boolean) {
   if (marker.type === 'stop') {
     return (
       <View style={styles.stopMarkerWrap}>
-        <View style={styles.stopMarkerIconBubble}>
-          <Text style={styles.stopMarkerIcon}>{marker.icon}</Text>
+        <View style={styles.stopMarkerPin}>
+          <View style={styles.stopMarkerCircle}>
+            <View style={styles.stopMarkerDot} />
+          </View>
+          <View style={styles.stopMarkerTriangle} />
         </View>
-        <View style={styles.stopMarkerLabelBubble}>
-          <Text style={styles.stopMarkerText}>{marker.label}</Text>
-        </View>
+        {isOptimized && (
+          <View style={styles.stopMarkerLabelBubble}>
+            <Text style={styles.stopMarkerText}>{marker.label}</Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -167,9 +172,11 @@ function renderMarker(marker: DisplayMarker) {
       <Text style={isStart ? styles.startMarkerIcon : styles.endMarkerIcon}>
         {marker.icon}
       </Text>
-      <Text style={isStart ? styles.startMarkerLabel : styles.endMarkerLabel}>
-        {marker.label}
-      </Text>
+      {isOptimized && (
+        <Text style={isStart ? styles.startMarkerLabel : styles.endMarkerLabel}>
+          {marker.label}
+        </Text>
+      )}
     </View>
   );
 }
@@ -217,6 +224,12 @@ export default function MapScreen({
     if (confirmedRoute.coordinates?.length) return confirmedRoute.coordinates;
     return routePoints;
   }, [confirmedRoute, routePoints]);
+
+  const isOptimized = useMemo(() => {
+    if (!confirmedRoute) return false;
+    const pointsCount = 2 + (confirmedRoute.stops?.length || 0);
+    return Boolean(confirmedRoute.coordinates && confirmedRoute.coordinates.length > pointsCount);
+  }, [confirmedRoute]);
 
   const displayMarkers = useMemo(() => {
     if (!confirmedRoute) return [];
@@ -344,7 +357,7 @@ export default function MapScreen({
           <UserLocation />
         )}
 
-        {confirmedRoute && polylineGeoJSON && (
+        {confirmedRoute && isOptimized && polylineGeoJSON && (
           <GeoJSONSource id="routePath" data={polylineGeoJSON}>
             <Layer
               id="routeLine"
@@ -368,7 +381,7 @@ export default function MapScreen({
             lngLat={[marker.coordinate.longitude, marker.coordinate.latitude]}
           >
             <View style={styles.annotationContainer}>
-              {renderMarker(marker)}
+              {renderMarker(marker, isOptimized)}
             </View>
           </Marker>
         ))}
@@ -455,21 +468,38 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 6,
   },
-  stopMarkerIconBubble: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#111827',
-    borderWidth: 2,
+  stopMarkerPin: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 42,
+  },
+  stopMarkerCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EA4335',
+    borderWidth: 2.5,
     borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
   },
-  stopMarkerIcon: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '800',
+  stopMarkerTriangle: {
+    width: 12,
+    height: 12,
+    backgroundColor: '#EA4335',
+    transform: [{ rotate: '45deg' }],
+    marginTop: -8,
+    zIndex: 1,
+    borderRightWidth: 2.5,
+    borderBottomWidth: 2.5,
+    borderColor: '#FFFFFF',
+  },
+  stopMarkerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#B31412',
   },
   stopMarkerLabelBubble: {
     minWidth: 30,

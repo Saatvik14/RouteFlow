@@ -325,53 +325,58 @@ export function SearchPanel({
 
         {!hasSearch ? (
           <View style={localStyles.emptyWrapper}>
-            <View style={localStyles.emptyIconBox}>
-              <Text style={localStyles.emptyIcon}>▢</Text>
-            </View>
-
-            <Text style={localStyles.emptyTitle}>No stops added yet</Text>
-            <Text style={localStyles.emptySubtitle}>
-              Add stops manually, scan an address label, use voice, or import a
-              complete route manifest.{' '}
-              <Text
-                style={{ color: '#286EF0', fontWeight: '600', textDecorationLine: 'underline' }}
-                onPress={downloadSampleTemplate}
-              >
-                Download template
-              </Text>
-            </Text>
-
-            {subscriptionType !== 'lite' && (
-              <View style={localStyles.actionGrid}>
-                <ActionCard
-                  icon="+"
-                  title="Add stop"
-                  subtitle="Search address manually"
-                  onPress={() => onSearchTextChange(' ')}
-                />
-                <ActionCard
-                  icon="⌗"
-                  title="Scan address"
-                  subtitle="Use camera on parcel label"
-                  onPress={onScanAddress}
-                />
-                <ActionCard
-                  icon="🎙"
-                  title={isListening ? 'Stop listening' : 'Voice address'}
-                  subtitle={isListening ? 'Listening... Speak now' : 'Speak the delivery address'}
-                  onPress={handleVoicePress}
-                  isActive={isListening}
-                />
-                <ActionCard
-                  icon="▤"
-                  title="Bulk upload orders"
-                  subtitle="Upload Excel sheet with multiple stops"
-                  onPress={() => setBulkUploadVisible(true)}
-                />
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              <View style={localStyles.emptyIconBox}>
+                <Text style={localStyles.emptyIcon}>▢</Text>
               </View>
-            )}
 
-            <View style={subscriptionType === 'lite' ? [localStyles.liteFooter, { paddingBottom: Math.max(insets.bottom, 16) }] : localStyles.footer}>
+              <Text style={localStyles.emptyTitle}>No stops added yet</Text>
+              <Text style={localStyles.emptySubtitle}>
+                Add stops manually, scan an address label, use voice, or import a
+                complete route manifest.{' '}
+                <Text
+                  style={{ color: '#286EF0', fontWeight: '600', textDecorationLine: 'underline' }}
+                  onPress={downloadSampleTemplate}
+                >
+                  Download template
+                </Text>
+              </Text>
+
+              {subscriptionType !== 'lite' && (
+                <View style={localStyles.actionGrid}>
+                  <ActionCard
+                    icon="+"
+                    title="Add stop"
+                    subtitle="Search address manually"
+                    onPress={() => onSearchTextChange(' ')}
+                  />
+                  <ActionCard
+                    icon="⌗"
+                    title="Scan address"
+                    subtitle="Use camera on parcel label"
+                    onPress={onScanAddress}
+                  />
+                  <ActionCard
+                    icon="🎙"
+                    title={isListening ? 'Stop listening' : 'Voice address'}
+                    subtitle={isListening ? 'Listening... Speak now' : 'Speak the delivery address'}
+                    onPress={handleVoicePress}
+                    isActive={isListening}
+                  />
+                  <ActionCard
+                    icon="▤"
+                    title="Bulk upload orders"
+                    subtitle="Upload Excel sheet with multiple stops"
+                    onPress={() => setBulkUploadVisible(true)}
+                  />
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={[
+              subscriptionType === 'lite' ? localStyles.liteFooter : localStyles.footer,
+              { paddingBottom: Math.max(insets.bottom, 16) }
+            ]}>
               <Pressable
                 style={localStyles.primaryButton}
                 onPress={() => onSearchTextChange(' ')}

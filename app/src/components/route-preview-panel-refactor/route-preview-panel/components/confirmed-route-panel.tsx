@@ -100,9 +100,10 @@ export function ConfirmedRoutePanel({
 
   return (
     <DraggableRouteSheet
-  isWide={isWide}
-  initialSnap="middle"
->
+      isWide={isWide}
+      initialSnap="middle"
+      collapsedHeight={96}
+    >
       <View style={localStyles.sheetInner}>
         <View style={localStyles.header}>
 
@@ -158,7 +159,7 @@ export function ConfirmedRoutePanel({
           contentContainerStyle={[
             localStyles.scrollContent,
             {
-              paddingBottom: Math.max(insets.bottom + 120, 132),
+              paddingBottom: 20,
             },
           ]}
           showsVerticalScrollIndicator
@@ -1085,12 +1086,6 @@ const localStyles = StyleSheet.create({
   },
 
   footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 30,
-    elevation: 12,
     paddingTop: 5,
     paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',

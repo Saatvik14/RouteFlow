@@ -142,14 +142,14 @@ function HeaderSearchBar({ onOpenSearch }: { onOpenSearch?: () => void }) {
         <Text style={localStyles.searchPlaceholder} numberOfLines={1}>
           Tap to add more stops
         </Text>
-{/* 
+        {/* 
         <Text style={localStyles.searchActionIcon}>⌗</Text>
         <Text style={localStyles.searchActionIcon}>♬</Text> */}
       </Pressable>
 
-      <Pressable style={localStyles.moreButton} hitSlop={10}>
+      {/* <Pressable style={localStyles.moreButton} hitSlop={10}>
         <Text style={localStyles.moreIcon}>⋮</Text>
-      </Pressable>
+      </Pressable> */}
     </View>
   );
 }
@@ -297,7 +297,7 @@ export function RouteSetupPanel({
   const handleStopPress = onSelectStop || onOpenStopDetails || onStopPress;
 
   return (
-    <DraggableRouteSheet isWide={isWide} initialSnap="middle">
+    <DraggableRouteSheet isWide={isWide} initialSnap="middle" collapsedHeight={88}>
       <View style={[localStyles.panel, isWide && localStyles.panelWeb]}>
         <HeaderSearchBar onOpenSearch={onOpenSearch} />
 
@@ -312,7 +312,7 @@ export function RouteSetupPanel({
         <ScrollView
           style={localStyles.scroll}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 178, 196) }}
+          contentContainerStyle={{ paddingBottom: 20 }}
         >
           <SectionLabel title="Route setup" />
 
@@ -387,17 +387,17 @@ export function RouteSetupPanel({
             { paddingBottom: Math.max(insets.bottom + 10, 16) },
           ]}
         >
-         <Pressable
-  style={({ pressed }) => [
-    localStyles.cancelRouteButton,
-    pressed && localStyles.cancelRouteButtonPressed,
-  ]}
-  onPress={onCancelRoute}
->
-  <Feather name="trash-2" size={22} color="#FF3B3B" />
+          <Pressable
+            style={({ pressed }) => [
+              localStyles.cancelRouteButton,
+              pressed && localStyles.cancelRouteButtonPressed,
+            ]}
+            onPress={onCancelRoute}
+          >
+            <Feather name="trash-2" size={22} color="#FF3B3B" />
 
-  <Text style={localStyles.cancelRouteText}>Cancel route</Text>
-</Pressable>
+            <Text style={localStyles.cancelRouteText}>Cancel route</Text>
+          </Pressable>
           <Pressable style={localStyles.optimizeButton} onPress={onOptimizeRoute}>
             <Text style={localStyles.optimizeIcon}>↻</Text>
             <Text style={localStyles.optimizeText}>Optimize route</Text>
@@ -793,10 +793,6 @@ const localStyles = StyleSheet.create({
   },
 
   footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     paddingTop: 12,
     paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
@@ -846,37 +842,37 @@ const localStyles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   cancelRouteButton: {
-  height: 54,
-  width: '100%',
-  borderRadius: 12,
-  borderWidth: 2,
-  borderColor: '#FFB8B8',
-  backgroundColor: '#FFFFFF',
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 12,
-  marginBottom: 12,
+    height: 54,
+    width: '100%',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFB8B8',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 12,
 
-  shadowColor: '#FF3B3B',
-  shadowOffset: {
-    width: 0,
-    height: 2,
+    shadowColor: '#FF3B3B',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  shadowOpacity: 0.08,
-  shadowRadius: 8,
-  elevation: 2,
-},
 
-cancelRouteButtonPressed: {
-  backgroundColor: '#FFF5F5',
-  borderColor: '#FF8F8F',
-},
+  cancelRouteButtonPressed: {
+    backgroundColor: '#FFF5F5',
+    borderColor: '#FF8F8F',
+  },
 
-cancelRouteText: {
-  color: '#FF3B3B',
-  fontSize: 17,
-  fontWeight: '600',
-  letterSpacing: -0.1,
-},
+  cancelRouteText: {
+    color: '#FF3B3B',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
 });
