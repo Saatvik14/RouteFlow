@@ -11,6 +11,7 @@ const routeRoutes = require('./routes/routeRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const configurationRoutes = require('./routes/configurationRoutes');
 const supportRoutes = require('./routes/supportRoutes');
+const subscriptionRoutes = require('./routes/subscriptionRoutes');
 
 const app = express();
 
@@ -54,5 +55,6 @@ app.use('/order', orderRoutes);
 app.use('/config', configurationRoutes);
 app.use('/route', require('./routes/routeManifestRoutes'));
 app.use('/support', supportRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
 
 module.exports = app;

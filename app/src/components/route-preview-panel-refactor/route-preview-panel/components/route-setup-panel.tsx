@@ -208,33 +208,33 @@ function RouteSetupRow({
   );
 }
 
-function BreakToggleRow() {
-  const [breakEnabled, setBreakEnabled] = useState(false);
+// function BreakToggleRow() {
+//   const [breakEnabled, setBreakEnabled] = useState(false);
 
-  return (
-    <View style={localStyles.breakRow}>
-      <View style={localStyles.timelineCol}>
-        <View style={localStyles.timelineDot} />
-      </View>
+//   return (
+//     <View style={localStyles.breakRow}>
+//       <View style={localStyles.timelineCol}>
+//         <View style={localStyles.timelineDot} />
+//       </View>
 
-      <View style={localStyles.breakTextBox}>
-        <Text style={localStyles.setupTitle}>Add break</Text>
-        <Text style={localStyles.setupSubtitle}>
-          {breakEnabled ? 'Break will be added during route planning' : 'Turn on to plan a break'}
-        </Text>
-      </View>
+//       {/* <View style={localStyles.breakTextBox}>
+//         <Text style={localStyles.setupTitle}>Add break</Text>
+//         <Text style={localStyles.setupSubtitle}>
+//           {breakEnabled ? 'Break will be added during route planning' : 'Turn on to plan a break'}
+//         </Text>
+//       </View> */}
 
-      <Switch
-        value={breakEnabled}
-        onValueChange={setBreakEnabled}
-        trackColor={{ false: '#D9E1EC', true: '#BFD5FF' }}
-        thumbColor={breakEnabled ? '#2876F8' : '#FFFFFF'}
-        ios_backgroundColor="#D9E1EC"
-        style={localStyles.breakSwitch}
-      />
-    </View>
-  );
-}
+//       {/* <Switch
+//         value={breakEnabled}
+//         onValueChange={setBreakEnabled}
+//         trackColor={{ false: '#D9E1EC', true: '#BFD5FF' }}
+//         thumbColor={breakEnabled ? '#2876F8' : '#FFFFFF'}
+//         ios_backgroundColor="#D9E1EC"
+//         style={localStyles.breakSwitch}
+//       />
+//     </View> */}
+//   );
+// }
 
 function StopRow({
   stop,
@@ -331,7 +331,7 @@ export function RouteSetupPanel({
               icon="⚑"
             />
 
-            <BreakToggleRow />
+            {/* <BreakToggleRow /> */}
 
             <Pressable
               style={({ pressed }) => [
