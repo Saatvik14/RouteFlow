@@ -1,4 +1,4 @@
-const { getAndroidPublisherClient } = require("../config/googlePlay");
+const { getAndroidPublisherClient } = require("./../config/googlePlay");
 
 const ENTITLED_STATES = new Set([
   "SUBSCRIPTION_STATE_ACTIVE",

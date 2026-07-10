@@ -1,9 +1,9 @@
 const { runQuery } = require("../config/db");
-const { getPlanByProductId } = require("../constants/subscriptionPlans");
+const { getPlanByProductId } = require("./../constants/subscription");
 const {
   acknowledgeGoogleSubscription,
   getGoogleSubscription,
-} = require("../services/googlePlaySubscriptionService");
+} = require("./../services/googlePlaySubscriptionServices");
 
 function getAuthenticatedUserId(req) {
   const userId = req.user?.user_id || req.user?.id;
