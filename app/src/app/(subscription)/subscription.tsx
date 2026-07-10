@@ -1,5 +1,5 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { ErrorCode, deepLinkToSubscriptions, useIAP } from "expo-iap";
+import { ErrorCode, deepLinkToSubscriptions, useIAP } from "../../services/iap-safe-wrapper";
 import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -145,7 +145,7 @@ export default function SubscriptionScreen() {
     fetchProducts({
       skus: productIds,
       type: "subs",
-    }).catch((error) => {
+    }).catch((error: any) => {
       console.error("Failed to load subscription products", error);
     });
   }, [connected, fetchProducts, productIds]);
@@ -372,7 +372,7 @@ export default function SubscriptionScreen() {
             planCode="lite"
             title="Lite"
             subtitle="Perfect for individual drivers"
-            price={getPrice("lite", "£7.99")}
+            price={getPrice("lite", "£9.99")}
             icon={<Feather name="navigation" size={22} color="#2563EB" />}
             features={["10 routes per day", "Turn-by-turn navigation"]}
             active={currentPlan === "lite"}
@@ -386,7 +386,7 @@ export default function SubscriptionScreen() {
             planCode="standard"
             title="Standard"
             subtitle="Best for professional drivers"
-            price={getPrice("standard", "£9.99")}
+            price={getPrice("standard", "£14.99")}
             icon={
               <MaterialCommunityIcons name="crown" size={24} color="#2563EB" />
             }
@@ -395,7 +395,7 @@ export default function SubscriptionScreen() {
               "Camera address scanner",
               "Voice address search",
               "Turn-by-turn navigation",
-            ]}
+             ]}
             active={currentPlan === "standard"}
             loading={selectedPlan === "standard"}
             disabled={Boolean(selectedPlan) || storeLoading}
