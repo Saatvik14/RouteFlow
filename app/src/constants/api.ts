@@ -51,8 +51,8 @@ function getDevelopmentBaseUrl() {
 }
 
 // Default backend host (use your Render URL)
-const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
-//const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
+// const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
+const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_BACKEND_URL;
 
