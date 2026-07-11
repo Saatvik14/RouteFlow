@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ErrorCode, deepLinkToSubscriptions, useIAP } from "../../services/iap-safe-wrapper";
 import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -31,7 +32,7 @@ type PlanProps = {
   title: string;
   subtitle: string;
   price: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   features: string[];
   popular?: boolean;
   active?: boolean;
