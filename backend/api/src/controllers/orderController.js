@@ -126,12 +126,10 @@ const addOrder = async (req, res) => {
     latitude,
     longitude,
     sequence,
-    sequence_no,
     location,
     notes,
     packages,
-    stop_type,
-    stopType,
+    stop_type
   } = req.body;
 
   if (
@@ -197,11 +195,9 @@ const addOrder = async (req, res) => {
 
     const locationId = locationResult.rows[0].location_id;
 
-    const effectiveSequence =
-      sequence_no !== undefined ? sequence_no : sequence;
+    const effectiveSequence = sequence;
 
-    const effectiveStopType =
-      stop_type !== undefined ? stop_type : stopType;
+    const effectiveStopType = stop_type
 
     /*
      * order_details behavior:
