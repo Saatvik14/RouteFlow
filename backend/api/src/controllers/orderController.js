@@ -587,7 +587,7 @@ const createOrderFromInput = async body => {
         time_at_stop,
         arrival_time,
         source,
-        raw_manifest_row,
+        raw_manifest_row
       )
       VALUES (
         $1, $2, $3, $4, $5,
