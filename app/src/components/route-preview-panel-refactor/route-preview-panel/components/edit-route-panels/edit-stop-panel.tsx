@@ -333,19 +333,6 @@ export function EditStopPanel({
   );
   const address = details.address || getAddress(editingStop);
 
-  const handleArrivalModeChange = (mode: ArrivalMode) => {
-    setArrivalMode(mode);
-
-    if (mode === 'anytime') {
-      patchDetails({ arrivalTime: '' });
-      return;
-    }
-
-    if (!details.arrivalTime) {
-      patchDetails({ arrivalTime: '09:00' });
-    }
-  };
-
   const handleSave = () => {
     const payload: StopDetails = {
       ...details,

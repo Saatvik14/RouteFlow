@@ -28,7 +28,7 @@ export function EditTimePanel({
   routeName,
   startTime,
   isSavingRouteEdit,
-  onCancelEditRoute,
+  onBackFromEditStop,
   onSaveRouteTime,
 }: BaseEditProps & {
   target?: EditTarget;
@@ -69,7 +69,7 @@ export function EditTimePanel({
         <Header
           title={target === 'start' ? 'Edit start time' : 'Edit end time'}
           rightLabel="Save"
-          onBack={onCancelEditRoute}
+          onBack={onBackFromEditStop}
           onRightPress={save}
         />
 
@@ -155,7 +155,7 @@ export function EditTimePanel({
         >
           <Pressable
             style={sharedStyles.secondaryButton}
-            onPress={onCancelEditRoute}
+            onPress={onBackFromEditStop}
           >
             <Text style={sharedStyles.secondaryButtonText}>Cancel</Text>
           </Pressable>

@@ -32,7 +32,7 @@ export function EditLocationPanel({
   suggestions = [],
   isSavingRouteEdit,
   onSearchTextChange,
-  onCancelEditRoute,
+  onBackFromEditStop,
   onSaveRouteLocation,
   onSaveStopAddress,
 }: BaseEditProps & {
@@ -70,7 +70,7 @@ export function EditLocationPanel({
         <Header
           title={title}
           rightLabel="Save"
-          onBack={onCancelEditRoute}
+          onBack={onBackFromEditStop}
           onRightPress={handleSave}
         />
 
@@ -215,7 +215,7 @@ export function EditLocationPanel({
         >
           <Pressable
             style={sharedStyles.secondaryButton}
-            onPress={onCancelEditRoute}
+            onPress={onBackFromEditStop}
           >
             <Text style={sharedStyles.secondaryButtonText}>Cancel</Text>
           </Pressable>

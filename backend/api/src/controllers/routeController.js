@@ -520,206 +520,715 @@ const reverseGeocode = async (req, res) => {
 // @desc    Optimize route using Pharmdel API
 // @route   POST /route/optimize
 // @access  Private
+
+// const optimizeRoute = async (req, res) => {
+//   const { route_id } = req.body;
+
+//   if (!route_id) {
+//     return res.status(400).json({ message: 'route_id is required' });
+//   }
+
+//   try {
+//     // 1. Fetch Route details
+//     const routeRes = await runQuery('SELECT * FROM routes WHERE route_id = $1', [route_id]);
+//     if (routeRes.rows.length === 0) {
+//       return res.status(404).json({ message: 'Route not found' });
+//     }
+//     const route = routeRes.rows[0];
+
+//     // 2. Fetch coordinates for the route's start and end addresses from locations table
+//     const startLocRes = await runQuery('SELECT latitude, longitude FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.start_full_address]);
+//     const endLocRes = await runQuery('SELECT latitude, longitude FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.end_full_address]);
+
+//     if (startLocRes.rows.length === 0 || endLocRes.rows.length === 0) {
+//       return res.status(400).json({ message: 'Start or end location coordinates not found. Please ensure the route was created correctly.' });
+//     }
+
+//     const startCoords = [parseFloat(startLocRes.rows[0].longitude), parseFloat(startLocRes.rows[0].latitude)];
+//     const endCoords = [parseFloat(endLocRes.rows[0].longitude), parseFloat(endLocRes.rows[0].latitude)];
+
+//     // 3. Fetch all orders for this route with their coordinates and priority
+//     const ordersQuery = `
+//       SELECT o.order_id, l.latitude, l.longitude 
+//       FROM orders o 
+//       JOIN locations l ON o.location_id = l.location_id 
+//       WHERE o.route_id = $1
+//     `;
+//     const ordersRes = await runQuery(ordersQuery, [route_id]);
+    
+//     if (ordersRes.rows.length === 0) {
+//       return res.status(400).json({ message: 'No orders found for this route to optimize.' });
+//     }
+
+//     const allOrders = ordersRes.rows;
+//     // Filter orders for optimization: only those WITHOUT priority
+//     const ordersToOptimize = allOrders
+//     const prioritizedOrders = allOrders
+
+//     let data;
+//     if (ordersToOptimize.length === 0) {
+//       // Sort all by priority
+//       const sorted = [...prioritizedOrders].sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0));
+//       // Update database sequence
+//       for (let i = 0; i < sorted.length; i++) {
+//         await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [i + 1, sorted[i].order_id]);
+//       }
+      
+//       const finalSteps = [
+//         { type: 'start' },
+//         ...sorted.map((order, index) => ({
+//           type: 'job',
+//           id: order.order_id,
+//           sequence_no: index + 1
+//         })),
+//         { type: 'end' }
+//       ];
+
+//       return res.status(200).json({
+//         code: 0,
+//         routes: [{
+//           steps: finalSteps,
+//           summary: {
+//             distance: 0,
+//             duration: 0
+//           }
+//         }]
+//       });
+//     }
+
+//     const jobs = ordersToOptimize.map(order => ({
+//       id: order.order_id,
+//       location: [parseFloat(order.longitude), parseFloat(order.latitude)]
+//     }));
+
+//     // 4. Construct Pharmdel API payload
+//     const payload = {
+//       jobs: jobs,
+//       vehicles: [{
+//         id: 0,
+//         profile: 'bike',
+//         start: startCoords,
+//         end: endCoords
+//       }]
+//     };
+
+//     const pharmdelResponse = await fetch('https://routes.pharmdel.com/maps', {
+//       method: 'POST',
+//       headers: {
+//         'X-API-KEY': process.env.PHARMDEL_API_KEY,
+//         'Authorization': `Bearer ${process.env.PHARMDEL_TOKEN}`,
+//         'Content-Type': 'application/json'
+//       },
+//       body: JSON.stringify(payload)
+//     });
+
+//     data = await pharmdelResponse.json();
+
+//     if (data.code !== 0 || !data.routes || data.routes.length === 0) {
+//       return res.status(502).json({ message: 'Optimization service error', details: data });
+//     }
+
+//     // 6. Process sequence updates and clean response fields
+//     const steps = data.routes[0].steps;
+//     const optimizedJobs = steps.filter((step) => step.type === 'job');
+
+//     // Create final array of size N
+//     const N = allOrders.length;
+//     const finalSequence = new Array(N).fill(null);
+
+//     // First, place prioritized orders
+//     prioritizedOrders.forEach(order => {
+//       const targetIdx = Math.min(Math.max(1, Number(order.priority)), N) - 1;
+//       let idx = targetIdx;
+//       while (idx < N && finalSequence[idx] !== null) {
+//         idx++;
+//       }
+//       if (idx >= N) {
+//         idx = 0;
+//         while (idx < N && finalSequence[idx] !== null) {
+//           idx++;
+//         }
+//       }
+//       if (idx < N) {
+//         finalSequence[idx] = { order_id: order.order_id, source: 'priority' };
+//       }
+//     });
+
+//     // Next, fill in optimized jobs in order
+//     let optIdx = 0;
+//     for (let i = 0; i < N; i++) {
+//       if (finalSequence[i] === null && optIdx < optimizedJobs.length) {
+//         finalSequence[i] = { order_id: optimizedJobs[optIdx].id, source: 'optimized', step: optimizedJobs[optIdx] };
+//         optIdx++;
+//       }
+//     }
+
+//     // Any remaining null slots fallback
+//     for (let i = 0; i < N; i++) {
+//       if (finalSequence[i] === null) {
+//         const unplaced = allOrders.find(o => !finalSequence.some(f => f && f.order_id === o.order_id));
+//         if (unplaced) {
+//           finalSequence[i] = { order_id: unplaced.order_id, source: 'fallback' };
+//         }
+//       }
+//     }
+
+//     // Now update database and construct final steps response list
+//     const finalSteps = [];
+//     const startStep = steps.find(s => s.type === 'start') || { type: 'start' };
+//     finalSteps.push(startStep);
+
+//     let sequenceCounter = 1;
+//     for (let i = 0; i < N; i++) {
+//       const item = finalSequence[i];
+//       if (item) {
+//         await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [sequenceCounter, item.order_id]);
+        
+//         let stepObj;
+//         if (item.source === 'optimized' && item.step) {
+//           stepObj = item.step;
+//         } else {
+//           stepObj = {
+//             type: 'job',
+//             id: item.order_id
+//           };
+//         }
+//         stepObj.sequence_no = sequenceCounter;
+//         finalSteps.push(stepObj);
+//         sequenceCounter++;
+//       }
+//     }
+
+//     const endStep = steps.find(s => s.type === 'end') || { type: 'end' };
+//     finalSteps.push(endStep);
+
+//     // Remove unwanted fields from all steps
+//     for (let step of finalSteps) {
+//       delete step.arrival;
+//       delete step.distance;
+//       delete step.duration;
+//       delete step.service;
+//       delete step.setup;
+//       delete step.violations;
+//       delete step.waiting_time;
+//       delete step.job;
+//     }
+
+//     data.routes[0].steps = finalSteps;
+//     res.status(200).json(data);
+//   } catch (error) {
+//     console.error('Optimize Route Error:', error);
+//     res.status(500).json({ message: 'Server error during route optimization' });
+//   }
+// };
+
 const optimizeRoute = async (req, res) => {
   const { route_id } = req.body;
 
   if (!route_id) {
-    return res.status(400).json({ message: 'route_id is required' });
+    return res.status(400).json({
+      message: 'route_id is required',
+    });
   }
 
+  const normalizeOrderPreference = (preference) => {
+    const normalizedPreference = String(preference || '')
+      .trim()
+      .toLowerCase();
+
+    if (
+      normalizedPreference === 'early' ||
+      normalizedPreference === 'last'
+    ) {
+      return normalizedPreference;
+    }
+
+    return 'auto';
+  };
+
+  const parseCoordinates = (longitude, latitude) => {
+    const parsedLongitude = Number(longitude);
+    const parsedLatitude = Number(latitude);
+
+    if (
+      !Number.isFinite(parsedLongitude) ||
+      !Number.isFinite(parsedLatitude)
+    ) {
+      return null;
+    }
+
+    return [parsedLongitude, parsedLatitude];
+  };
+
+  const createApiError = (message, statusCode = 502, details = null) => {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    error.details = details;
+    return error;
+  };
+
   try {
-    // 1. Fetch Route details
-    const routeRes = await runQuery('SELECT * FROM routes WHERE route_id = $1', [route_id]);
-    if (routeRes.rows.length === 0) {
-      return res.status(404).json({ message: 'Route not found' });
-    }
-    const route = routeRes.rows[0];
+    /*
+     * 1. Fetch route
+     */
+    const routeResult = await runQuery(
+      `
+        SELECT *
+        FROM routes
+        WHERE route_id = $1
+        LIMIT 1
+      `,
+      [route_id]
+    );
 
-    // 2. Fetch coordinates for the route's start and end addresses from locations table
-    const startLocRes = await runQuery('SELECT latitude, longitude FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.start_full_address]);
-    const endLocRes = await runQuery('SELECT latitude, longitude FROM locations WHERE full_address = $1 ORDER BY created_at DESC LIMIT 1', [route.end_full_address]);
-
-    if (startLocRes.rows.length === 0 || endLocRes.rows.length === 0) {
-      return res.status(400).json({ message: 'Start or end location coordinates not found. Please ensure the route was created correctly.' });
-    }
-
-    const startCoords = [parseFloat(startLocRes.rows[0].longitude), parseFloat(startLocRes.rows[0].latitude)];
-    const endCoords = [parseFloat(endLocRes.rows[0].longitude), parseFloat(endLocRes.rows[0].latitude)];
-
-    // 3. Fetch all orders for this route with their coordinates and priority
-    const ordersQuery = `
-      SELECT o.order_id, l.latitude, l.longitude 
-      FROM orders o 
-      JOIN locations l ON o.location_id = l.location_id 
-      WHERE o.route_id = $1
-    `;
-    const ordersRes = await runQuery(ordersQuery, [route_id]);
-    
-    if (ordersRes.rows.length === 0) {
-      return res.status(400).json({ message: 'No orders found for this route to optimize.' });
-    }
-
-    const allOrders = ordersRes.rows;
-    // Filter orders for optimization: only those WITHOUT priority
-    const ordersToOptimize = allOrders
-    const prioritizedOrders = allOrders
-
-    let data;
-    if (ordersToOptimize.length === 0) {
-      // Sort all by priority
-      const sorted = [...prioritizedOrders].sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0));
-      // Update database sequence
-      for (let i = 0; i < sorted.length; i++) {
-        await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [i + 1, sorted[i].order_id]);
-      }
-      
-      const finalSteps = [
-        { type: 'start' },
-        ...sorted.map((order, index) => ({
-          type: 'job',
-          id: order.order_id,
-          sequence_no: index + 1
-        })),
-        { type: 'end' }
-      ];
-
-      return res.status(200).json({
-        code: 0,
-        routes: [{
-          steps: finalSteps,
-          summary: {
-            distance: 0,
-            duration: 0
-          }
-        }]
+    if (routeResult.rows.length === 0) {
+      return res.status(404).json({
+        message: 'Route not found',
       });
     }
 
-    const jobs = ordersToOptimize.map(order => ({
-      id: order.order_id,
-      location: [parseFloat(order.longitude), parseFloat(order.latitude)]
-    }));
+    const route = routeResult.rows[0];
 
-    // 4. Construct Pharmdel API payload
-    const payload = {
-      jobs: jobs,
-      vehicles: [{
+    /*
+     * 2. Fetch start and end coordinates
+     */
+    const [startLocationResult, endLocationResult] = await Promise.all([
+      runQuery(
+        `
+          SELECT latitude, longitude
+          FROM locations
+          WHERE full_address = $1
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [route.start_full_address]
+      ),
+      runQuery(
+        `
+          SELECT latitude, longitude
+          FROM locations
+          WHERE full_address = $1
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [route.end_full_address]
+      ),
+    ]);
+
+    if (
+      startLocationResult.rows.length === 0 ||
+      endLocationResult.rows.length === 0
+    ) {
+      return res.status(400).json({
+        message:
+          'Start or end coordinates were not found. Please verify the route locations.',
+      });
+    }
+
+    const startCoordinates = parseCoordinates(
+      startLocationResult.rows[0].longitude,
+      startLocationResult.rows[0].latitude
+    );
+
+    const endCoordinates = parseCoordinates(
+      endLocationResult.rows[0].longitude,
+      endLocationResult.rows[0].latitude
+    );
+
+    if (!startCoordinates || !endCoordinates) {
+      return res.status(400).json({
+        message: 'Start or end location contains invalid coordinates.',
+      });
+    }
+
+    /*
+     * 3. Fetch route orders
+     */
+    const ordersResult = await runQuery(
+      `
+        SELECT
+          o.order_id,
+          o.order_preference,
+          l.latitude,
+          l.longitude
+        FROM orders o
+        INNER JOIN locations l
+          ON l.location_id = o.location_id
+        WHERE o.route_id = $1
+      `,
+      [route_id]
+    );
+
+    if (ordersResult.rows.length === 0) {
+      return res.status(400).json({
+        message: 'No orders found for this route.',
+      });
+    }
+
+    /*
+     * Normalize and validate every order.
+     */
+    const allOrders = ordersResult.rows.map((order) => {
+      const coordinates = parseCoordinates(
+        order.longitude,
+        order.latitude
+      );
+
+      if (!coordinates) {
+        throw createApiError(
+          `Invalid coordinates found for order ${order.order_id}.`,
+          400
+        );
+      }
+
+      return {
+        ...order,
+        order_preference: normalizeOrderPreference(
+          order.order_preference
+        ),
+        coordinates,
+      };
+    });
+
+    const orderById = new Map(
+      allOrders.map((order) => [
+        String(order.order_id),
+        order,
+      ])
+    );
+
+    /*
+     * 4. Divide orders into preference groups.
+     *
+     * The group order is fixed:
+     * early -> auto -> last
+     *
+     * The order inside each group is optimized by Pharmdel.
+     */
+    const preferenceGroups = [
+      {
+        preference: 'early',
+        orders: allOrders.filter(
+          (order) => order.order_preference === 'early'
+        ),
+      },
+      {
+        preference: 'auto',
+        orders: allOrders.filter(
+          (order) => order.order_preference === 'auto'
+        ),
+      },
+      {
+        preference: 'last',
+        orders: allOrders.filter(
+          (order) => order.order_preference === 'last'
+        ),
+      },
+    ].filter((group) => group.orders.length > 0);
+
+    /*
+     * Calls Pharmdel for one preference group.
+     *
+     * Intermediate groups do not receive an end coordinate.
+     * This creates an open route ending at the final optimized stop.
+     *
+     * The final group receives the actual route destination.
+     */
+    const optimizePreferenceGroup = async ({
+      group,
+      groupStartCoordinates,
+      includeRouteEnd,
+    }) => {
+      const jobs = group.orders.map((order) => ({
+        id: order.order_id,
+        location: order.coordinates,
+      }));
+
+      const vehicle = {
         id: 0,
         profile: 'bike',
-        start: startCoords,
-        end: endCoords
-      }]
+        start: groupStartCoordinates,
+      };
+
+      if (includeRouteEnd) {
+        vehicle.end = endCoordinates;
+      }
+
+      const payload = {
+        jobs,
+        vehicles: [vehicle],
+      };
+
+      const pharmdelResponse = await fetch(
+        'https://routes.pharmdel.com/maps',
+        {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': process.env.PHARMDEL_API_KEY,
+            Authorization: `Bearer ${process.env.PHARMDEL_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const responseText = await pharmdelResponse.text();
+
+      let optimizationData;
+
+      try {
+        optimizationData = JSON.parse(responseText);
+      } catch {
+        throw createApiError(
+          'Optimization service returned an invalid response.',
+          502,
+          responseText
+        );
+      }
+
+      if (!pharmdelResponse.ok) {
+        throw createApiError(
+          'Optimization service request failed.',
+          502,
+          optimizationData
+        );
+      }
+
+      if (
+        optimizationData.code !== 0 ||
+        !Array.isArray(optimizationData.routes) ||
+        optimizationData.routes.length === 0
+      ) {
+        throw createApiError(
+          `Unable to optimize ${group.preference} orders.`,
+          502,
+          optimizationData
+        );
+      }
+
+      const optimizedRoute = optimizationData.routes[0];
+
+      const optimizedJobSteps = optimizedRoute.steps.filter(
+        (step) => step.type === 'job'
+      );
+
+      /*
+       * Do not silently create a partial route.
+       */
+      const returnedOrderIds = new Set(
+        optimizedJobSteps.map((step) => String(step.id))
+      );
+
+      const missingOrderIds = group.orders
+        .filter(
+          (order) =>
+            !returnedOrderIds.has(String(order.order_id))
+        )
+        .map((order) => order.order_id);
+
+      if (missingOrderIds.length > 0) {
+        throw createApiError(
+          `Some ${group.preference} orders could not be optimized.`,
+          422,
+          {
+            missing_order_ids: missingOrderIds,
+            unassigned: optimizationData.unassigned || [],
+          }
+        );
+      }
+
+      return {
+        route: optimizedRoute,
+        jobSteps: optimizedJobSteps,
+      };
     };
 
-    const pharmdelResponse = await fetch('https://routes.pharmdel.com/maps', {
-      method: 'POST',
-      headers: {
-        'X-API-KEY': process.env.PHARMDEL_API_KEY,
-        'Authorization': `Bearer ${process.env.PHARMDEL_TOKEN}`,
-        'Content-Type': 'application/json'
+    /*
+     * 5. Optimize groups sequentially.
+     */
+    let currentStartCoordinates = startCoordinates;
+
+    const optimizedOrders = [];
+
+    let totalDistance = 0;
+    let totalDuration = 0;
+    let totalCost = 0;
+
+    let firstStartStep = null;
+    let finalEndStep = null;
+
+    for (
+      let groupIndex = 0;
+      groupIndex < preferenceGroups.length;
+      groupIndex++
+    ) {
+      const group = preferenceGroups[groupIndex];
+
+      const isFinalGroup =
+        groupIndex === preferenceGroups.length - 1;
+
+      const groupResult = await optimizePreferenceGroup({
+        group,
+        groupStartCoordinates: currentStartCoordinates,
+        includeRouteEnd: isFinalGroup,
+      });
+
+      const groupRoute = groupResult.route;
+
+      if (!firstStartStep) {
+        firstStartStep =
+          groupRoute.steps.find(
+            (step) => step.type === 'start'
+          ) || null;
+      }
+
+      if (isFinalGroup) {
+        finalEndStep =
+          groupRoute.steps.find(
+            (step) => step.type === 'end'
+          ) || null;
+      }
+
+      totalDistance += Number(
+        groupRoute.summary?.distance || 0
+      );
+
+      totalDuration += Number(
+        groupRoute.summary?.duration || 0
+      );
+
+      totalCost += Number(groupRoute.cost || 0);
+
+      for (const step of groupResult.jobSteps) {
+        const order = orderById.get(String(step.id));
+
+        if (!order) {
+          throw createApiError(
+            `Optimizer returned unknown order ${step.id}.`,
+            502
+          );
+        }
+
+        optimizedOrders.push({
+          order,
+          optimizerStep: step,
+        });
+      }
+
+      /*
+       * The next preference group starts from the final order
+       * of the currently optimized group.
+       */
+      const lastOptimizedStep =
+        groupResult.jobSteps[
+          groupResult.jobSteps.length - 1
+        ];
+
+      if (lastOptimizedStep) {
+        const lastOrder = orderById.get(
+          String(lastOptimizedStep.id)
+        );
+
+        currentStartCoordinates = lastOrder.coordinates;
+      }
+    }
+
+    if (optimizedOrders.length !== allOrders.length) {
+      throw createApiError(
+        'The optimized route does not contain every order.',
+        422,
+        {
+          expected_orders: allOrders.length,
+          optimized_orders: optimizedOrders.length,
+        }
+      );
+    }
+
+    /*
+     * 6. Update every order sequence in one query.
+     */
+    const orderIds = optimizedOrders.map(({ order }) =>
+      Number(order.order_id)
+    );
+
+    const sequenceNumbers = optimizedOrders.map(
+      (_, index) => index + 1
+    );
+
+    await runQuery(
+      `
+        UPDATE orders AS o
+        SET sequence_no = updated.sequence_no
+        FROM unnest(
+          $1::bigint[],
+          $2::integer[]
+        ) AS updated(order_id, sequence_no)
+        WHERE o.order_id = updated.order_id
+          AND o.route_id = $3
+      `,
+      [orderIds, sequenceNumbers, route_id]
+    );
+
+    /*
+     * 7. Construct frontend response.
+     */
+    const finalSteps = [
+      {
+        type: 'start',
+        ...(firstStartStep?.location
+          ? { location: firstStartStep.location }
+          : { location: startCoordinates }),
       },
-      body: JSON.stringify(payload)
+      ...optimizedOrders.map(
+        ({ order, optimizerStep }, index) => ({
+          type: 'job',
+          id: order.order_id,
+          sequence_no: index + 1,
+          order_preference: order.order_preference,
+          ...(optimizerStep.location
+            ? { location: optimizerStep.location }
+            : { location: order.coordinates }),
+        })
+      ),
+      {
+        type: 'end',
+        ...(finalEndStep?.location
+          ? { location: finalEndStep.location }
+          : { location: endCoordinates }),
+      },
+    ];
+
+    return res.status(200).json({
+      code: 0,
+      routes: [
+        {
+          vehicle: 0,
+          cost: totalCost,
+          steps: finalSteps,
+          summary: {
+            distance: totalDistance,
+            duration: totalDuration,
+          },
+        },
+      ],
+      unassigned: [],
     });
-
-    data = await pharmdelResponse.json();
-
-    if (data.code !== 0 || !data.routes || data.routes.length === 0) {
-      return res.status(502).json({ message: 'Optimization service error', details: data });
-    }
-
-    // 6. Process sequence updates and clean response fields
-    const steps = data.routes[0].steps;
-    const optimizedJobs = steps.filter((step) => step.type === 'job');
-
-    // Create final array of size N
-    const N = allOrders.length;
-    const finalSequence = new Array(N).fill(null);
-
-    // First, place prioritized orders
-    prioritizedOrders.forEach(order => {
-      const targetIdx = Math.min(Math.max(1, Number(order.priority)), N) - 1;
-      let idx = targetIdx;
-      while (idx < N && finalSequence[idx] !== null) {
-        idx++;
-      }
-      if (idx >= N) {
-        idx = 0;
-        while (idx < N && finalSequence[idx] !== null) {
-          idx++;
-        }
-      }
-      if (idx < N) {
-        finalSequence[idx] = { order_id: order.order_id, source: 'priority' };
-      }
-    });
-
-    // Next, fill in optimized jobs in order
-    let optIdx = 0;
-    for (let i = 0; i < N; i++) {
-      if (finalSequence[i] === null && optIdx < optimizedJobs.length) {
-        finalSequence[i] = { order_id: optimizedJobs[optIdx].id, source: 'optimized', step: optimizedJobs[optIdx] };
-        optIdx++;
-      }
-    }
-
-    // Any remaining null slots fallback
-    for (let i = 0; i < N; i++) {
-      if (finalSequence[i] === null) {
-        const unplaced = allOrders.find(o => !finalSequence.some(f => f && f.order_id === o.order_id));
-        if (unplaced) {
-          finalSequence[i] = { order_id: unplaced.order_id, source: 'fallback' };
-        }
-      }
-    }
-
-    // Now update database and construct final steps response list
-    const finalSteps = [];
-    const startStep = steps.find(s => s.type === 'start') || { type: 'start' };
-    finalSteps.push(startStep);
-
-    let sequenceCounter = 1;
-    for (let i = 0; i < N; i++) {
-      const item = finalSequence[i];
-      if (item) {
-        await runQuery('UPDATE orders SET sequence_no = $1 WHERE order_id = $2', [sequenceCounter, item.order_id]);
-        
-        let stepObj;
-        if (item.source === 'optimized' && item.step) {
-          stepObj = item.step;
-        } else {
-          stepObj = {
-            type: 'job',
-            id: item.order_id
-          };
-        }
-        stepObj.sequence_no = sequenceCounter;
-        finalSteps.push(stepObj);
-        sequenceCounter++;
-      }
-    }
-
-    const endStep = steps.find(s => s.type === 'end') || { type: 'end' };
-    finalSteps.push(endStep);
-
-    // Remove unwanted fields from all steps
-    for (let step of finalSteps) {
-      delete step.arrival;
-      delete step.distance;
-      delete step.duration;
-      delete step.service;
-      delete step.setup;
-      delete step.violations;
-      delete step.waiting_time;
-      delete step.job;
-    }
-
-    data.routes[0].steps = finalSteps;
-    res.status(200).json(data);
   } catch (error) {
     console.error('Optimize Route Error:', error);
-    res.status(500).json({ message: 'Server error during route optimization' });
+
+    return res
+      .status(error.statusCode || 500)
+      .json({
+        message:
+          error.message ||
+          'Server error during route optimization',
+        ...(error.details
+          ? { details: error.details }
+          : {}),
+      });
   }
 };
+
 
 
 // controllers/routeController.js
