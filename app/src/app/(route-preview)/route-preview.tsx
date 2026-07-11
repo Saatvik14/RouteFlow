@@ -98,6 +98,7 @@ export default function RoutePreviewScreen() {
     isSavingRouteEdit,
     handleOpenEditRoute,
     handleCancelEditRoute,
+    handleBackFromEditStop,
     handleOpenEditStartLocation,
     handleOpenEditEndLocation,
     handleOpenEditStartTime,
@@ -447,6 +448,7 @@ export default function RoutePreviewScreen() {
           isOptimizing={isOptimizing}
           onOpenEditRoute={handleOpenEditRoute}
           onCancelEditRoute={handleCancelEditRoute}
+          onBackFromEditStop={handleBackFromEditStop}
           onOpenEditStartLocation={handleOpenEditStartLocation}
           onOpenEditEndLocation={handleOpenEditEndLocation}
           onOpenEditStartTime={handleOpenEditStartTime}
@@ -513,6 +515,7 @@ export default function RoutePreviewScreen() {
           isOptimizing={isOptimizing}
           onOpenEditRoute={handleOpenEditRoute}
           onCancelEditRoute={handleCancelEditRoute}
+          onBackFromEditStop={handleBackFromEditStop}
           onOpenEditStartLocation={handleOpenEditStartLocation}
           onOpenEditEndLocation={handleOpenEditEndLocation}
           onOpenEditStartTime={handleOpenEditStartTime}

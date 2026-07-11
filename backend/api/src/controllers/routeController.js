@@ -548,7 +548,7 @@ const optimizeRoute = async (req, res) => {
 
     // 3. Fetch all orders for this route with their coordinates and priority
     const ordersQuery = `
-      SELECT o.order_id, o.priority, l.latitude, l.longitude 
+      SELECT o.order_id, l.latitude, l.longitude 
       FROM orders o 
       JOIN locations l ON o.location_id = l.location_id 
       WHERE o.route_id = $1
@@ -561,8 +561,8 @@ const optimizeRoute = async (req, res) => {
 
     const allOrders = ordersRes.rows;
     // Filter orders for optimization: only those WITHOUT priority
-    const ordersToOptimize = allOrders.filter(order => order.priority === null);
-    const prioritizedOrders = allOrders.filter(order => order.priority !== null);
+    const ordersToOptimize = allOrders
+    const prioritizedOrders = allOrders
 
     let data;
     if (ordersToOptimize.length === 0) {

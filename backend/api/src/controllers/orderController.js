@@ -114,58 +114,304 @@ const isUkAddress = loc => {
   );
 };
 
-// @desc    Add new order and create its location
-// @route   POST /order/add
-// @access  Private
-const addOrder = async (req, res) => {
-  const {
-    route_id,
-    status,
-    title,
-    address,
-    latitude,
-    longitude,
-    sequence,
-    location,
-    notes,
-    packages,
-    stop_type
-  } = req.body;
+const hasOwn = (object, key) =>
+  Object.prototype.hasOwnProperty.call(object || {}, key);
 
-  if (
-    !route_id ||
-    !address ||
-    latitude === undefined ||
-    longitude === undefined
-  ) {
-    return res.status(400).json({
-      message:
-        'Missing required fields. route_id, address, latitude, and longitude are required.',
-    });
+const badRequest = message => {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+};
+
+const firstDefined = (...values) =>
+  values.find(value => value !== undefined);
+
+const normalizeOrderPreference = value => {
+  const normalized = String(value ?? 'auto')
+    .trim()
+    .toLowerCase();
+
+  if (!['early', 'auto', 'last'].includes(normalized)) {
+    throw badRequest(
+      'order_preference must be early, auto, or last'
+    );
   }
 
-  const details = location?.details || {};
+  return normalized;
+};
 
-  const stopLocation = {
+const normalizeStopType = value => {
+  const normalized = String(value ?? 'delivery')
+    .trim()
+    .toLowerCase();
+
+  if (!['delivery', 'pickup'].includes(normalized)) {
+    throw badRequest(
+      'stop_type must be delivery or pickup'
+    );
+  }
+
+  return normalized;
+};
+
+const normalizeArrivalTime = value => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+
+  const isValid =
+    /^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(
+      normalized
+    );
+
+  if (!isValid) {
+    throw badRequest(
+      'arrival_time must use HH:mm or HH:mm:ss format'
+    );
+  }
+
+  return normalized;
+};
+
+const normalizePositiveInteger = (
+  value,
+  fieldName,
+  defaultValue = 1
+) => {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+
+  const parsed = Number(value);
+
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < 1
+  ) {
+    throw badRequest(
+      `${fieldName} must be an integer greater than or equal to 1`
+    );
+  }
+
+  return parsed;
+};
+
+const normalizeNullableNumber = (
+  value,
+  fieldName
+) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    throw badRequest(
+      `${fieldName} must be a valid number`
+    );
+  }
+
+  return parsed;
+};
+
+const normalizeCoordinate = (
+  value,
+  currentValue,
+  fieldName
+) => {
+  const effectiveValue =
+    value !== undefined ? value : currentValue;
+
+  if (
+    effectiveValue === undefined ||
+    effectiveValue === null ||
+    effectiveValue === ''
+  ) {
+    return null;
+  }
+
+  const parsed = Number(effectiveValue);
+
+  if (!Number.isFinite(parsed)) {
+    throw badRequest(
+      `${fieldName} must be a valid number`
+    );
+  }
+
+  return parsed;
+};
+
+const hasLocationPatch = body => {
+  const directFields = [
+    'name',
+    'title',
+    'housenumber',
+    'street',
+    'city',
+    'postcode',
+    'country',
+    'address',
+    'latitude',
+    'longitude',
+  ];
+
+  if (directFields.some(field => hasOwn(body, field))) {
+    return true;
+  }
+
+  const location = body.location;
+  const details = location?.details;
+
+  return Boolean(
+    location &&
+      (
+        hasOwn(location, 'address') ||
+        hasOwn(location, 'full_address') ||
+        hasOwn(location, 'fullAddress') ||
+        (details && Object.keys(details).length > 0)
+      )
+  );
+};
+
+const buildLocationData = (
+  body,
+  currentLocation = {}
+) => {
+  const location = body.location || {};
+  const details = location.details || {};
+
+  const name = firstDefined(
+    body.name,
+    body.title,
+    details.name,
+    currentLocation.name
+  );
+
+  const housenumber = firstDefined(
+    body.housenumber,
+    details.housenumber,
+    details.houseNumber,
+    currentLocation.housenumber
+  );
+
+  const street = firstDefined(
+    body.street,
+    details.street,
+    details.addressLine1,
+    currentLocation.street
+  );
+
+  const city = firstDefined(
+    body.city,
+    details.city,
+    details.town,
+    currentLocation.city
+  );
+
+  const postcode = firstDefined(
+    body.postcode,
+    details.postcode,
+    details.postalCode,
+    currentLocation.postcode
+  );
+
+  const country = firstDefined(
+    body.country,
+    details.country,
+    details.country_name,
+    currentLocation.country
+  );
+
+  const suppliedFullAddress = firstDefined(
+    body.address,
+    location.address,
+    location.full_address,
+    location.fullAddress
+  );
+
+  const generatedFullAddress = [
+    housenumber,
+    street,
+    city,
+    postcode,
+    country,
+  ]
+    .filter(
+      value =>
+        value !== undefined &&
+        value !== null &&
+        value !== ''
+    )
+    .join(' ')
+    .trim();
+
+  const fullAddress =
+    suppliedFullAddress !== undefined &&
+    suppliedFullAddress !== null &&
+    String(suppliedFullAddress).trim() !== ''
+      ? String(suppliedFullAddress).trim()
+      : generatedFullAddress ||
+        currentLocation.full_address ||
+        null;
+
+  return {
+    name: name ?? null,
+    housenumber: housenumber ?? null,
+    street: street ?? null,
+    city: city ?? null,
+    postcode: postcode ?? null,
+    country: country ?? null,
+
+    latitude: normalizeCoordinate(
+      body.latitude,
+      currentLocation.latitude,
+      'latitude'
+    ),
+
+    longitude: normalizeCoordinate(
+      body.longitude,
+      currentLocation.longitude,
+      'longitude'
+    ),
+
+    full_address: fullAddress,
+
     countryCode:
       details.countryCode ||
       details.country_code ||
-      details.isoCountryCode,
-    country: details.country || details.country_name,
-    full_address: address,
+      details.isoCountryCode ||
+      '',
   };
+};
 
-  if (!isUkAddress(stopLocation)) {
-    return res.status(400).json({
-      message: 'Only stops within the United Kingdom are supported.',
-    });
+const validateUkLocation = location => {
+  if (
+    !isUkAddress({
+      countryCode: location.countryCode,
+      country: location.country,
+      full_address: location.full_address,
+    })
+  ) {
+    throw badRequest(
+      'Only stops within the United Kingdom are supported.'
+    );
   }
+};
 
-  const orderDetails = getOrderDetailsFromBody(req.body);
+const insertLocation = async body => {
+  const location = buildLocationData(body);
 
-  try {
-    // Create location.
-    const locationQuery = `
+  validateUkLocation(location);
+
+  const result = await runQuery(
+    `
       INSERT INTO locations (
         name,
         housenumber,
@@ -177,110 +423,403 @@ const addOrder = async (req, res) => {
         longitude,
         full_address
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9
+      )
       RETURNING location_id
-    `;
+    `,
+    [
+      location.name,
+      location.housenumber,
+      location.street,
+      location.city,
+      location.postcode,
+      location.country,
+      location.latitude,
+      location.longitude,
+      location.full_address,
+    ]
+  );
 
-    const locationResult = await runQuery(locationQuery, [
-      title || null,
-      details.housenumber || null,
-      details.street || details.addressLine1 || null,
-      details.city || null,
-      details.postalCode || details.postcode || null,
-      details.country || details.country_name || null,
-      latitude,
-      longitude,
-      address,
-    ]);
+  return {
+    locationId: result.rows[0].location_id,
+    location,
+  };
+};
 
-    const locationId = locationResult.rows[0].location_id;
+const updateLocationIfRequired = async (
+  body,
+  currentLocation
+) => {
+  if (!hasLocationPatch(body)) {
+    return false;
+  }
 
-    const effectiveSequence = sequence;
+  const location = buildLocationData(
+    body,
+    currentLocation
+  );
 
-    const effectiveStopType = stop_type
+  validateUkLocation(location);
 
-    /*
-     * order_details behavior:
-     *
-     * Field not sent:
-     *   Stores NULL for a newly-created order.
-     *
-     * Field sent as null:
-     *   Stores NULL.
-     *
-     * Object or array sent:
-     *   Stores JSON in the JSONB column.
-     */
-    const orderDetailsValue =
-      orderDetails.provided && orderDetails.value !== null
-        ? serializeJsonField(orderDetails.value)
-        : null;
+  await runQuery(
+    `
+      UPDATE locations
+      SET
+        name = $1,
+        housenumber = $2,
+        street = $3,
+        city = $4,
+        postcode = $5,
+        country = $6,
+        latitude = $7,
+        longitude = $8,
+        full_address = $9,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE location_id = $10
+    `,
+    [
+      location.name,
+      location.housenumber,
+      location.street,
+      location.city,
+      location.postcode,
+      location.country,
+      location.latitude,
+      location.longitude,
+      location.full_address,
+      currentLocation.location_id,
+    ]
+  );
 
-    // Create order.
-    const orderQuery = `
+  return true;
+};
+
+const getOrderWithLocation = async orderId => {
+  const result = await runQuery(
+    `
+      SELECT
+        o.*,
+        l.name,
+        l.housenumber,
+        l.street,
+        l.city,
+        l.postcode,
+        l.country,
+        l.latitude,
+        l.longitude,
+        l.full_address,
+        l.full_address AS address
+      FROM orders o
+      JOIN locations l
+        ON o.location_id = l.location_id
+      WHERE o.order_id = $1
+    `,
+    [orderId]
+  );
+
+  return result.rows[0] || null;
+};
+
+
+const createOrderFromInput = async body => {
+  const {
+    route_id,
+    status,
+    sequence,
+    sequence_no,
+    phone,
+    notes,
+    packages,
+    stop_type,
+    priority,
+
+    // Exact frontend field names
+    order_preference,
+    time_at_stop,
+    arrival_time,
+
+    source,
+    raw_manifest_row,
+  } = body;
+
+  if (!route_id) {
+    throw badRequest('route_id is required');
+  }
+
+  if (!body.address) {
+    throw badRequest('address is required');
+  }
+
+  if (
+    body.latitude === undefined ||
+    body.longitude === undefined
+  ) {
+    throw badRequest(
+      'latitude and longitude are required'
+    );
+  }
+
+  const { locationId, location } =
+    await insertLocation(body);
+
+  const orderDetails =
+    getOrderDetailsFromBody(body);
+
+  const orderDetailsValue =
+    orderDetails.provided &&
+    orderDetails.value !== null
+      ? serializeJsonField(orderDetails.value)
+      : null;
+
+  const result = await runQuery(
+    `
       INSERT INTO orders (
         location_id,
         status,
         route_id,
         sequence_no,
+        phone,
         notes,
         packages,
         stop_type,
+        priority,
+        order_preference,
+        time_at_stop,
+        arrival_time,
+        source,
+        raw_manifest_row,
         order_details
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15
+      )
       RETURNING *
-    `;
-
-    const orderResult = await runQuery(orderQuery, [
+    `,
+    [
       locationId,
       status || ROUTE_STATUS.PENDING,
       route_id,
-      effectiveSequence ?? null,
+      sequence_no ?? sequence ?? null,
+      phone || null,
       notes ?? null,
-      packages === undefined || packages === null || packages === ''
-        ? 1
-        : Number(packages),
-      effectiveStopType || 'delivery',
-      orderDetailsValue,
-    ]);
 
-    return res.status(201).json(orderResult.rows[0]);
+      normalizePositiveInteger(
+        packages,
+        'packages',
+        1
+      ),
+
+      normalizeStopType(stop_type),
+
+      normalizeNullableNumber(
+        priority,
+        'priority'
+      ) ?? null,
+
+      normalizeOrderPreference(
+        order_preference
+      ),
+
+      // FE: time_at_stop
+      // DB: time_at_stop_minutes
+      normalizePositiveInteger(
+        time_at_stop,
+        'time_at_stop',
+        1
+      ),
+
+      normalizeArrivalTime(arrival_time),
+
+      source || 'manual',
+
+      raw_manifest_row
+        ? serializeJsonField(raw_manifest_row)
+        : null,
+
+      orderDetailsValue,
+    ]
+  );
+
+  return {
+    ...result.rows[0],
+    ...location,
+    address: location.full_address,
+  };
+};
+
+
+
+// @desc    Add new order and create its location
+// @route   POST /order/add
+// @access  Private
+const addOrder = async (req, res) => {
+  try {
+    const order = await createOrderFromInput(
+      req.body
+    );
+
+    return res.status(201).json(order);
   } catch (error) {
     console.error('Add Order Error:', error);
 
-    return res.status(500).json({
-      message: 'Server error during order creation',
-      error:
-        process.env.NODE_ENV === 'development'
-          ? error.message
-          : undefined,
-    });
+    return res
+      .status(error.statusCode || 500)
+      .json({
+        message:
+          error.statusCode === 400
+            ? error.message
+            : 'Server error during order creation',
+
+        error:
+          process.env.NODE_ENV === 'development'
+            ? error.message
+            : undefined,
+      });
   }
 };
+
+const buildOrderUpdate = (
+  body,
+  locationUpdated
+) => {
+  const fields = [];
+  const values = [];
+
+  const addField = (column, value) => {
+    values.push(value);
+    fields.push(
+      `${column} = $${values.length}`
+    );
+  };
+
+  if (hasOwn(body, 'status')) {
+    addField('status', body.status);
+
+    const normalizedStatus = String(
+      body.status || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (normalizedStatus === 'arrived') {
+      fields.push(
+        'arrive_at = CURRENT_TIMESTAMP'
+      );
+    }
+
+    if (normalizedStatus === 'failed') {
+      fields.push(
+        'failed_at = CURRENT_TIMESTAMP'
+      );
+    }
+  }
+
+  if (locationUpdated) {
+    fields.push('sequence_no = NULL');
+  } else if (hasOwn(body, 'sequence_no')) {
+    addField(
+      'sequence_no',
+      body.sequence_no
+    );
+  }
+
+  if (hasOwn(body, 'notes')) {
+    addField('notes', body.notes);
+  }
+
+  if (hasOwn(body, 'packages')) {
+    addField(
+      'packages',
+      normalizePositiveInteger(
+        body.packages,
+        'packages',
+        1
+      )
+    );
+  }
+
+  if (hasOwn(body, 'stop_type')) {
+    addField(
+      'stop_type',
+      normalizeStopType(body.stop_type)
+    );
+  }
+
+  if (hasOwn(body, 'priority')) {
+    addField(
+      'priority',
+      normalizeNullableNumber(
+        body.priority,
+        'priority'
+      )
+    );
+  }
+
+  if (hasOwn(body, 'order_preference')) {
+    addField(
+      'order_preference',
+      normalizeOrderPreference(
+        body.order_preference
+      )
+    );
+  }
+
+  /*
+   * Frontend sends time_at_stop.
+   * Database stores time_at_stop_minutes.
+   */
+  if (hasOwn(body, 'time_at_stop')) {
+    addField(
+      'time_at_stop',
+      normalizePositiveInteger(
+        body.time_at_stop,
+        'time_at_stop',
+        1
+      )
+    );
+  }
+
+  if (hasOwn(body, 'arrival_time')) {
+    addField(
+      'arrival_time',
+      normalizeArrivalTime(
+        body.arrival_time
+      )
+    );
+  }
+
+  const orderDetails =
+    getOrderDetailsFromBody(body);
+
+  if (orderDetails.provided) {
+    addField(
+      'order_details',
+      orderDetails.value === null ||
+      orderDetails.value === undefined
+        ? null
+        : serializeJsonField(
+            orderDetails.value
+          )
+    );
+  }
+
+  return {
+    fields,
+    values,
+  };
+};
+
+
 
 // @desc    Edit order and its location details
 // @route   PUT /order/edit
 // @access  Private
 const editOrder = async (req, res) => {
-  const {
-    order_id,
-    status,
-    sequence_no,
-    name,
-    housenumber,
-    street,
-    city,
-    postcode,
-    country,
-    latitude,
-    longitude,
-    notes,
-    packages,
-    stopType,
-    stop_type,
-    priority,
-  } = req.body;
+  const { order_id } = req.body;
 
   if (!order_id) {
     return res.status(400).json({
@@ -288,339 +827,73 @@ const editOrder = async (req, res) => {
     });
   }
 
-  const orderDetails = getOrderDetailsFromBody(req.body);
-
   try {
-    // Find the order and its current location details.
-    const orderLocationResult = await runQuery(
-      `
-        SELECT
-          o.location_id,
-          l.name,
-          l.housenumber,
-          l.street,
-          l.city,
-          l.postcode,
-          l.country,
-          l.latitude,
-          l.longitude,
-          l.full_address
-        FROM orders o
-        JOIN locations l
-          ON o.location_id = l.location_id
-        WHERE o.order_id = $1
-      `,
-      [order_id]
-    );
+    const existingOrder =
+      await getOrderWithLocation(order_id);
 
-    if (orderLocationResult.rows.length === 0) {
+    if (!existingOrder) {
       return res.status(404).json({
         message: 'Order not found',
       });
     }
 
-    const currentLocation = orderLocationResult.rows[0];
-    const locationId = currentLocation.location_id;
-
-    const hasLocationUpdate =
-      name !== undefined ||
-      housenumber !== undefined ||
-      street !== undefined ||
-      city !== undefined ||
-      postcode !== undefined ||
-      country !== undefined ||
-      latitude !== undefined ||
-      longitude !== undefined;
-
-    let locationUpdated = false;
-
-    if (hasLocationUpdate) {
-      const updatedName =
-        name !== undefined ? name : currentLocation.name;
-
-      const updatedHouseNumber =
-        housenumber !== undefined
-          ? housenumber
-          : currentLocation.housenumber;
-
-      const updatedStreet =
-        street !== undefined ? street : currentLocation.street;
-
-      const updatedCity =
-        city !== undefined ? city : currentLocation.city;
-
-      const updatedPostcode =
-        postcode !== undefined
-          ? postcode
-          : currentLocation.postcode;
-
-      const updatedCountry =
-        country !== undefined
-          ? country
-          : currentLocation.country;
-
-      const updatedLatitude =
-        latitude !== undefined
-          ? latitude
-          : currentLocation.latitude;
-
-      const updatedLongitude =
-        longitude !== undefined
-          ? longitude
-          : currentLocation.longitude;
-
-      const updatedFullAddress = [
-        updatedHouseNumber,
-        updatedStreet,
-        updatedCity,
-        updatedPostcode,
-        updatedCountry,
-      ]
-        .filter(value => value !== null && value !== undefined && value !== '')
-        .join(' ')
-        .trim();
-
-      const stopLocation = {
-        country: updatedCountry,
-        full_address:
-          updatedFullAddress || currentLocation.full_address || '',
-      };
-
-      if (!isUkAddress(stopLocation)) {
-        return res.status(400).json({
-          message: 'Only stops within the United Kingdom are supported.',
-        });
-      }
-
-      const locationUpdateQuery = `
-        UPDATE locations
-        SET
-          name = $1,
-          housenumber = $2,
-          street = $3,
-          city = $4,
-          postcode = $5,
-          country = $6,
-          latitude = $7,
-          longitude = $8,
-          full_address = $9,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE location_id = $10
-      `;
-
-      await runQuery(locationUpdateQuery, [
-        updatedName,
-        updatedHouseNumber,
-        updatedStreet,
-        updatedCity,
-        updatedPostcode,
-        updatedCountry,
-        updatedLatitude,
-        updatedLongitude,
-        updatedFullAddress || currentLocation.full_address,
-        locationId,
-      ]);
-
-      locationUpdated = true;
-    }
-
-    const orderUpdateFields = [];
-    const orderUpdateValues = [];
-    let parameterCounter = 1;
-
-    if (status !== undefined) {
-      orderUpdateFields.push(`status = $${parameterCounter}`);
-      orderUpdateValues.push(status);
-      parameterCounter += 1;
-
-      const normalizedStatus = String(status)
-        .trim()
-        .toLowerCase();
-
-      /*
-       * Automatically save arrival time.
-       *
-       * Example:
-       * {
-       *   "order_id": "123",
-       *   "status": "arrived"
-       * }
-       */
-      if (normalizedStatus === 'arrived') {
-        orderUpdateFields.push(
-          'arrive_at = CURRENT_TIMESTAMP'
-        );
-      }
-
-      /*
-       * Automatically save failure time.
-       *
-       * Example:
-       * {
-       *   "order_id": "123",
-       *   "status": "failed"
-       * }
-       */
-      if (normalizedStatus === 'failed') {
-        orderUpdateFields.push(
-          'failed_at = CURRENT_TIMESTAMP'
-        );
-      }
-    }
-
-    if (locationUpdated) {
-      // Changing the location invalidates the optimized sequence.
-      orderUpdateFields.push('sequence_no = NULL');
-    } else if (sequence_no !== undefined) {
-      orderUpdateFields.push(
-        `sequence_no = $${parameterCounter}`
+    const locationUpdated =
+      await updateLocationIfRequired(
+        req.body,
+        existingOrder
       );
 
-      orderUpdateValues.push(sequence_no);
-      parameterCounter += 1;
-    }
-
-    if (notes !== undefined) {
-      orderUpdateFields.push(`notes = $${parameterCounter}`);
-      orderUpdateValues.push(notes);
-      parameterCounter += 1;
-    }
-
-    if (packages !== undefined) {
-      orderUpdateFields.push(
-        `packages = $${parameterCounter}`
+    const { fields, values } =
+      buildOrderUpdate(
+        req.body,
+        locationUpdated
       );
 
-      orderUpdateValues.push(
-        packages === null || packages === ''
-          ? null
-          : Number(packages)
+    // console,log(fields)
+    // console.log(values)
+
+    if (fields.length > 0) {
+      fields.push(
+        'updated_at = CURRENT_TIMESTAMP'
       );
 
-      parameterCounter += 1;
-    }
+      const orderIdParameter =
+        values.length + 1;
 
-    const effectiveStopType =
-      stop_type !== undefined ? stop_type : stopType;
-
-    if (effectiveStopType !== undefined) {
-      orderUpdateFields.push(
-        `stop_type = $${parameterCounter}`
-      );
-
-      orderUpdateValues.push(effectiveStopType);
-      parameterCounter += 1;
-    }
-
-    if (priority !== undefined) {
-      orderUpdateFields.push(
-        `priority = $${parameterCounter}`
-      );
-
-      orderUpdateValues.push(
-        priority === null || priority === ''
-          ? null
-          : Number(priority)
-      );
-
-      parameterCounter += 1;
-    }
-
-    /*
-     * order_details behavior during edit:
-     *
-     * Neither field sent:
-     *   Existing order_details remains unchanged.
-     *
-     * order_details: null
-     *   Existing value is cleared.
-     *
-     * orderDetails: null
-     *   Existing value is cleared.
-     *
-     * Object/array sent:
-     *   Existing value is replaced.
-     */
-    if (orderDetails.provided) {
-      orderUpdateFields.push(
-        `order_details = $${parameterCounter}`
-      );
-
-      orderUpdateValues.push(
-        orderDetails.value === null ||
-          orderDetails.value === undefined
-          ? null
-          : serializeJsonField(orderDetails.value)
-      );
-
-      parameterCounter += 1;
-    }
-
-    /*
-     * There may be no order-specific fields when only the location
-     * has been updated. In that case, sequence_no has already been
-     * added above.
-     */
-    if (orderUpdateFields.length === 0) {
-      const currentOrderResult = await runQuery(
+      await runQuery(
         `
-          SELECT
-            o.*,
-            l.name,
-            l.housenumber,
-            l.street,
-            l.city,
-            l.postcode,
-            l.country,
-            l.latitude,
-            l.longitude,
-            l.full_address
-          FROM orders o
-          JOIN locations l
-            ON o.location_id = l.location_id
-          WHERE o.order_id = $1
+          UPDATE orders
+          SET ${fields.join(', ')}
+          WHERE order_id = $${orderIdParameter}
         `,
-        [order_id]
-      );
-
-      return res.status(200).json(
-        currentOrderResult.rows[0]
+        [...values, order_id]
       );
     }
 
-    orderUpdateFields.push(
-      'updated_at = CURRENT_TIMESTAMP'
-    );
+    const updatedOrder =
+      await getOrderWithLocation(order_id);
 
-    orderUpdateValues.push(order_id);
-
-    const orderIdParameter = parameterCounter;
-
-    const orderUpdateQuery = `
-      UPDATE orders
-      SET ${orderUpdateFields.join(', ')}
-      WHERE order_id = $${orderIdParameter}
-      RETURNING *
-    `;
-
-    const result = await runQuery(
-      orderUpdateQuery,
-      orderUpdateValues
-    );
-
-    return res.status(200).json(result.rows[0]);
+    return res.status(200).json(updatedOrder);
   } catch (error) {
     console.error('Edit Order Error:', error);
 
-    return res.status(500).json({
-      message: 'Server error while updating order',
-      error:
-        process.env.NODE_ENV === 'development'
-          ? error.message
-          : undefined,
-    });
+    return res
+      .status(error.statusCode || 500)
+      .json({
+        message:
+          error.statusCode === 400
+            ? error.message
+            : 'Server error while updating order',
+
+        error:
+          process.env.NODE_ENV === 'development'
+            ? error.message
+            : undefined,
+      });
   }
 };
+
+
 
 // @desc    Delete all orders
 // @route   DELETE /order/delete/all
@@ -918,106 +1191,8 @@ const setVehiclePlacement = async (req, res) => {
 /**
  * Internal helper for adding an order during bulk import.
  */
-const insertOrderStop = async stop => {
-  const {
-    route_id,
-    status,
-    title,
-    phone,
-    address,
-    latitude,
-    longitude,
-    sequence,
-    location,
-    notes,
-    packages,
-    stop_type,
-    source,
-    raw_manifest_row,
-  } = stop;
-
-  const details = location?.details || {};
-
-  if (
-    !route_id ||
-    !address ||
-    latitude === undefined ||
-    longitude === undefined
-  ) {
-    throw new Error(
-      'route_id, address, latitude, and longitude are required'
-    );
-  }
-
-  const locationQuery = `
-    INSERT INTO locations (
-      name,
-      housenumber,
-      street,
-      city,
-      postcode,
-      country,
-      latitude,
-      longitude,
-      full_address
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING location_id
-  `;
-
-  const locationResult = await runQuery(locationQuery, [
-    title || null,
-    details.housenumber || null,
-    details.street || details.addressLine1 || null,
-    details.city || null,
-    details.postalCode || details.postcode || null,
-    details.country || null,
-    latitude,
-    longitude,
-    address,
-  ]);
-
-  const locationId =
-    locationResult.rows[0].location_id;
-
-  const orderQuery = `
-    INSERT INTO orders (
-      location_id,
-      status,
-      route_id,
-      sequence_no,
-      phone,
-      notes,
-      packages,
-      stop_type,
-      source,
-      raw_manifest_row
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    RETURNING *
-  `;
-
-  const orderResult = await runQuery(orderQuery, [
-    locationId,
-    status || ROUTE_STATUS.PENDING,
-    route_id,
-    sequence ?? null,
-    phone || null,
-    notes || null,
-    packages === undefined ||
-    packages === null ||
-    packages === ''
-      ? 1
-      : Number(packages),
-    stop_type || 'delivery',
-    source || 'manual',
-    raw_manifest_row
-      ? JSON.stringify(raw_manifest_row)
-      : null,
-  ]);
-
-  return orderResult.rows[0];
-};
+const insertOrderStop = async stop =>
+  createOrderFromInput(stop);
 
 // @desc    Add many orders/stops at once
 // @route   POST /order/add/bulk

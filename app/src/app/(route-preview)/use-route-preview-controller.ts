@@ -135,6 +135,7 @@ type UseRoutePreviewControllerResult = {
   isSavingRouteEdit: boolean;
   handleOpenEditRoute: () => void;
   handleCancelEditRoute: () => void;
+  handleBackFromEditStop: () => void;
   handleOpenEditStartLocation: () => void;
   handleOpenEditEndLocation: () => void;
   handleOpenEditStartTime: () => void;
@@ -603,6 +604,15 @@ const handleCancelEditRoute = useCallback(() => {
   setPanelMode('confirmed');
 }, []);
 
+const handleBackFromEditStop = useCallback(() => {
+  setErrorMessage('');
+  setSelectedStop(null);
+  setSelectedSuggestion(null);
+  setSearchText('');
+  setSuggestions([]);
+  setPanelMode('edit_route');
+}, []);
+
 const handleOpenEditStartLocation = useCallback(() => {
   setSearchText(route?.start?.description || route?.start?.title || '');
   setSuggestions([]);
@@ -697,49 +707,195 @@ const handleOpenEditStop = useCallback((stop: RouteStop) => {
   setPanelMode('edit_stop');
 }, []);
 
-const handleSaveEditedStop = useCallback(async (details: StopDetails) => {
-  if (!route || !selectedStop || !effectiveRouteId) return;
-  const orderId = getStopBackendId(selectedStop);
-  if (!orderId) {
-    setErrorMessage('Order id is missing. Unable to save stop.');
-    return;
-  }
+const handleSaveEditedStop = useCallback(
+  async (details: StopDetails) => {
+    if (!route || !selectedStop || !effectiveRouteId) return;
 
-  setIsSavingRouteEdit(true);
-  setErrorMessage('');
+    const orderId = getStopBackendId(selectedStop);
 
-  try {
-    const response = await ordersService.editOrder({
-      order_id: orderId,
-      packages: details.packages,
-      order: details.order,
-      stopType: details.stopType,
-      stop_type: details.stopType,
-      notes: details.notes,
-      priority: details.priority,
-    });
-    if (!isSuccessResponse(response)) {
-      throw new Error(getResponseErrorMessage(response, 'Unable to save stop.'));
+    if (!orderId) {
+      setErrorMessage('Order id is missing. Unable to save stop.');
+      return;
     }
 
-    const selectedKey = getStopIdentity(selectedStop);
-    const nextStops = route.stops.map(stop =>
-      getStopIdentity(stop) === selectedKey
-        ? { ...stop, ...details, packages: Number(details.packages || 1) }
-        : stop,
-    );
+    setIsSavingRouteEdit(true);
+    setErrorMessage('');
 
-    setRoute({ ...route, stops: nextStops });
-    await markRouteNeedsReOptimization();
-    setSelectedStop(null);
-    setSelectedSuggestion(null);
-    setPanelMode('edit_route');
-  } catch (error) {
-    setErrorMessage(error instanceof Error ? error.message : 'Unable to save stop.');
-  } finally {
-    setIsSavingRouteEdit(false);
-  }
-}, [effectiveRouteId, markRouteNeedsReOptimization, route, selectedStop]);
+    try {
+      const stopDetails = details as any;
+      const currentStop = selectedStop as any;
+
+      const stopType =
+        stopDetails.stop_type ??
+        stopDetails.stopType ??
+        currentStop.stop_type ??
+        currentStop.stopType ??
+        'delivery';
+
+      const orderPreference =
+        stopDetails.order_preference ??
+        stopDetails.order ??
+        currentStop.order_preference ??
+        currentStop.order ??
+        'auto';
+
+      const timeAtStop = Math.max(
+        1,
+        Number(
+          stopDetails.timeAtStopMinutes ??
+            stopDetails.time_at_stop ??
+            currentStop.timeAtStopMinutes ??
+            currentStop.time_at_stop ??
+            1,
+        ),
+      );
+
+      const rawArrivalTime =
+        stopDetails.arrivalTime ??
+        stopDetails.arrival_time ??
+        currentStop.arrivalTime ??
+        currentStop.arrival_time ??
+        '';
+
+      const arrivalTime =
+        typeof rawArrivalTime === 'string' && rawArrivalTime.trim()
+          ? rawArrivalTime.trim()
+          : null;
+
+      const address = String(
+        stopDetails.address ??
+          currentStop.address ??
+          currentStop.description ??
+          '',
+      );
+
+      const latitude =
+        stopDetails.latitude !== undefined &&
+        stopDetails.latitude !== null
+          ? Number(stopDetails.latitude)
+          : Number(currentStop.latitude);
+
+      const longitude =
+        stopDetails.longitude !== undefined &&
+        stopDetails.longitude !== null
+          ? Number(stopDetails.longitude)
+          : Number(currentStop.longitude);
+
+      const payload = {
+        order_id: orderId,
+
+        notes: String(stopDetails.notes || '').trim(),
+        packages: Math.max(1, Number(stopDetails.packages || 1)),
+
+        stop_type: stopType,
+        time_at_stop: timeAtStop,
+        arrival_time: arrivalTime,
+        order_preference: orderPreference,
+
+        address,
+        latitude,
+        longitude,
+
+        priority:
+          stopDetails.priority !== undefined
+            ? stopDetails.priority
+            : currentStop.priority,
+      };
+
+      console.log('Edit order payload:', payload);
+
+      const response = await ordersService.editOrder(payload);
+
+      if (!isSuccessResponse(response)) {
+        throw new Error(
+          getResponseErrorMessage(response, 'Unable to save stop.'),
+        );
+      }
+
+      const selectedKey = getStopIdentity(selectedStop);
+
+      const updatedStop = {
+        ...selectedStop,
+
+        notes: payload.notes,
+        packages: payload.packages,
+
+        stopType,
+        stop_type: stopType,
+
+        order: orderPreference,
+        order_preference: orderPreference,
+
+        arrivalTime: arrivalTime || '',
+        arrival_time: arrivalTime,
+
+        timeAtStopMinutes: timeAtStop,
+        time_at_stop: timeAtStop,
+
+        address,
+        description: address || selectedStop.description,
+
+        latitude,
+        longitude,
+      } as RouteStop;
+
+      const nextStops = route.stops.map((stop) =>
+        getStopIdentity(stop) === selectedKey ? updatedStop : stop,
+      );
+
+      setRoute({
+        ...route,
+        stops: nextStops,
+        coordinates: getInitialCoordinates({
+          ...route,
+          stops: nextStops,
+        }),
+      });
+
+      setStopDetails({
+        ...details,
+
+        packages: payload.packages,
+
+        stop_type: stopType,
+        stopType,
+
+        order_preference: orderPreference,
+        order: orderPreference,
+
+        arrivalTime: arrivalTime || '',
+        timeAtStopMinutes: timeAtStop,
+
+        address,
+        latitude,
+        longitude,
+      } as any);
+
+      await markRouteNeedsReOptimization();
+
+      setSelectedStop(null);
+      setSelectedSuggestion(null);
+      setPanelMode('edit_route');
+    } catch (error) {
+      console.error('Unable to save edited stop:', error);
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save stop.',
+      );
+    } finally {
+      setIsSavingRouteEdit(false);
+    }
+  },
+  [
+    effectiveRouteId,
+    markRouteNeedsReOptimization,
+    route,
+    selectedStop,
+  ],
+);
+
 
 const handleSaveStopPriority = useCallback(async (stopId: string, priority: number | null) => {
   if (!route || !effectiveRouteId) return;
@@ -961,10 +1117,11 @@ const handleRemoveEditedStop = useCallback(async () => {
         const response = await ordersService.editOrder({
           order_id: orderId,
           packages: stopDetails.packages,
-          order: stopDetails.order,
-          stopType: stopDetails.stopType,
-          stop_type: stopDetails.stopType,
+          order: stopDetails.order_preference,
+          stop_type: stopDetails.stop_type,
           notes: stopDetails.notes,
+          planned_arrival_time: stopDetails.arrivalTime,
+          time_at_stop: stopDetails.timeAtStopMinutes,
         });
 
         if (!isSuccessResponse(response)) {
@@ -976,9 +1133,11 @@ const handleRemoveEditedStop = useCallback(async () => {
             ? {
                 ...stop,
                 packages: Number(stopDetails.packages || 1),
-                order: stopDetails.order || 'auto',
-                stopType: stopDetails.stopType || 'delivery',
+                order_preference: stopDetails.order_preference || 'auto',
+                stop_type: stopDetails.stop_type || 'delivery',
                 notes: stopDetails.notes || '',
+                planned_arrival_time: stopDetails.arrivalTime || '',
+                time_at_stop: Number(stopDetails.timeAtStopMinutes || 1),
               }
             : stop,
         );
@@ -1017,10 +1176,12 @@ const handleRemoveEditedStop = useCallback(async () => {
       description: selectedSuggestion.subtitle,
       address: selectedSuggestion.fullAddress,
       packages: stopDetails.packages,
-      order: stopDetails.order,
-      stopType: stopDetails.stopType,
+      order_preference: stopDetails.order_preference,
+      stop_type: stopDetails.stop_type,
       notes: stopDetails.notes,
       status: ROUTE_STATUS_PENDING,
+      timeAtStopMinutes: stopDetails.timeAtStopMinutes,
+      planned_arrival_time: stopDetails.arrivalTime,
     };
 
     setIsAddingStop(true);
@@ -2031,9 +2192,11 @@ const handleRemoveEditedStop = useCallback(async () => {
           title: stop.title || `Stop ${route.stops.length + index + 1}`,
           address: stop.address || stop.description || '',
           packages: Number(stop.packages || 1),
-          stop_type: stop.stopType || 'delivery',
+          stop_type: stop.stop_type || 'delivery',
           notes: stop.notes || '',
           status: ROUTE_STATUS_PENDING,
+          planned_arrival_time: stop.planned_arrival_time || null,
+          timeAtStopMinutes: stop.timeAtStopMinutes || null,
         };
       });
 
@@ -2118,6 +2281,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     isSavingRouteEdit,
     handleOpenEditRoute,
     handleCancelEditRoute,
+    handleBackFromEditStop,
     handleOpenEditStartLocation,
     handleOpenEditEndLocation,
     handleOpenEditStartTime,

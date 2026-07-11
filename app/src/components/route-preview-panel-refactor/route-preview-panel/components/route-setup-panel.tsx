@@ -333,7 +333,7 @@ export function RouteSetupPanel({
 
             {/* <BreakToggleRow /> */}
 
-            <Pressable
+            {/* <Pressable
               style={({ pressed }) => [
                 localStyles.breakRow,
                 pressed && { backgroundColor: '#F8FAFC' }
@@ -356,7 +356,7 @@ export function RouteSetupPanel({
               <View style={localStyles.setupIconBox}>
                 <Feather name="star" size={18} color="#2E76F6" />
               </View>
-            </Pressable>
+            </Pressable> */}
           </View>
 
           <SectionLabel title="Stops" />

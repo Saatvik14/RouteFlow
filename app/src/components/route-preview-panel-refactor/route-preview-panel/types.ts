@@ -70,6 +70,7 @@ export type RoutePreviewPanelProps = {
   isSavingRouteEdit?: boolean;
   onOpenEditRoute?: () => void;
   onCancelEditRoute?: () => void;
+  onBackFromEditStop ?: () => void;
   onOpenEditStartLocation?: () => void;
   onOpenEditEndLocation?: () => void;
   onOpenEditStartTime?: () => void;

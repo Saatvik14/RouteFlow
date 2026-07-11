@@ -17,10 +17,11 @@ export type PlaceSuggestion = {
 
 export type StopDetails = {
   packages: number;
-  order: 'first' | 'auto' | 'last';
-  stopType: 'delivery' | 'pickup';
+  order_preference: 'early' | 'auto' | 'last';
+  stop_type: 'delivery' | 'pickup';
   notes: string;
-  priority?: number | null;
+  arrivalTime: string | null;
+  timeAtStopMinutes: number | null;
 };
 
 export type RouteStop = RoutePoint & {
@@ -32,12 +33,14 @@ export type RouteStop = RoutePoint & {
   address?: string;
   notes?: string;
   packages?: number;
-  order?: 'first' | 'auto' | 'last';
-  stopType?: 'delivery' | 'pickup';
+  order_preference?: 'early' | 'auto' | 'last';
+  stop_type?: 'delivery' | 'pickup';
   status?: string;
   backendOrderId?: string | number;
   orderId?: string | number;
   sequenceNo?: number;
+  planned_arrival_time?: string | null;
+  timeAtStopMinutes?: number | null;
 };
 
 export type AppRoute = Omit<ConfirmedRoute, 'stops'> & {

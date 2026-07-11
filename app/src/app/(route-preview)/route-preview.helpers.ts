@@ -23,11 +23,20 @@ export const DEFAULT_POINT: RoutePoint = {
 };
 
 export const DEFAULT_STOP_DETAILS: StopDetails = {
-  packages: 1,
-  order: 'auto',
-  stopType: 'delivery',
   notes: '',
-};
+  packages: 1,
+
+  order_preference: 'auto',
+  stop_type: 'delivery',
+
+  arrivalTime: '',
+  timeAtStopMinutes: 1,
+
+  address: '',
+  latitude: null,
+  longitude: null
+} as StopDetails;
+
 
 export const ROUTE_STATUS_PENDING =
   (ROUTE_STATUS as Record<string, string>).PENDING || 'pending';
@@ -935,8 +944,8 @@ export function buildOrderPayload({
     latitude: suggestion.latitude,
     longitude: suggestion.longitude,
     packages: details.packages,
-    order: details.order,
-    stopType: details.stopType,
+    order_preference: details.order_preference,
+    stop_type: details.stop_type,
     notes: details.notes,
     status: ROUTE_STATUS_PENDING,
   };
@@ -992,12 +1001,11 @@ export function buildStopFromSavedOrder(
         fallbackStop.packages ||
         1,
     ),
-    order: savedOrder.order || fallbackStop.order || 'auto',
-    stopType:
-      savedOrder.stopType ||
+    order_preference: savedOrder.order_preference || fallbackStop.order_preference || 'auto',
+    stop_type:
       savedOrder.stop_type ||
       savedOrder.type ||
-      fallbackStop.stopType ||
+      fallbackStop.stop_type ||
       'delivery',
     notes: savedOrder.notes || savedOrder.note || fallbackStop.notes || '',
     status: savedOrder.status || fallbackStop.status,
@@ -1102,10 +1110,11 @@ export function buildSuggestionFromStop(stop: RouteStop): PlaceSuggestion {
 export function buildStopDetailsFromStop(stop: RouteStop): StopDetails {
   return {
     packages: Number(stop.packages || 1),
-    order: stop.order || 'auto',
-    stopType: stop.stopType || 'delivery',
+    order_preference: stop.order_preference || 'auto',
+    stop_type: stop.stop_type || 'delivery',
     notes: stop.notes || '',
-    priority: (stop as any).priority !== undefined ? (stop as any).priority : null,
+    arrivalTime: stop.planned_arrival_time ||null,
+    timeAtStopMinutes: stop.timeAtStopMinutes || null,
   };
 }
 
