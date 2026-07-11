@@ -1,7 +1,46 @@
-# Ignore local Android configuration files which leaks machine-specific SDK paths
-android/local.properties
-local.properties
+# Git
+.git
+.gitignore
+
+# Dependencies
+node_modules
+
+# Expo
+.expo
+dist
+web-build
+
+# Android
+android/app/build
+android/build
+.gradle
+*.keystore
+
+# iOS
+ios/build
+Pods
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+
+# Environment
 .env
 .env.local
-.expo/
-node_modules/
+
+# Temporary
+tmp
+temp
