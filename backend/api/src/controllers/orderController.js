@@ -533,7 +533,6 @@ const createOrderFromInput = async body => {
     notes,
     packages,
     stop_type,
-    priority,
 
     // Exact frontend field names
     order_preference,
@@ -584,18 +583,16 @@ const createOrderFromInput = async body => {
         notes,
         packages,
         stop_type,
-        priority,
         order_preference,
         time_at_stop,
         arrival_time,
         source,
         raw_manifest_row,
-        order_details
       )
       VALUES (
         $1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15
+        $11, $12, $13
       )
       RETURNING *
     `,
@@ -614,12 +611,6 @@ const createOrderFromInput = async body => {
       ),
 
       normalizeStopType(stop_type),
-
-      normalizeNullableNumber(
-        priority,
-        'priority'
-      ) ?? null,
-
       normalizeOrderPreference(
         order_preference
       ),
@@ -638,9 +629,7 @@ const createOrderFromInput = async body => {
 
       raw_manifest_row
         ? serializeJsonField(raw_manifest_row)
-        : null,
-
-      orderDetailsValue,
+        : null
     ]
   );
 
@@ -749,15 +738,6 @@ const buildOrderUpdate = (
     );
   }
 
-  if (hasOwn(body, 'priority')) {
-    addField(
-      'priority',
-      normalizeNullableNumber(
-        body.priority,
-        'priority'
-      )
-    );
-  }
 
   if (hasOwn(body, 'order_preference')) {
     addField(
