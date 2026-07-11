@@ -96,6 +96,10 @@ export default function RoutePreviewScreen() {
     handleRemoveStops,
     editingStop,
     isSavingRouteEdit,
+    isSavingStopOrder,
+    handleOpenReorderStops,
+    handleCancelReorderStops,
+    handleSaveStopOrder,
     handleOpenEditRoute,
     handleCancelEditRoute,
     handleBackFromEditStop,
@@ -512,6 +516,10 @@ export default function RoutePreviewScreen() {
           onCancelRoute={handleCancelRoute}
           editingStop={editingStop as any}
           isSavingRouteEdit={isSavingRouteEdit}
+          isSavingStopOrder={isSavingStopOrder}
+          onOpenReorderStops={handleOpenReorderStops}
+          onCancelReorderStops={handleCancelReorderStops}
+          onSaveStopOrder={handleSaveStopOrder}
           isOptimizing={isOptimizing}
           onOpenEditRoute={handleOpenEditRoute}
           onCancelEditRoute={handleCancelEditRoute}

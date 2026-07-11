@@ -15,6 +15,14 @@ export interface Order {
   [key: string]: any;
 }
 
+export type ReorderOrdersPayload = {
+  route_id: string;
+  orders: Array<{
+    order_id: string;
+    sequence_no: number;
+  }>;
+};
+
 /**
  * Orders Service functions
  */
@@ -64,4 +72,13 @@ export const ordersService = {
    */
   getVehiclePlacementByOrderId: (orderId: string) =>
     apiGet(API_ENDPOINTS.ORDERS.GET_VEHICLE_PLACE(orderId)),
+
+  /*
+ * Add this method inside ordersService.
+ * Keep the same API helper that your existing editOrder method uses.
+ *
+ * Axios-style example:
+ */
+reorderOrders: (payload: ReorderOrdersPayload) =>
+  apiPut(API_ENDPOINTS.ORDERS.REORDER_STOPS, payload),
 };

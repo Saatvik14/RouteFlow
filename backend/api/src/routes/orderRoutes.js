@@ -1,6 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { addOrder, editOrder, deleteAllOrders, deleteOrderById, fetchOrders, setVehiclePlacement, getVehiclePlacementByOrderId, addBulkOrders, fetchOrdersByRoute } = require('../controllers/orderController');
+const { addOrder, 
+        editOrder, 
+        deleteAllOrders, 
+        deleteOrderById, 
+        fetchOrders, 
+        setVehiclePlacement, 
+        getVehiclePlacementByOrderId, 
+        addBulkOrders, 
+        fetchOrdersByRoute,
+        reorderOrders
+ } = require('../controllers/orderController');
 const { protect } = require('../middleware/authMiddleware');
 
 // All order APIs are protected
@@ -15,5 +25,7 @@ router.get('/fetch', fetchOrdersByRoute);
 router.post('/vehicleplace', setVehiclePlacement);
 router.get('/vehicleplace', getVehiclePlacementByOrderId);
 router.post('/add/bulk', addBulkOrders);
+router.put('/reorder', protect, reorderOrders);
+
 
 module.exports = router;

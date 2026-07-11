@@ -1222,6 +1222,177 @@ const addBulkOrders = async (req, res) => {
   });
 };
 
+
+/**
+ * PUT /order/reorder
+ *
+ * Body:
+ * {
+ *   "route_id": "123",
+ *   "orders": [
+ *     { "order_id": "41", "sequence_no": 1 },
+ *     { "order_id": "19", "sequence_no": 2 }
+ *   ]
+ * }
+ */
+const reorderOrders = async (req, res) => {
+  const { route_id, orders } = req.body || {};
+
+  if (!route_id) {
+    return res.status(400).json({
+      message: 'route_id is required',
+    });
+  }
+
+  if (!Array.isArray(orders) || orders.length === 0) {
+    return res.status(400).json({
+      message: 'orders must be a non-empty array',
+    });
+  }
+
+  const normalizedOrders = orders.map((item, index) => ({
+    order_id: String(item?.order_id || '').trim(),
+    sequence_no: Number(item?.sequence_no ?? index + 1),
+  }));
+
+  const hasInvalidOrder = normalizedOrders.some(
+    item =>
+      !item.order_id ||
+      !Number.isInteger(item.sequence_no) ||
+      item.sequence_no < 1
+  );
+
+  if (hasInvalidOrder) {
+    return res.status(400).json({
+      message:
+        'Every order must contain order_id and a positive integer sequence_no',
+    });
+  }
+
+  const orderIds = normalizedOrders.map(item => item.order_id);
+  const sequenceNumbers = normalizedOrders.map(item => item.sequence_no);
+
+  if (new Set(orderIds).size !== orderIds.length) {
+    return res.status(400).json({
+      message: 'Duplicate order_id values are not allowed',
+    });
+  }
+
+  if (new Set(sequenceNumbers).size !== sequenceNumbers.length) {
+    return res.status(400).json({
+      message: 'Duplicate sequence_no values are not allowed',
+    });
+  }
+
+  const expectedSequence = Array.from(
+    { length: normalizedOrders.length },
+    (_, index) => index + 1
+  );
+
+  const sortedSequence = [...sequenceNumbers].sort(
+    (left, right) => left - right
+  );
+
+  const isContinuousSequence = expectedSequence.every(
+    (value, index) => sortedSequence[index] === value
+  );
+
+  if (!isContinuousSequence) {
+    return res.status(400).json({
+      message: `sequence_no must contain every value from 1 to ${normalizedOrders.length}`,
+    });
+  }
+
+  try {
+    // Validate first so a wrong order id cannot cause a partial reorder.
+    const existingOrdersResult = await runQuery(
+      `
+        SELECT order_id::text AS order_id
+        FROM orders
+        WHERE route_id::text = $1::text
+      `,
+      [String(route_id)]
+    );
+
+    const existingOrderIds = new Set(
+      existingOrdersResult.rows.map(row => String(row.order_id))
+    );
+
+    const containsUnknownOrder = orderIds.some(
+      orderId => !existingOrderIds.has(orderId)
+    );
+
+    if (containsUnknownOrder) {
+      return res.status(400).json({
+        message: 'One or more orders do not belong to this route',
+      });
+    }
+
+    // Require the full route order. This prevents unlisted stops from retaining
+    // conflicting or stale sequence numbers.
+    if (existingOrderIds.size !== normalizedOrders.length) {
+      return res.status(400).json({
+        message:
+          'Send every order for the route when saving the reordered sequence',
+      });
+    }
+
+    const updateResult = await runQuery(
+      `
+        WITH incoming AS (
+          SELECT
+            item.order_id,
+            item.sequence_no
+          FROM jsonb_to_recordset($2::jsonb) AS item(
+            order_id text,
+            sequence_no integer
+          )
+        )
+        UPDATE orders AS target
+        SET
+          sequence_no = incoming.sequence_no,
+          updated_at = CURRENT_TIMESTAMP
+        FROM incoming
+        WHERE target.order_id::text = incoming.order_id
+          AND target.route_id::text = $1::text
+        RETURNING
+          target.order_id,
+          target.route_id,
+          target.sequence_no,
+          target.updated_at
+      `,
+      [String(route_id), JSON.stringify(normalizedOrders)]
+    );
+
+    if (updateResult.rows.length !== normalizedOrders.length) {
+      return res.status(409).json({
+        message: 'Unable to update every stop sequence',
+      });
+    }
+
+    const updatedOrders = [...updateResult.rows].sort(
+      (left, right) =>
+        Number(left.sequence_no) - Number(right.sequence_no)
+    );
+
+    return res.status(200).json({
+      message: 'Stop order updated successfully',
+      route_id: String(route_id),
+      orders: updatedOrders,
+    });
+  } catch (error) {
+    console.error('Reorder Orders Error:', error);
+
+    return res.status(500).json({
+      message: 'Server error while reordering stops',
+      error:
+        process.env.NODE_ENV === 'development'
+          ? error.message
+          : undefined,
+    });
+  }
+};
+
 module.exports = {
   addOrder,
   editOrder,
@@ -1233,4 +1404,5 @@ module.exports = {
   insertOrderStop,
   setVehiclePlacement,
   getVehiclePlacementByOrderId,
+  reorderOrders
 };

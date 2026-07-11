@@ -18,6 +18,7 @@ type ConfirmedRoutePanelProps = RoutePreviewPanelProps & {
   onStopPress?: (stop: any, index: number) => void;
   onCancelRoute?: () => void;
   onOpenEditRoute?: () => void;
+  onOpenReorderStops?: () => void;
 };
 
 type TimelineTime = {
@@ -55,6 +56,7 @@ export function ConfirmedRoutePanel({
   onStopPress,
   onCancelRoute,
   onOpenEditRoute,
+  onOpenReorderStops,
 }: ConfirmedRoutePanelProps) {
   const insets = useSafeAreaInsets();
 
@@ -251,18 +253,6 @@ export function ConfirmedRoutePanel({
             },
           ]}
         >
-          <Pressable
-            style={({ pressed }) => [
-              localStyles.cancelButton,
-              pressed && localStyles.buttonPressedLight,
-            ]}
-            onPress={onCancelRoute}
-            hitSlop={6}
-          >
-            <Feather name="trash-2" size={17} color="#EF4444" />
-            <Text style={localStyles.cancelButtonText}>Cancel route</Text>
-          </Pressable>
-
           <View style={localStyles.footerSecondRow}>
             <Pressable
               style={({ pressed }) => [
@@ -280,18 +270,48 @@ export function ConfirmedRoutePanel({
 
             <Pressable
               style={({ pressed }) => [
-                localStyles.startButton,
-                primaryButtonDisabled && localStyles.disabledButton,
-                pressed && !primaryButtonDisabled && localStyles.buttonPressed,
+                localStyles.editButton,
+                !onOpenReorderStops && localStyles.disabledButton,
+                pressed && onOpenReorderStops && localStyles.buttonPressedLight,
               ]}
-              onPress={handlePrimaryAction}
-              disabled={primaryButtonDisabled}
+              onPress={onOpenReorderStops}
+              disabled={!onOpenReorderStops}
               hitSlop={6}
             >
-              <Feather name="play-circle" size={16} color="#FFFFFF" />
-              <Text style={localStyles.startButtonText}>{primaryLabel}</Text>
+              <MaterialCommunityIcons
+                name="drag-vertical"
+                size={18}
+                color="#1E293B"
+              />
+              <Text style={localStyles.editButtonText}>Reorder stops</Text>
             </Pressable>
           </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              localStyles.cancelButton,
+              pressed && localStyles.buttonPressedLight,
+            ]}
+            onPress={onCancelRoute}
+            hitSlop={6}
+          >
+            <Feather name="trash-2" size={17} color="#EF4444" />
+            <Text style={localStyles.cancelButtonText}>Cancel route</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              localStyles.startButton,
+              primaryButtonDisabled && localStyles.disabledButton,
+              pressed && !primaryButtonDisabled && localStyles.buttonPressed,
+            ]}
+            onPress={handlePrimaryAction}
+            disabled={primaryButtonDisabled}
+            hitSlop={6}
+          >
+            <Feather name="play-circle" size={16} color="#FFFFFF" />
+            <Text style={localStyles.startButtonText}>{primaryLabel}</Text>
+          </Pressable>
         </View>
       </View>
     </DraggableRouteSheet>
@@ -1140,7 +1160,7 @@ const localStyles = StyleSheet.create({
   },
 
   startButton: {
-    flex: 1,
+    width: '100%',
     height: 42,
     borderRadius: 12,
     alignItems: 'center',

@@ -110,6 +110,7 @@ export const API_ENDPOINTS = {
   ORDERS: {
     ADD: '/order/add',
     EDIT: '/order/edit',
+    REORDER_STOPS: '/order/reorder',
     DELETE_ALL: '/order/delete/all',
     DELETE: (id: string) => `/order/delete?id=${id}`,
     FETCH_ALL: '/order/fetch/all',

@@ -133,6 +133,10 @@ type UseRoutePreviewControllerResult = {
   handleRemoveStops: () => void;
   editingStop: RouteStop | null;
   isSavingRouteEdit: boolean;
+  isSavingStopOrder: boolean;
+  handleOpenReorderStops: () => void;
+  handleCancelReorderStops: () => void;
+  handleSaveStopOrder: (orderedStops: RouteStop[]) => Promise<void>;
   handleOpenEditRoute: () => void;
   handleCancelEditRoute: () => void;
   handleBackFromEditStop: () => void;
@@ -375,6 +379,7 @@ export function useRoutePreviewController(
   const [isCompletingRoute, setIsCompletingRoute] = useState(false);
   const [isRetryingFailedStops, setIsRetryingFailedStops] = useState(false);
   const [isSavingRouteEdit, setIsSavingRouteEdit] = useState(false);
+  const [isSavingStopOrder, setIsSavingStopOrder] = useState(false);
   const [pendingManifestStops, setPendingManifestStops] = useState<any[]>([]);
   const [navigationTargetStop, setNavigationTargetStop] = useState<any | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -2222,6 +2227,148 @@ const handleRemoveEditedStop = useCallback(async () => {
     router.push('/setup-locations' as any);
   }, [router]);
 
+
+  const handleOpenReorderStops = useCallback(() => {
+  if (!route || route.stops.length < 2) {
+    setErrorMessage('Add at least two stops before reordering.');
+    return;
+  }
+
+  if (!isOptimizedStatus(routeStatus)) {
+    setErrorMessage('Optimize the route before changing the stop order.');
+    return;
+  }
+
+  setErrorMessage('');
+  setSelectedStop(null);
+  setSelectedSuggestion(null);
+  setPanelMode('reorder_stops' as PanelMode);
+}, [route, routeStatus]);
+
+const handleCancelReorderStops = useCallback(() => {
+  if (isSavingStopOrder) return;
+  setErrorMessage('');
+  setPanelMode('confirmed');
+}, [isSavingStopOrder]);
+
+const handleSaveStopOrder = useCallback(
+  async (orderedStops: RouteStop[]) => {
+    if (
+      !route ||
+      !effectiveRouteId ||
+      isSavingStopOrder ||
+      !Array.isArray(orderedStops) ||
+      orderedStops.length === 0
+    ) {
+      return;
+    }
+
+    setIsSavingStopOrder(true);
+    setErrorMessage('');
+
+    try {
+      const nextStops = orderedStops.map((stop, index) => ({
+        ...stop,
+        sequence: index + 1,
+        sequenceNo: index + 1,
+        sequence_no: index + 1,
+        markerLabel: String(index + 1),
+
+        // Previous optimized ETAs are no longer valid after manual reordering.
+        arrival_time: undefined,
+        arrivalTime: undefined,
+        eta: undefined,
+        estimated_arrival: undefined,
+        estimatedArrival: undefined,
+        arrivalOffsetSeconds: undefined,
+        arrival_offset_seconds: undefined,
+        cumulativeDurationSeconds: undefined,
+        cumulative_duration_seconds: undefined,
+      })) as RouteStop[];
+
+      const orders = nextStops.map((stop, index) => {
+        const orderId = getStopBackendId(stop);
+
+        if (!orderId) {
+          throw new Error(`Order id is missing for stop ${index + 1}.`);
+        }
+
+        return {
+          order_id: orderId,
+          sequence_no: index + 1,
+        };
+      });
+
+      const orderService = ordersService as any;
+
+      if (typeof orderService.reorderOrders !== 'function') {
+        throw new Error(
+          'ordersService.reorderOrders is missing. Add the PUT /order/reorder service method.',
+        );
+      }
+
+      const response = await orderService.reorderOrders({
+        route_id: effectiveRouteId,
+        orders,
+      });
+
+      if (!isSuccessResponse(response)) {
+        throw new Error(
+          getResponseErrorMessage(response, 'Unable to save the stop order.'),
+        );
+      }
+
+      // Rebuild the road path using the manually selected order. This does not
+      // call the optimization API, so the user's sequence remains unchanged.
+      const reorderedRoute: AppRoute = {
+        ...route,
+        stops: nextStops,
+        coordinates: getInitialCoordinates({
+          ...route,
+          stops: nextStops,
+        }),
+      };
+
+      const path = await fetchRoutePath(getRoutePoints(reorderedRoute));
+
+      const nextRoute: AppRoute = {
+        ...reorderedRoute,
+        coordinates: path.coordinates,
+      };
+
+      await persistRouteSnapshot({
+        routeId: effectiveRouteId,
+        status: ROUTE_STATUS_OPTIMIZED,
+        route: nextRoute,
+        distanceMeters: path.distanceMeters,
+        durationSeconds: path.durationSeconds,
+      });
+
+      setRoute(nextRoute);
+      setRouteMeta({
+        distanceLabel: formatDistance(path.distanceMeters),
+        durationLabel: formatDuration(path.durationSeconds),
+      });
+      setRouteStatus(ROUTE_STATUS_OPTIMIZED);
+      setPanelMode('confirmed');
+      recenterMap();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save the stop order.',
+      );
+    } finally {
+      setIsSavingStopOrder(false);
+    }
+  }, [
+    effectiveRouteId,
+    isSavingStopOrder,
+    recenterMap,
+    route,
+  ],
+);
+
   return {
     route,
     mapRoute,
@@ -2279,6 +2426,10 @@ const handleRemoveEditedStop = useCallback(async () => {
     handleRemoveStops,
     editingStop: selectedStop,
     isSavingRouteEdit,
+    isSavingStopOrder,
+    handleOpenReorderStops,
+    handleCancelReorderStops,
+    handleSaveStopOrder,
     handleOpenEditRoute,
     handleCancelEditRoute,
     handleBackFromEditStop,
