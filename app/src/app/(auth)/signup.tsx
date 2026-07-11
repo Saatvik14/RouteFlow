@@ -56,6 +56,11 @@ export default function SignupScreen() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState(''); // New state for OTP modal errors
 
+  // Terms and Privacy States
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
   const { height, width } = useWindowDimensions();
   const router = useRouter();
   const { login } = useAuth();
@@ -83,6 +88,11 @@ export default function SignupScreen() {
 
     if (trimmedPassword.length < 6) {
       setError('Password should be at least 6 characters.');
+      return;
+    }
+
+    if (!agreeToTerms) {
+      setError('You must agree to the Terms of Service and Privacy Policy.');
       return;
     }
 
@@ -323,6 +333,34 @@ export default function SignupScreen() {
                 </Pressable>
               </View>
 
+              <View style={styles.agreeRow}>
+                <Pressable
+                  onPress={() => setAgreeToTerms(prev => !prev)}
+                  disabled={loading}
+                  style={styles.checkboxTouch}
+                >
+                  <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
+                    {agreeToTerms && <Text style={styles.checkboxCheckmark}>✓</Text>}
+                  </View>
+                </Pressable>
+                <Text style={styles.agreeText}>
+                  I agree to the{' '}
+                  <Text
+                    style={styles.agreeLink}
+                    onPress={() => setShowTermsModal(true)}
+                  >
+                    Terms of Service
+                  </Text>{' '}
+                  and{' '}
+                  <Text
+                    style={styles.agreeLink}
+                    onPress={() => setShowPrivacyModal(true)}
+                  >
+                    Privacy Policy
+                  </Text>
+                </Text>
+              </View>
+
               <Pressable
                 onPress={handleSignup}
                 disabled={loading}
@@ -345,13 +383,13 @@ export default function SignupScreen() {
                 )}
               </Pressable>
 
-              <View style={styles.dividerRow}>
+              {/* <View style={styles.dividerRow}>
                 <View style={styles.divider} />
                 <Text style={styles.orText}>OR</Text>
                 <View style={styles.divider} />
-              </View>
+              </View> */}
 
-              <Pressable
+              {/* <Pressable
                 disabled={loading}
                 style={({ pressed }) => [
                   styles.googleButton,
@@ -361,7 +399,7 @@ export default function SignupScreen() {
               >
                 <GoogleMark />
                 <Text style={[styles.googleText, isMobile && styles.googleTextMobile]}>Sign up with Google</Text>
-              </Pressable>
+              </Pressable> */}
 
               <View style={styles.loginRow}>
                 <Text style={styles.loginText}>Already have an account?</Text>
@@ -443,11 +481,145 @@ export default function SignupScreen() {
               )}
             </Pressable>
 
-            <Pressable 
+            <Pressable
               onPress={() => handleSendOtp(email.trim(), true)} // Pass true for isResend
               style={styles.resendButton}
             >
               <Text style={styles.resendText}>Resend Code</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Terms of Service Modal */}
+      <Modal
+        visible={showTermsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowTermsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.documentModalContainer}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalHeaderTitle}>Terms of Service</Text>
+              <Pressable onPress={() => setShowTermsModal(false)} hitSlop={10}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+            <ScrollView style={styles.documentScroll} showsVerticalScrollIndicator={true}>
+              <Text style={styles.documentBodyTitle}>RouteFloww Terms of Service</Text>
+              <Text style={styles.documentLastUpdated}>Last Updated: July 2026</Text>
+
+              <Text style={styles.documentSectionTitle}>Overview</Text>
+              <Text style={styles.documentParagraph}>
+                These Terms govern worldwide use of RouteFloww. By creating an account or using the app, users agree to these Terms. The app is jointly owned by Vaibhav Garg and Uttam Chand Rawat and is governed by the laws of India.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Eligibility</Text>
+              <Text style={styles.documentParagraph}>
+                Users must be at least 18 years old or use the Service with legally required parental/guardian consent.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Accounts</Text>
+              <Text style={styles.documentParagraph}>
+                Users register using email OTP and provide name, email, phone number and password. Users are responsible for maintaining account security.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Services</Text>
+              <Text style={styles.documentParagraph}>
+                Route creation, stop management, navigation, saved routes, route history and future related services.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Subscriptions</Text>
+              <Text style={styles.documentParagraph}>
+                Lite and Standard plans are available with a 7-day free trial. Charges renew unless cancelled according to the store policies.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Refunds</Text>
+              <Text style={styles.documentParagraph}>
+                Refund requests are reviewed individually. Approved refunds may be reduced by non-recoverable taxes or platform fees.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>User Content</Text>
+              <Text style={styles.documentParagraph}>
+                Users retain ownership of route information they create while granting RouteFloww a limited licence to host, process and display that content for providing the Service.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Prohibited Conduct</Text>
+              <Text style={styles.documentParagraph}>
+                No reverse engineering, scraping, bots, abuse, malware, illegal use or infringement of intellectual property.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Navigation Disclaimer</Text>
+              <Text style={styles.documentParagraph}>
+                Navigation is provided for convenience only. Users remain responsible for obeying traffic laws and exercising independent judgment.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Liability</Text>
+              <Text style={styles.documentParagraph}>
+                Service is provided 'as is'. Liability is limited to the maximum extent permitted by applicable law.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Disputes</Text>
+              <Text style={styles.documentParagraph}>
+                Governed by Indian law. Arbitration seat: Muzaffarnagar, Uttar Pradesh, India.
+              </Text>
+            </ScrollView>
+            <Pressable style={styles.modalButton} onPress={() => setShowTermsModal(false)}>
+              <Text style={styles.modalButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Privacy Policy Modal */}
+      <Modal
+        visible={showPrivacyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPrivacyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.documentModalContainer}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalHeaderTitle}>Privacy Policy</Text>
+              <Pressable onPress={() => setShowPrivacyModal(false)} hitSlop={10}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+            <ScrollView style={styles.documentScroll} showsVerticalScrollIndicator={true}>
+              <Text style={styles.documentBodyTitle}>RouteFlow Privacy Policy</Text>
+              <Text style={styles.documentLastUpdated}>Last Updated: July 2026</Text>
+
+              <Text style={styles.documentSectionTitle}>1. Information We Collect</Text>
+              <Text style={styles.documentParagraph}>
+                - Account Data: Full name, email address, phone number, and password hashes.{"\n"}
+                - Geolocation Data: With your permission, we collect precise latitude and longitude coordinates from your device to display your location on maps and verify delivery progress.{"\n"}
+                - Manifest Data: Stops addresses, recipient details, barcode data, and packages information.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>2. How We Use Your Data</Text>
+              <Text style={styles.documentParagraph}>
+                We process collected information to optimize your delivery schedules, verify coordinates are strictly within the United Kingdom, generate turn-by-turn routing sequences, and save your historical routes for your personal reference.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>3. Data Sharing</Text>
+              <Text style={styles.documentParagraph}>
+                RouteFlow does not sell or lease your personal details to third parties. We share location inputs with trusted mapping APIs (such as Geoapify and OpenStreetMap) solely to calculate paths and geocoding details.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>4. Data Security</Text>
+              <Text style={styles.documentParagraph}>
+                We employ standard industry encryption protocols (HTTPS/SSL) to protect all data transmissions. Database stores are protected by access permissions and security firewalls.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>5. Retention and Deletion</Text>
+              <Text style={styles.documentParagraph}>
+                Your user profile and delivery records are retained for as long as your account remains active. You can request account deletion at any time by contacting our support team.
+              </Text>
+            </ScrollView>
+            <Pressable style={styles.modalButton} onPress={() => setShowPrivacyModal(false)}>
+              <Text style={styles.modalButtonText}>Close</Text>
             </Pressable>
           </View>
         </View>
@@ -1059,6 +1231,127 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '400',
+    fontFamily: APP_FONT,
+  },
+  agreeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+    flexWrap: 'wrap',
+  },
+  checkboxTouch: {
+    padding: 6,
+    marginLeft: -6,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#98A6BA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxChecked: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  checkboxCheckmark: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  agreeText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontFamily: APP_FONT,
+    flex: 1,
+    lineHeight: 18,
+    marginLeft: 4,
+  },
+  agreeLink: {
+    color: '#2563EB',
+    textDecorationLine: 'underline',
+    fontWeight: '500',
+  },
+  documentModalContainer: {
+    width: '100%',
+    maxWidth: 540,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '80%',
+    shadowColor: '#000000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingBottom: 12,
+    marginBottom: 16,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    fontFamily: APP_FONT,
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#64748B',
+    padding: 4,
+  },
+  documentScroll: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  documentBodyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 4,
+    fontFamily: APP_FONT,
+  },
+  documentLastUpdated: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 16,
+    fontFamily: APP_FONT,
+  },
+  documentSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginTop: 16,
+    marginBottom: 6,
+    fontFamily: APP_FONT,
+  },
+  documentParagraph: {
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 18,
+    fontFamily: APP_FONT,
+  },
+  modalButton: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#475569',
     fontFamily: APP_FONT,
   },
 });
