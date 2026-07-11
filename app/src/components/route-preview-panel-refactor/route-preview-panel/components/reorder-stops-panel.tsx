@@ -3,12 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  LayoutAnimation,
   PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  UIManager,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +32,10 @@ type ReorderStopsPanelProps = Pick<
 const ROW_HEIGHT = 88;
 const ROW_GAP = 10;
 const ROW_STRIDE = ROW_HEIGHT + ROW_GAP;
+
+if (Platform.OS === 'android') {
+  (UIManager as any).setLayoutAnimationEnabledExperimental?.(true);
+}
 
 export function ReorderStopsPanel({
   isWide,
@@ -77,16 +83,34 @@ export function ReorderStopsPanel({
     scrollRef.current?.setNativeProps?.({ scrollEnabled: !isSaving });
   }, [isSaving]);
 
-  const moveStop = (fromIndex: number, toIndex: number) => {
+  const moveStop = useCallback((fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
 
+    if (Platform.OS !== 'web') {
+      LayoutAnimation.configureNext({
+        duration: 160,
+        update: {
+          type: LayoutAnimation.Types.easeInEaseOut,
+        },
+      });
+    }
+
     setOrderedStops(current => {
+      if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= current.length ||
+        toIndex >= current.length
+      ) {
+        return current;
+      }
+
       const next = [...current];
       const [movedStop] = next.splice(fromIndex, 1);
       next.splice(toIndex, 0, movedStop);
       return applySequenceNumbers(next);
     });
-  };
+  }, []);
 
   const handleRestoreOptimizedOrder = () => {
     if (isSaving) return;
@@ -117,7 +141,7 @@ export function ReorderStopsPanel({
           <View style={styles.headerTextBox}>
             <Text style={styles.title}>Reorder stops</Text>
             <Text style={styles.subtitle}>
-              Drag the handle on a stop to change its sequence.
+              Drag the large grip to reorder. Nearby stops move out of the way.
             </Text>
           </View>
         </View>
@@ -275,64 +299,104 @@ function SortableStopRow({
   onDragEnd: () => void;
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
+  const indexRef = useRef(index);
+  const totalStopsRef = useRef(totalStops);
+  const disabledRef = useRef(disabled);
+  const dragStartIndexRef = useRef(index);
+  const currentIndexRef = useRef(index);
   const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    indexRef.current = index;
+    currentIndexRef.current = index;
+
+    if (!isDragging) {
+      dragStartIndexRef.current = index;
+    }
+  }, [index, isDragging]);
+
+  useEffect(() => {
+    totalStopsRef.current = totalStops;
+  }, [totalStops]);
+
+  useEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
+
+  const finishDrag = useCallback(() => {
+    Animated.spring(translateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 22,
+      stiffness: 240,
+      mass: 0.8,
+      overshootClamping: true,
+    }).start(() => {
+      setIsDragging(false);
+      onDragEnd();
+    });
+  }, [onDragEnd, translateY]);
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => !disabled,
-        onStartShouldSetPanResponderCapture: () => !disabled,
+        // Claim the gesture immediately when the user touches the large grip.
+        // This prevents the surrounding route sheet or ScrollView from moving.
+        onStartShouldSetPanResponder: () => !disabledRef.current,
+        onStartShouldSetPanResponderCapture: () => !disabledRef.current,
         onMoveShouldSetPanResponder: (_, gestureState) =>
-          !disabled && Math.abs(gestureState.dy) > 2,
+          !disabledRef.current && Math.abs(gestureState.dy) > 1,
         onMoveShouldSetPanResponderCapture: (_, gestureState) =>
-          !disabled && Math.abs(gestureState.dy) > 2,
+          !disabledRef.current && Math.abs(gestureState.dy) > 1,
         onPanResponderGrant: () => {
+          const currentIndex = indexRef.current;
+
+          dragStartIndexRef.current = currentIndex;
+          currentIndexRef.current = currentIndex;
           onDragStart();
           setIsDragging(true);
           translateY.stopAnimation();
           translateY.setValue(0);
         },
         onPanResponderMove: (_, gestureState) => {
-          translateY.setValue(gestureState.dy);
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const indexOffset = Math.round(gestureState.dy / ROW_STRIDE);
-          const nextIndex = clamp(index + indexOffset, 0, totalStops - 1);
+          const startIndex = dragStartIndexRef.current;
+          const targetIndex = clamp(
+            startIndex + Math.round(gestureState.dy / ROW_STRIDE),
+            0,
+            totalStopsRef.current - 1,
+          );
 
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: 22,
-            stiffness: 240,
-            mass: 0.8,
-            overshootClamping: true,
-          }).start(() => {
-            setIsDragging(false);
-            onMove(index, nextIndex);
-            onDragEnd();
-          });
+          // Keep the selected card under the user's finger after the list order
+          // changes. The other cards re-render in their new positions, so they
+          // visibly move up/down while the drag is still active.
+          translateY.setValue(
+            gestureState.dy - (targetIndex - startIndex) * ROW_STRIDE,
+          );
+
+          if (targetIndex !== currentIndexRef.current) {
+            const previousIndex = currentIndexRef.current;
+            currentIndexRef.current = targetIndex;
+            onMove(previousIndex, targetIndex);
+          }
         },
-        onPanResponderTerminate: () => {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start(() => {
-            setIsDragging(false);
-            onDragEnd();
-          });
-        },
+        onPanResponderRelease: finishDrag,
+        onPanResponderTerminate: finishDrag,
         onPanResponderTerminationRequest: () => false,
         onShouldBlockNativeResponder: () => true,
       }),
-    [
-      disabled,
-      index,
-      onDragEnd,
-      onDragStart,
-      onMove,
-      totalStops,
-      translateY,
-    ],
+    [finishDrag, onDragStart, onMove, translateY],
+  );
+
+  const moveOnePosition = useCallback(
+    (direction: -1 | 1) => {
+      if (disabled) return;
+
+      const nextIndex = clamp(index + direction, 0, totalStops - 1);
+      if (nextIndex !== index) {
+        onMove(index, nextIndex);
+      }
+    },
+    [disabled, index, onMove, totalStops],
   );
 
   return (
@@ -351,6 +415,7 @@ function SortableStopRow({
         {...panResponder.panHandlers}
         style={[
           styles.dragHandle,
+          isDragging && styles.dragHandleActive,
           Platform.OS === 'web'
             ? ({
                 cursor: isDragging ? 'grabbing' : 'grab',
@@ -365,9 +430,17 @@ function SortableStopRow({
       >
         <MaterialCommunityIcons
           name="drag-vertical"
-          size={24}
-          color={isDragging ? '#2563EB' : '#94A3B8'}
+          size={25}
+          color={isDragging ? '#2563EB' : '#64748B'}
         />
+        <Text
+          style={[
+            styles.dragHandleText,
+            isDragging && styles.dragHandleTextActive,
+          ]}
+        >
+          {isDragging ? 'MOVE' : 'DRAG'}
+        </Text>
       </View>
 
       <View style={styles.sequenceCircle}>
@@ -383,12 +456,46 @@ function SortableStopRow({
         </Text>
       </View>
 
-      <View style={styles.moreIconBox}>
-        <MaterialCommunityIcons
-          name="dots-vertical"
-          size={21}
-          color="#64748B"
-        />
+      <View style={styles.moveActions}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.moveButton,
+            pressed && index > 0 && styles.moveButtonPressed,
+            index === 0 && styles.moveButtonDisabled,
+          ]}
+          onPress={() => moveOnePosition(-1)}
+          disabled={disabled || index === 0}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Move stop ${index + 1} up`}
+        >
+          <Feather
+            name="chevron-up"
+            size={18}
+            color={index === 0 ? '#CBD5E1' : '#475569'}
+          />
+        </Pressable>
+
+        <View style={styles.moveActionDivider} />
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.moveButton,
+            pressed && index < totalStops - 1 && styles.moveButtonPressed,
+            index === totalStops - 1 && styles.moveButtonDisabled,
+          ]}
+          onPress={() => moveOnePosition(1)}
+          disabled={disabled || index === totalStops - 1}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Move stop ${index + 1} down`}
+        >
+          <Feather
+            name="chevron-down"
+            size={18}
+            color={index === totalStops - 1 ? '#CBD5E1' : '#475569'}
+          />
+        </Pressable>
       </View>
     </Animated.View>
   );
@@ -696,12 +803,29 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
   },
   dragHandle: {
-    width: 34,
-    height: 58,
+    width: 50,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     backgroundColor: '#F8FAFC',
+  },
+  dragHandleActive: {
+    borderColor: '#93C5FD',
+    backgroundColor: '#EFF6FF',
+  },
+  dragHandleText: {
+    ...font('600'),
+    color: '#64748B',
+    fontSize: 8.5,
+    lineHeight: 11,
+    letterSpacing: 0.7,
+    marginTop: -2,
+  },
+  dragHandleTextActive: {
+    color: '#2563EB',
   },
   sequenceCircle: {
     width: 27,
@@ -736,11 +860,34 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: 3,
   },
-  moreIconBox: {
-    width: 28,
-    alignItems: 'flex-end',
+  moveActions: {
+    width: 34,
+    minHeight: 62,
+    alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 5,
+    marginLeft: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
+  },
+  moveButton: {
+    width: 34,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moveButtonPressed: {
+    backgroundColor: '#EAF2FF',
+  },
+  moveButtonDisabled: {
+    backgroundColor: '#F8FAFC',
+  },
+  moveActionDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: '#E2E8F0',
   },
   emptyCard: {
     alignItems: 'center',
