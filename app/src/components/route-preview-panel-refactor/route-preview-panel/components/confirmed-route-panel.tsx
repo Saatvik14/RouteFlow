@@ -65,6 +65,7 @@ export function ConfirmedRoutePanel({
     normalizedStatus === 'optimized' || normalizedStatus === 'confirmed';
 
   const isInTransit = normalizedStatus === 'in_transit';
+  const canOpenReorderStops = Boolean(onOpenReorderStops);
 
   const primaryButtonDisabled = Boolean(
     isStartingRoute || isInTransit || (isReadyToStart && !onStartRoute),
@@ -271,11 +272,11 @@ export function ConfirmedRoutePanel({
             <Pressable
               style={({ pressed }) => [
                 localStyles.editButton,
-                !onOpenReorderStops && localStyles.disabledButton,
-                pressed && onOpenReorderStops && localStyles.buttonPressedLight,
+                !canOpenReorderStops && localStyles.disabledButton,
+                pressed && canOpenReorderStops && localStyles.buttonPressedLight,
               ]}
-              onPress={onOpenReorderStops}
-              disabled={!onOpenReorderStops}
+              onPress={() => onOpenReorderStops?.()}
+              disabled={!canOpenReorderStops}
               hitSlop={6}
             >
               <MaterialCommunityIcons

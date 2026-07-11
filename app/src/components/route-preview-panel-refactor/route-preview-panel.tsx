@@ -17,6 +17,7 @@ import { StopDetailsPanel } from './route-preview-panel/components/stop-details-
 import { TransitStopPanel } from './route-preview-panel/components/transit-stop-panel';
 import type { PanelMode, RoutePreviewPanelProps } from './route-preview-panel/types';
 import { isRouteCompletedStatus, normalizeRouteStatus } from './route-preview-panel/utils';
+import { ReorderStopsPanel } from './route-preview-panel/components/reorder-stops-panel';
 
 export type { PanelMode, PlaceSuggestion, RoutePreviewPanelProps, StopDetails } from './route-preview-panel/types';
 
@@ -29,6 +30,26 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
   const isWide = width >= 768;
   const normalizedStatus = normalizeRouteStatus(props.routeStatus);
 
+  console.log('[RoutePreviewPanel] render', {
+    mode: props.mode,
+    normalizedStatus,
+  });
+
+  if (props.mode === 'reorder_stops') {
+    return (
+      <ReorderStopsPanel
+        isWide={isWide}
+        start={props.start}
+        end={props.end}
+        stops={props.stops}
+        isSaving={props.isSavingStopOrder}
+        errorMessage={props.errorMessage}
+        onCancel={props.onCancelReorderStops || (() => undefined)}
+        onSave={props.onSaveStopOrder || (() => undefined)}
+      />
+    );
+  }
+
   if (props.mode === 'cancelled' || isCancelledStatus(normalizedStatus)) {
     return <CancelledRoutePanel {...props} isWide={isWide} />;
   }
@@ -39,7 +60,6 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
 
   const resolvedMode: PanelMode =
     props.mode === 'transit' || normalizedStatus === 'in_transit' ? 'transit' : props.mode;
-
   switch (resolvedMode) {
     case 'edit_route':
       return <EditRoutePanel {...props} isWide={isWide} />;

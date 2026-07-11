@@ -431,21 +431,51 @@ export function useRoutePreviewController(
 
 const resolvedPanelMode = useMemo<PanelMode>(() => {
   const stopsCount = route?.stops?.length || 0;
+
+  // Modes opened directly by a user action must always win over the route
+  // status. Otherwise a status-derived mode can replace the requested panel.
+  const explicitUiModes: PanelMode[] = [
+    'reorder_stops',
+    'edit_route',
+    'edit_start_location',
+    'edit_end_location',
+    'edit_start_time',
+    'edit_stop',
+    'edit_stop_address',
+    'search',
+    'details',
+    'setup',
+  ];
+
+  if (explicitUiModes.includes(panelMode)) {
+    return panelMode;
+  }
+
   if (isCancelledRouteStatus(routeStatus)) {
     return 'cancelled';
   }
 
-  if (isInTransitStatus(routeStatus) || isStatus(routeStatus, ROUTE_STATUS_COMPLETED)) {
+  if (
+    isInTransitStatus(routeStatus) ||
+    isStatus(routeStatus, ROUTE_STATUS_COMPLETED)
+  ) {
     return 'transit';
   }
 
-  // If the panel mode is 'empty' but we have stops, resolve to the correct non-empty mode
   if (panelMode === 'empty' && stopsCount > 0) {
     return getPanelModeFromStatus(routeStatus, stopsCount);
   }
 
   return panelMode;
 }, [panelMode, routeStatus, route?.stops?.length]);
+
+useEffect(() => {
+  console.log('[useRoutePreviewController] panel state', {
+    panelMode,
+    resolvedPanelMode,
+    routeStatus,
+  });
+}, [panelMode, resolvedPanelMode, routeStatus]);
 
   useEffect(() => {
     setActiveRouteId(routeIdFromParams);
@@ -2229,21 +2259,20 @@ const handleRemoveEditedStop = useCallback(async () => {
 
 
   const handleOpenReorderStops = useCallback(() => {
-  if (!route || route.stops.length < 2) {
-    setErrorMessage('Add at least two stops before reordering.');
-    return;
-  }
+    if (!route || route.stops.length < 2) {
+      setErrorMessage('Add at least two stops before reordering.');
+      return;
+    }
 
-  if (!isOptimizedStatus(routeStatus)) {
-    setErrorMessage('Optimize the route before changing the stop order.');
-    return;
-  }
-
-  setErrorMessage('');
-  setSelectedStop(null);
-  setSelectedSuggestion(null);
-  setPanelMode('reorder_stops' as PanelMode);
-}, [route, routeStatus]);
+    // This action comes from the optimized route panel. Open the requested
+    // UI mode directly instead of resolving another mode from routeStatus.
+    setErrorMessage('');
+    setSelectedStop(null);
+    setSelectedSuggestion(null);
+    setSearchText('');
+    setSuggestions([]);
+    setPanelMode('reorder_stops');
+  }, [route]);
 
 const handleCancelReorderStops = useCallback(() => {
   if (isSavingStopOrder) return;

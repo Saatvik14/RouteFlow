@@ -1,5 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -43,6 +43,7 @@ export function ReorderStopsPanel({
 }: ReorderStopsPanelProps) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView | null>(null);
+  const [isDraggingStop, setIsDraggingStop] = useState(false);
 
   const optimizedStops = useMemo(() => normalizeStops(stops), [stops]);
   const [orderedStops, setOrderedStops] = useState<any[]>(optimizedStops);
@@ -63,6 +64,18 @@ export function ReorderStopsPanel({
 
   const hasChanges = optimizedOrderKey !== currentOrderKey;
   const saveDisabled = isSaving || !hasChanges || orderedStops.length === 0;
+
+  const handleStopDragStart = useCallback(() => {
+    // Lock the list immediately so the ScrollView cannot consume the same
+    // vertical gesture that is being used to reorder a stop.
+    setIsDraggingStop(true);
+    scrollRef.current?.setNativeProps?.({ scrollEnabled: false });
+  }, []);
+
+  const handleStopDragEnd = useCallback(() => {
+    setIsDraggingStop(false);
+    scrollRef.current?.setNativeProps?.({ scrollEnabled: !isSaving });
+  }, [isSaving]);
 
   const moveStop = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
@@ -130,7 +143,10 @@ export function ReorderStopsPanel({
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
-          scrollEnabled={!isSaving}
+          bounces={false}
+          overScrollMode="never"
+          directionalLockEnabled
+          scrollEnabled={!isSaving && !isDraggingStop}
         >
           <LockedLocationRow
             type="start"
@@ -155,6 +171,8 @@ export function ReorderStopsPanel({
                   totalStops={orderedStops.length}
                   disabled={isSaving}
                   onMove={moveStop}
+                  onDragStart={handleStopDragStart}
+                  onDragEnd={handleStopDragEnd}
                 />
               ))
             )}
@@ -245,12 +263,16 @@ function SortableStopRow({
   totalStops,
   disabled,
   onMove,
+  onDragStart,
+  onDragEnd,
 }: {
   stop: any;
   index: number;
   totalStops: number;
   disabled: boolean;
   onMove: (fromIndex: number, toIndex: number) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const [isDragging, setIsDragging] = useState(false);
@@ -259,9 +281,13 @@ function SortableStopRow({
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => !disabled,
+        onStartShouldSetPanResponderCapture: () => !disabled,
         onMoveShouldSetPanResponder: (_, gestureState) =>
           !disabled && Math.abs(gestureState.dy) > 2,
+        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+          !disabled && Math.abs(gestureState.dy) > 2,
         onPanResponderGrant: () => {
+          onDragStart();
           setIsDragging(true);
           translateY.stopAnimation();
           translateY.setValue(0);
@@ -283,18 +309,30 @@ function SortableStopRow({
           }).start(() => {
             setIsDragging(false);
             onMove(index, nextIndex);
+            onDragEnd();
           });
         },
         onPanResponderTerminate: () => {
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,
-          }).start(() => setIsDragging(false));
+          }).start(() => {
+            setIsDragging(false);
+            onDragEnd();
+          });
         },
         onPanResponderTerminationRequest: () => false,
         onShouldBlockNativeResponder: () => true,
       }),
-    [disabled, index, onMove, totalStops, translateY],
+    [
+      disabled,
+      index,
+      onDragEnd,
+      onDragStart,
+      onMove,
+      totalStops,
+      translateY,
+    ],
   );
 
   return (
@@ -313,7 +351,13 @@ function SortableStopRow({
         {...panResponder.panHandlers}
         style={[
           styles.dragHandle,
-          Platform.OS === 'web' ? ({ cursor: 'grab' } as any) : null,
+          Platform.OS === 'web'
+            ? ({
+                cursor: isDragging ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                userSelect: 'none',
+              } as any)
+            : null,
         ]}
         accessibilityRole="adjustable"
         accessibilityLabel={`Move stop ${index + 1}`}

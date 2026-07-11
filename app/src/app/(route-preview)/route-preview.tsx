@@ -9,6 +9,7 @@ import { CameraScanner } from '../../components/camera-scanner';
 import { RoutePanel } from './../../components/route-panel';
 import { RoutePreviewPanel } from './../../components/route-preview-panel-refactor/route-preview-panel';
 import { TransitStopPanel } from './../../components/route-preview-panel-refactor/route-preview-panel/components/transit-stop-panel';
+import { ReorderStopsPanel } from './../../components/route-preview-panel-refactor/route-preview-panel/components/reorder-stops-panel';
 import {
   RouteCompletedPanel,
   RouteCompletionPromptPanel,
@@ -46,6 +47,7 @@ export default function RoutePreviewScreen() {
     routeTitle,
     previewStartTime,
     routeMeta,
+    panelMode,
     resolvedPanelMode,
     mapType,
     centerSignal,
@@ -143,6 +145,14 @@ export default function RoutePreviewScreen() {
     setIsScannerVisible(true);
   };
 
+  useEffect(() => {
+    console.log('[RoutePreviewScreen] panel state', {
+      panelMode,
+      resolvedPanelMode,
+      routeStatus,
+    });
+  }, [panelMode, resolvedPanelMode, routeStatus]);
+
   // Auto-open copy stops modal when navigated with carryPastStops=true
   useEffect(() => {
     if (shouldCarryPastStops && route && !hasAutoOpenedCopyStops.current) {
@@ -175,6 +185,10 @@ export default function RoutePreviewScreen() {
     () => isStatus(routeStatus, ROUTE_STATUS_COMPLETED),
     [routeStatus],
   );
+
+  // Keep an explicitly opened panel ahead of status-based screen branches.
+  const activePanelMode =
+    panelMode === 'reorder_stops' ? 'reorder_stops' : resolvedPanelMode;
 
 
   const handleToggleCategory = (categoryStops: any[]) => {
@@ -282,7 +296,7 @@ export default function RoutePreviewScreen() {
     );
   };
 
-
+  console.log('[RoutePreviewScreen] active panel', activePanelMode);
   return (
     <GestureHandlerRootView style={styles.root}>
       <MapScreen
@@ -370,6 +384,19 @@ export default function RoutePreviewScreen() {
 
       {!isInitialLoading && !route ? (
         <RoutePanel />
+      ) : !isInitialLoading &&
+        route &&
+        activePanelMode === 'reorder_stops' ? (
+        <ReorderStopsPanel
+          isWide={isWide}
+          start={route.start}
+          end={route.end}
+          stops={route.stops}
+          isSaving={isSavingStopOrder}
+          errorMessage={errorMessage}
+          onCancel={handleCancelReorderStops}
+          onSave={handleSaveStopOrder}
+        />
       ) : !isInitialLoading && route && isCompletedRoute ? (
         <RouteCompletedPanel
           isWide={isWide}
@@ -383,7 +410,7 @@ export default function RoutePreviewScreen() {
         />
       ) : !isInitialLoading &&
         route &&
-        resolvedPanelMode === 'transit' &&
+        activePanelMode === 'transit' &&
         allStopsResolved ? (
         <RouteCompletionPromptPanel
           isWide={isWide}
@@ -397,10 +424,10 @@ export default function RoutePreviewScreen() {
           isCompletingRoute={isCompletingRoute}
           onMarkRouteCompleted={handleMarkRouteCompleted}
         />
-      ) : !isInitialLoading && route && resolvedPanelMode === 'transit' ? (
+      ) : !isInitialLoading && route && activePanelMode === 'transit' ? (
         <TransitStopPanel
           isWide={isWide}
-          mode={resolvedPanelMode}
+          mode={activePanelMode}
           routeName={routeTitle}
           startTime={previewStartTime}
           start={route.start}
@@ -465,11 +492,12 @@ export default function RoutePreviewScreen() {
           onRemoveEditedStop={handleRemoveEditedStop}
           onReOptimizeEditedRoute={handleReOptimizeEditedRoute}
           onAddAnotherStop={handleOpenSearch}
+          onOpenReorderStops={handleOpenReorderStops}
 
         />
       ) : !isInitialLoading && route ? (
         <RoutePreviewPanel
-          mode={resolvedPanelMode}
+          mode={activePanelMode}
           subscriptionType={subscriptionType}
           routeName={routeTitle}
           startTime={previewStartTime}
