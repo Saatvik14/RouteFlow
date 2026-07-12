@@ -53,8 +53,36 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
     return <RouteCompletedPanel {...props} isWide={isWide} />;
   }
 
-  const resolvedMode: PanelMode =
-    props.mode === 'transit' || normalizedStatus === 'in_transit' ? 'transit' : props.mode;
+  const explicitUiModes: PanelMode[] = [
+  'search',
+  'details',
+  'setup',
+  'edit_route',
+  'edit_start_location',
+  'edit_end_location',
+  'edit_start_time',
+  'edit_stop',
+  'edit_stop_address',
+  'reorder_stops',
+];
+
+const isExplicitUiMode = explicitUiModes.includes(props.mode);
+
+// Do not let route status override a panel explicitly opened by the user.
+if (
+  !isExplicitUiMode &&
+  (props.mode === 'cancelled' || isCancelledStatus(normalizedStatus))
+) {
+  return <CancelledRoutePanel {...props} isWide={isWide} />;
+}
+
+if (!isExplicitUiMode && isRouteCompletedStatus(normalizedStatus)) {
+  return <RouteCompletedPanel {...props} isWide={isWide} />;
+}
+
+
+
+const resolvedMode: PanelMode = isExplicitUiMode ? props.mode : normalizedStatus === 'in_transit'? 'transit' : props.mode;
   switch (resolvedMode) {
     case 'edit_route':
       return <EditRoutePanel {...props} isWide={isWide} />;

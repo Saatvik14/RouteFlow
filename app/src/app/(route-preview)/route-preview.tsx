@@ -178,10 +178,22 @@ export default function RoutePreviewScreen() {
     [routeStatus],
   );
 
-  // Keep an explicitly opened panel ahead of status-based screen branches.
-  const activePanelMode =
-    panelMode === 'reorder_stops' ? 'reorder_stops' : resolvedPanelMode;
+  const explicitPanelModes = [
+  'reorder_stops',
+  'search',
+  'details',
+  'setup',
+  'edit_route',
+  'edit_start_location',
+  'edit_end_location',
+  'edit_start_time',
+  'edit_stop',
+  'edit_stop_address',
+];
 
+const activePanelMode = explicitPanelModes.includes(panelMode)
+  ? panelMode
+  : resolvedPanelMode;
 
   const handleToggleCategory = (categoryStops: any[]) => {
     const allSelected = categoryStops.length > 0 && categoryStops.every(s => !!selectedPastStopKeys[s.id]);
