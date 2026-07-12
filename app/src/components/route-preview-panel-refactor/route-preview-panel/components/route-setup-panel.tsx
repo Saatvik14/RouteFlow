@@ -37,7 +37,8 @@ type StopLike = {
 type RouteSetupPanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
   onCancelRoute?: () => void;
-  onOpenEditStop?: (stop: any, panelMode: any) => void;
+  onOpenStopDetails?: (stop: any) => void;
+  onOpenEditStop?: (stop: any) => void;
 };
 
 function getLocationText(location: any, fallbackTitle: string, fallbackSubtitle: string) {
@@ -229,7 +230,7 @@ function StopRow({
       </View>
 
       <View style={localStyles.stopIconBox}>
-        <View style={localStyles.stopBlueDot} />
+        <Feather name="chevron-right" size={20} color="#7F95B3" />
       </View>
     </Pressable>
   );
@@ -245,6 +246,7 @@ export function RouteSetupPanel({
   onOpenSearch,
   onOptimizeRoute,
   onCancelRoute,
+  onOpenStopDetails,
   onOpenEditStop,
   onSaveStopPriority,
 }: RouteSetupPanelProps) {
@@ -303,7 +305,15 @@ export function RouteSetupPanel({
                   key={stop.id ?? `${index}`}
                   stop={stop}
                   index={index}
-                 onPress={(stop) =>onOpenEditStop?.(stop, 'setup')}
+                  onPress={(stop) => {
+                    if (onOpenStopDetails) {
+                      onOpenStopDetails(stop);
+                      return;
+                    }
+
+                    // Backward-compatible fallback for older parents.
+                    onOpenEditStop?.(stop);
+                  }}
                 />
               ))
             ) : (

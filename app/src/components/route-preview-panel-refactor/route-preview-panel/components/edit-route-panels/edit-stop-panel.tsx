@@ -508,21 +508,6 @@ export function EditStopPanel({
           </View>
 
           <View style={styles.actionsRow}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.duplicateButton,
-                (!stopId || isDuplicatingStop) ? styles.disabledAction : null,
-                pressed && stopId ? styles.cardPressed : null,
-              ]}
-              disabled={!stopId || isDuplicatingStop}
-              onPress={handleDuplicate}
-            >
-              <Feather name="copy" size={18} color={COLORS.primary} />
-              <Text style={styles.duplicateButtonText}>
-                {isDuplicatingStop ? 'Duplicating...' : 'Duplicate stop'}
-              </Text>
-            </Pressable>
 
             <Pressable
               style={({ pressed }) => [
