@@ -528,7 +528,6 @@ const createOrderFromInput = async body => {
     route_id,
     status,
     sequence,
-    sequence_no,
     phone,
     notes,
     packages,
@@ -537,10 +536,7 @@ const createOrderFromInput = async body => {
     // Exact frontend field names
     order_preference,
     time_at_stop,
-    arrival_time,
-
-    source,
-    raw_manifest_row,
+    arrival_time
   } = body;
 
   if (!route_id) {
@@ -563,14 +559,11 @@ const createOrderFromInput = async body => {
   const { locationId, location } =
     await insertLocation(body);
 
-  const orderDetails =
-    getOrderDetailsFromBody(body);
-
-  const orderDetailsValue =
-    orderDetails.provided &&
-    orderDetails.value !== null
-      ? serializeJsonField(orderDetails.value)
-      : null;
+  const packageValue = normalizePositiveInteger(packages, 'packages', 1)
+  const stop_type_value = normalizeStopType(stop_type)
+  const order_preference_value = normalizeOrderPreference(order_preference)
+  const time_at_stop_value = normalizePositiveInteger(time_at_stop,'time_at_stop',1)
+  const arrival_time_value = normalizeArrivalTime(arrival_time)
 
   const result = await runQuery(
     `
@@ -579,20 +572,17 @@ const createOrderFromInput = async body => {
         status,
         route_id,
         sequence_no,
-        phone,
         notes,
         packages,
         stop_type,
         order_preference,
         time_at_stop,
         arrival_time,
-        source,
-        raw_manifest_row,
+        phone
       )
       VALUES (
         $1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10,
-        $11, $12, $13
+        $6, $7, $8, $9, $10, $11
       )
       RETURNING *
     `,
@@ -600,36 +590,14 @@ const createOrderFromInput = async body => {
       locationId,
       status || ROUTE_STATUS.PENDING,
       route_id,
-      sequence_no ?? sequence ?? null,
-      phone || null,
+      sequence || null ,
       notes ?? null,
-
-      normalizePositiveInteger(
-        packages,
-        'packages',
-        1
-      ),
-
-      normalizeStopType(stop_type),
-      normalizeOrderPreference(
-        order_preference
-      ),
-
-      // FE: time_at_stop
-      // DB: time_at_stop_minutes
-      normalizePositiveInteger(
-        time_at_stop,
-        'time_at_stop',
-        1
-      ),
-
-      normalizeArrivalTime(arrival_time),
-
-      source || 'manual',
-
-      raw_manifest_row
-        ? serializeJsonField(raw_manifest_row)
-        : null
+      packageValue,
+      stop_type_value,
+      order_preference_value,
+      time_at_stop_value,
+      arrival_time_value,
+      phone ?? null
     ]
   );
 
