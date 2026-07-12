@@ -960,7 +960,7 @@ const optimizeRoute = async (req, res) => {
       };
 
       const pharmdelResponse = await fetch(
-        'https://routes.pharmdel.com/maps',
+        process.env.PHARMDEL_MAPS_API_URL || 'https://routes.pharmdel.com/maps',
         {
           method: 'POST',
           headers: {
