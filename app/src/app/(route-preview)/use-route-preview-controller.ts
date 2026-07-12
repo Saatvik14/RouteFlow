@@ -342,6 +342,25 @@ function buildRetryRouteLocation(point: any) {
   };
 }
 
+function isUnitedKingdomSuggestion(suggestion: PlaceSuggestion) {
+  const searchableAddress = [
+    suggestion?.fullAddress,
+    suggestion?.subtitle,
+    suggestion?.title,
+  ]
+    .filter(Boolean)
+    .join(', ')
+    .toLowerCase();
+
+  return (
+    searchableAddress.includes('united kingdom') ||
+    searchableAddress.includes(', uk') ||
+    searchableAddress.includes(', gb') ||
+    searchableAddress.endsWith(' uk') ||
+    searchableAddress.endsWith(' gb')
+  );
+}
+
 export function useRoutePreviewController(
   routeIdFromParams: string,
 ): UseRoutePreviewControllerResult {
@@ -374,6 +393,8 @@ export function useRoutePreviewController(
     useState<PlaceSuggestion | null>(null);
   const [selectedStop, setSelectedStop] = useState<RouteStop | null>(null);
   const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
+  const [stopAddressReturnMode, setStopAddressReturnMode] =
+    useState<PanelMode>('edit_stop');
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
   const [isCancellingRoute, setIsCancellingRoute] = useState(false);
   const [isCompletingRoute, setIsCompletingRoute] = useState(false);
@@ -641,12 +662,24 @@ const handleCancelEditRoute = useCallback(() => {
 
 const handleBackFromEditStop = useCallback(() => {
   setErrorMessage('');
-  setSelectedStop(null);
-  setSelectedSuggestion(null);
   setSearchText('');
   setSuggestions([]);
+
+  // The address editor can be opened from either the dedicated stop-details
+  // panel or the older edit-stop panel. Return to the panel that opened it
+  // and keep the selected stop/details available.
+  if (panelMode === 'edit_stop_address') {
+    setSelectedSuggestion(
+      selectedStop ? buildSuggestionFromStop(selectedStop) : null,
+    );
+    setPanelMode(stopAddressReturnMode);
+    return;
+  }
+
+  setSelectedStop(null);
+  setSelectedSuggestion(null);
   setPanelMode('edit_route');
-}, []);
+}, [panelMode, selectedStop, stopAddressReturnMode]);
 
 const handleOpenEditStartLocation = useCallback(() => {
   setSearchText(route?.start?.description || route?.start?.title || '');
@@ -962,24 +995,25 @@ const handleSaveStopPriority = useCallback(async (stopId: string, priority: numb
 const handleOpenEditStopAddress = useCallback((stop?: RouteStop) => {
   const targetStop = stop || selectedStop;
   if (!targetStop) return;
+
+  setStopAddressReturnMode(panelMode === 'details' ? 'details' : 'edit_stop');
   setSelectedStop(targetStop);
-  setSearchText(targetStop.address || targetStop.description || targetStop.title || '');
+  setSelectedSuggestion(buildSuggestionFromStop(targetStop));
+  setSearchText(
+    targetStop.address ||
+      targetStop.description ||
+      targetStop.title ||
+      '',
+  );
   setSuggestions([]);
+  setErrorMessage('');
   setPanelMode('edit_stop_address');
-}, [selectedStop]);
+}, [panelMode, selectedStop]);
 
 const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) => {
   if (!route || !selectedStop || !effectiveRouteId) return;
 
-  const isUk = 
-    suggestion.fullAddress.toLowerCase().includes('united kingdom') || 
-    suggestion.fullAddress.toLowerCase().includes(', uk') || 
-    suggestion.fullAddress.toLowerCase().includes(', gb') || 
-    suggestion.subtitle?.toLowerCase().includes('united kingdom') || 
-    suggestion.subtitle?.toLowerCase().includes(', uk') || 
-    suggestion.subtitle?.toLowerCase().includes(', gb');
-
-  if (!isUk) {
+  if (!isUnitedKingdomSuggestion(suggestion)) {
     setErrorMessage('Only locations within the United Kingdom are supported.');
     return;
   }
@@ -994,25 +1028,44 @@ const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) =>
   setErrorMessage('');
 
   try {
+    const fullAddress = String(
+      suggestion.fullAddress || suggestion.subtitle || suggestion.title || '',
+    ).trim();
+
     const response = await ordersService.editOrder({
       order_id: orderId,
       location: buildRouteLocationPayload(suggestion),
-      address: suggestion.fullAddress,
+      address: fullAddress,
       title: suggestion.title,
-      description: suggestion.subtitle,
+      description: suggestion.subtitle || fullAddress,
       latitude: suggestion.latitude,
       longitude: suggestion.longitude,
     });
+
     if (!isSuccessResponse(response)) {
-      throw new Error(getResponseErrorMessage(response, 'Unable to save stop address.'));
+      throw new Error(
+        getResponseErrorMessage(response, 'Unable to save stop address.'),
+      );
     }
 
     const selectedKey = getStopIdentity(selectedStop);
-    const nextPoint = buildRoutePointFromSuggestion(suggestion, selectedStop.title || 'Stop');
-    const nextStops = route.stops.map(stop =>
-      getStopIdentity(stop) === selectedKey
-        ? { ...stop, ...nextPoint, address: suggestion.fullAddress, description: suggestion.subtitle }
-        : stop,
+    const nextPoint = buildRoutePointFromSuggestion(
+      suggestion,
+      selectedStop.title || 'Stop',
+    );
+
+    const updatedStop = {
+      ...selectedStop,
+      ...nextPoint,
+      title: suggestion.title || selectedStop.title,
+      address: fullAddress,
+      description: suggestion.subtitle || fullAddress,
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    } as RouteStop;
+
+    const nextStops = route.stops.map((stop) =>
+      getStopIdentity(stop) === selectedKey ? updatedStop : stop,
     );
 
     const nextRoute = {
@@ -1022,18 +1075,38 @@ const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) =>
     };
 
     setRoute(nextRoute);
+    setSelectedStop(updatedStop);
+    setSelectedSuggestion(buildSuggestionFromStop(updatedStop));
+    setStopDetails((current) => ({
+      ...current,
+      address: fullAddress,
+      latitude: suggestion.latitude,
+      longitude: suggestion.longitude,
+    }) as StopDetails);
+
     await markRouteNeedsReOptimization();
-    setSelectedSuggestion(null);
+
     setSuggestions([]);
     setSearchText('');
-    setPanelMode('edit_stop');
+    setPanelMode(stopAddressReturnMode);
     recenterMap();
   } catch (error) {
-    setErrorMessage(error instanceof Error ? error.message : 'Unable to save stop address.');
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : 'Unable to save stop address.',
+    );
   } finally {
     setIsSavingRouteEdit(false);
   }
-}, [effectiveRouteId, markRouteNeedsReOptimization, recenterMap, route, selectedStop]);
+}, [
+  effectiveRouteId,
+  markRouteNeedsReOptimization,
+  recenterMap,
+  route,
+  selectedStop,
+  stopAddressReturnMode,
+]);
 
 const handleRemoveEditedStop = useCallback(async () => {
   if (!route || !selectedStop || !effectiveRouteId) return;
@@ -1122,15 +1195,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     if (!route || !selectedSuggestion || isAddingStop) return;
 
     if (!selectedStop) {
-      const isUk = 
-        selectedSuggestion.fullAddress.toLowerCase().includes('united kingdom') || 
-        selectedSuggestion.fullAddress.toLowerCase().includes(', uk') || 
-        selectedSuggestion.fullAddress.toLowerCase().includes(', gb') || 
-        selectedSuggestion.subtitle?.toLowerCase().includes('united kingdom') || 
-        selectedSuggestion.subtitle?.toLowerCase().includes(', uk') || 
-        selectedSuggestion.subtitle?.toLowerCase().includes(', gb');
-
-      if (!isUk) {
+      if (!isUnitedKingdomSuggestion(selectedSuggestion)) {
         setErrorMessage('Only locations within the United Kingdom are supported.');
         return;
       }
@@ -1149,14 +1214,30 @@ const handleRemoveEditedStop = useCallback(async () => {
       setErrorMessage('');
 
       try {
+        const currentDetails = stopDetails as any;
+        const orderPreference =
+          currentDetails.order_preference ?? currentDetails.order ?? 'auto';
+        const stopType =
+          currentDetails.stop_type ?? currentDetails.stopType ?? 'delivery';
+        const arrivalTime =
+          currentDetails.arrivalTime ?? currentDetails.arrival_time ?? '';
+        const timeAtStop = Math.max(
+          1,
+          Number(
+            currentDetails.timeAtStopMinutes ??
+              currentDetails.time_at_stop ??
+              1,
+          ),
+        );
+
         const response = await ordersService.editOrder({
           order_id: orderId,
-          packages: stopDetails.packages,
-          order: stopDetails.order_preference,
-          stop_type: stopDetails.stop_type,
-          notes: stopDetails.notes,
-          planned_arrival_time: stopDetails.arrivalTime,
-          time_at_stop: stopDetails.timeAtStopMinutes,
+          packages: Math.max(1, Number(currentDetails.packages || 1)),
+          order_preference: orderPreference,
+          stop_type: stopType,
+          notes: String(currentDetails.notes || '').trim(),
+          arrival_time: arrivalTime || null,
+          time_at_stop: timeAtStop,
         });
 
         if (!isSuccessResponse(response)) {
@@ -1167,12 +1248,16 @@ const handleRemoveEditedStop = useCallback(async () => {
           getStopIdentity(stop) === selectedStopKey
             ? {
                 ...stop,
-                packages: Number(stopDetails.packages || 1),
-                order_preference: stopDetails.order_preference || 'auto',
-                stop_type: stopDetails.stop_type || 'delivery',
-                notes: stopDetails.notes || '',
-                planned_arrival_time: stopDetails.arrivalTime || '',
-                time_at_stop: Number(stopDetails.timeAtStopMinutes || 1),
+                packages: Math.max(1, Number(currentDetails.packages || 1)),
+                order: orderPreference,
+                order_preference: orderPreference,
+                stopType,
+                stop_type: stopType,
+                notes: String(currentDetails.notes || '').trim(),
+                arrivalTime: arrivalTime || '',
+                arrival_time: arrivalTime || null,
+                timeAtStopMinutes: timeAtStop,
+                time_at_stop: timeAtStop,
               }
             : stop,
         );
@@ -1181,10 +1266,13 @@ const handleRemoveEditedStop = useCallback(async () => {
           ...route,
           stops: nextStops,
         });
+
+        await markRouteNeedsReOptimization();
+
         setSelectedStop(null);
         setSelectedSuggestion(null);
         setStopDetails({ ...DEFAULT_STOP_DETAILS });
-        setPanelMode(getPanelModeFromStatus(routeStatus, nextStops.length));
+        setPanelMode('setup');
       } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : 'Unable to update stop.',
@@ -1266,6 +1354,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     effectiveRouteId,
     isAddingStop,
     recenterMap,
+    markRouteNeedsReOptimization,
     route,
     routeStatus,
     selectedStop,
