@@ -1127,25 +1127,36 @@ type MarkerRoutePoint = RoutePoint & {
 type MarkerRouteStop = RouteStop & MarkerRoutePoint;
 
 function getCoordinateKey(point: RoutePoint) {
-  return `${point.latitude.toFixed(6)},${point.longitude.toFixed(6)}`;
+  const lat = Number(point.latitude);
+  const lon = Number(point.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return '0.0,0.0';
+  }
+  return `${lat.toFixed(6)},${lon.toFixed(6)}`;
 }
 
 function offsetPointForMarker(point: RoutePoint, index: number, total: number) {
   if (total <= 1) return point;
+
+  const lat = Number(point.latitude);
+  const lon = Number(point.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return point;
+  }
 
   const radiusMeters = 16;
   const angle = (2 * Math.PI * index) / total - Math.PI / 2;
   const latitudeOffset = (Math.sin(angle) * radiusMeters) / 111_320;
   const longitudeScale = Math.max(
     0.01,
-    Math.abs(Math.cos((point.latitude * Math.PI) / 180)),
+    Math.abs(Math.cos((lat * Math.PI) / 180)),
   );
   const longitudeOffset = (Math.cos(angle) * radiusMeters) / (111_320 * longitudeScale);
 
   return {
     ...point,
-    latitude: point.latitude + latitudeOffset,
-    longitude: point.longitude + longitudeOffset,
+    latitude: lat + latitudeOffset,
+    longitude: lon + longitudeOffset,
   };
 }
 

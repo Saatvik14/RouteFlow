@@ -49,29 +49,60 @@ const formatArrivalTime = (value: unknown, options?: { includeDay?: boolean }) =
     const hour = Number(hourText);
     const suffix = hour >= 12 ? 'pm' : 'am';
     const twelveHour = hour % 12 || 12;
-    return `${twelveHour}:${minute} ${suffix}`;
+    const timeStr = `${twelveHour}:${minute} ${suffix}`;
+    const today = new Date();
+    const day = today.getDate();
+    const month = today.toLocaleDateString([], { month: 'short' });
+    return `${day} ${month}, ${timeStr}`;
   }
 
   const parsed = new Date(text);
   if (!Number.isNaN(parsed.getTime())) {
+    const day = parsed.getDate();
+    const month = parsed.toLocaleDateString([], { month: 'short' });
     const time = formatClock(parsed);
-
-    if (!options?.includeDay) return time;
-
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-    const parsedStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
-    const dayDiff = Math.round((parsedStart - todayStart) / 86400000);
-
-    if (dayDiff === 1) return `Tomorrow\n${time}`;
-    if (dayDiff > 1) {
-      return `${parsed.toLocaleDateString([], { weekday: 'short' })}\n${time}`;
-    }
-
-    return time;
+    return `${day} ${month}, ${time}`;
   }
 
   return text;
+};
+
+const formatStopDistance = (meters: unknown) => {
+  const num = Number(meters);
+  if (!Number.isFinite(num) || num <= 0) return '';
+  const miles = num * 0.000621371;
+  return `${miles.toFixed(1)} mi`;
+};
+
+const getDistributedStopDistance = (index: number, stopsCount: number, distanceLabel?: string) => {
+  if (stopsCount <= 0 || !distanceLabel) return null;
+  const match = distanceLabel.match(/(\d+(?:\.\d+)?)/);
+  if (!match) return null;
+  const totalVal = parseFloat(match[1]);
+  if (Number.isNaN(totalVal)) return null;
+
+  const unit = distanceLabel.toLowerCase().includes('km') ? 'km' : 'mi';
+  const distributedVal = totalVal * ((index + 1) / (stopsCount + 1));
+  return `${distributedVal.toFixed(1)} ${unit}`;
+};
+
+const getStopDisplayDistance = (
+  stop: any,
+  index: number,
+  stopsCount: number,
+  distanceLabel?: string,
+) => {
+  const directMeters = getNumericValue(
+    stop?.distance_meters,
+    stop?.distanceMeters,
+    stop?.distance,
+  );
+  if (directMeters !== null) {
+    const formatted = formatStopDistance(directMeters);
+    if (formatted) return formatted;
+  }
+
+  return getDistributedStopDistance(index, stopsCount, distanceLabel) || '';
 };
 
 const getOrdinal = (value: number) => {
@@ -268,6 +299,31 @@ const getStopArrivalTime = (
   fallbackStartTime?: unknown,
   fallbackOffsetSeconds?: number | null,
 ) => {
+  // If the stop is already delivered or failed, show actual arrival time
+  if (isStopDone(stop)) {
+    const actualTime = getStopActualArrivalTime(stop, includeDay);
+    if (actualTime) return actualTime;
+  }
+
+  // ETA = current time + time taken to cover that stop
+  const travelDuration = getNumericValue(
+    stop?.duration_seconds,
+    stop?.durationSeconds,
+    stop?.duration,
+    stop?.arrivalOffsetSeconds,
+    stop?.arrival_offset_seconds,
+    stop?.etaSeconds,
+    stop?.eta_seconds,
+    fallbackOffsetSeconds,
+  );
+
+  if (travelDuration !== null) {
+    const baseTime = new Date();
+    const arrival = new Date(baseTime.getTime() + travelDuration * 1000);
+    return formatArrivalTime(arrival.toISOString(), { includeDay });
+  }
+
+  // Fallback to direct labels if numeric duration is unavailable
   const directArrival = formatArrivalTime(
     stop?.eta ||
       stop?.etaLabel ||
@@ -292,13 +348,7 @@ const getStopArrivalTime = (
     { includeDay },
   );
 
-  if (directArrival) return directArrival;
-
-  return formatArrivalFromOffset(
-    fallbackStartTime,
-    getStopOffsetSeconds(stop, fallbackOffsetSeconds),
-    includeDay,
-  );
+  return directArrival || '';
 };
 
 const getStopIdentity = (stop: any) => {
@@ -324,9 +374,17 @@ const isSameStop = (left: any, right: any) => {
   return left === right;
 };
 
-const getStopStatus = (stop: any) => getText(stop?.status, stop?.orderStatus, stop?.order_status).toLowerCase();
-const isStopDone = (stop: any) => DONE_STATUSES.has(getStopStatus(stop));
-const isStopFailed = (stop: any) => FAILED_STATUSES.has(getStopStatus(stop));
+function getStopStatus(stop: any) {
+  return getText(stop?.status, stop?.orderStatus, stop?.order_status).toLowerCase();
+}
+
+function isStopDone(stop: any) {
+  return DONE_STATUSES.has(getStopStatus(stop));
+}
+
+function isStopFailed(stop: any) {
+  return FAILED_STATUSES.has(getStopStatus(stop));
+}
 
 const getStopStatusMeta = (stop: any, isActive: boolean) => {
   const status = getStopStatus(stop);
@@ -350,7 +408,7 @@ const getStopStatusMeta = (stop: any, isActive: boolean) => {
   return { label: 'Pending', tone: 'slate' as const };
 };
 
-const getStopActualArrivalTime = (stop: any, includeDay = false) => {
+function getStopActualArrivalTime(stop: any, includeDay = false) {
   const actualTime =
     stop?.actualArrivalTime ||
     stop?.actual_arrival_time ||
@@ -368,7 +426,7 @@ const getStopActualArrivalTime = (stop: any, includeDay = false) => {
     stop?.updated_at;
 
   return formatArrivalTime(actualTime, { includeDay });
-};
+}
 
 const getStopTimelineTimeInfo = (
   stop: any,
@@ -721,6 +779,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const currentIndex = activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex;
     const stopCode = getStopOrderId(stop, currentIndex);
     const notes = getStopNotes(stop);
+    const stopDistance = getStopDisplayDistance(stop, currentIndex, totalStops, distanceLabel);
 
     return (
       <ScrollView
@@ -741,9 +800,17 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           </View>
         </View>
 
-        <View style={localStyles.etaPillWide}>
-          <Feather name="clock" size={14} color="#2563EB" />
-          <Text style={localStyles.etaPillText}>ETA {arrivalTime || '--'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={localStyles.etaPillWide}>
+            <Feather name="clock" size={14} color="#2563EB" />
+            <Text style={localStyles.etaPillText}>ETA {arrivalTime || '--'}</Text>
+          </View>
+          {stopDistance ? (
+            <View style={[localStyles.etaPillWide, { marginLeft: 8 }]}>
+              <Feather name="map-pin" size={14} color="#2563EB" />
+              <Text style={localStyles.etaPillText}>{stopDistance}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={localStyles.currentActionsRow}>
@@ -802,6 +869,17 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             value={arrivalTime || 'Not available'}
             rightIcon={false}
           />
+          {stopDistance ? (
+            <>
+              <View style={localStyles.detailDivider} />
+              <DetailRow
+                icon={<Feather name="map-pin" size={17} color="#475569" />}
+                label="Distance to stop"
+                value={stopDistance}
+                rightIcon={false}
+              />
+            </>
+          ) : null}
         </View>
 
         <View style={localStyles.optionsCard}>
@@ -822,6 +900,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const failedCount = allStops.filter((item: any) => isStopFailed(item)).length;
     const pendingCount = allStops.filter((item: any) => !isStopDone(item)).length;
     const activeTitle = stop ? getStopTitle(stop, activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex) : '';
+    const stopDistance = getStopDisplayDistance(stop, progressIndex - 1, totalStops, distanceLabel);
 
     return (
       <ScrollView
@@ -841,23 +920,32 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
         <View style={localStyles.statsGrid}>
           <View style={localStyles.statBox}>
             <Text style={localStyles.statLabel}>Remaining</Text>
-            <Text style={localStyles.statValue}>{durationLabel || '--'}</Text>
+            <Text style={localStyles.statValue}>{pendingCount} stops</Text>
           </View>
           <View style={localStyles.statBox}>
-            <Text style={localStyles.statLabel}>Distance left</Text>
-            <Text style={localStyles.statValue}>{distanceLabel || '--'}</Text>
+            <Text style={localStyles.statLabel}>Delivered</Text>
+            <Text style={localStyles.statValue}>{deliveredCount}</Text>
+          </View>
+          <View style={localStyles.statBox}>
+            <Text style={localStyles.statLabel}>Failed</Text>
+            <Text style={localStyles.statValue}>{failedCount}</Text>
           </View>
         </View>
 
         <View style={localStyles.statusSummaryCard}>
           <View style={localStyles.summaryItem}>
+            <Text style={localStyles.summaryLabel}>Total stops</Text>
+            <Text style={localStyles.summaryValue}>{totalStops}</Text>
+          </View>
+          <View style={localStyles.summaryDivider} />
+          <View style={localStyles.summaryItem}>
             <Text style={localStyles.summaryLabel}>Delivered</Text>
-            <Text style={[localStyles.summaryValue, localStyles.summaryValueGreen]}>{deliveredCount}</Text>
+            <Text style={localStyles.summaryValue}>{deliveredCount}</Text>
           </View>
           <View style={localStyles.summaryDivider} />
           <View style={localStyles.summaryItem}>
             <Text style={localStyles.summaryLabel}>Failed</Text>
-            <Text style={[localStyles.summaryValue, localStyles.summaryValueRed]}>{failedCount}</Text>
+            <Text style={localStyles.summaryValue}>{failedCount}</Text>
           </View>
           <View style={localStyles.summaryDivider} />
           <View style={localStyles.summaryItem}>
@@ -875,7 +963,10 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
               <Text style={localStyles.nextStopLabel}>Current stop</Text>
               <Text style={localStyles.nextStopTitle} numberOfLines={1}>{activeTitle}</Text>
             </View>
-            <Text style={localStyles.nextStopEta}>ETA {arrivalTime || '--'}</Text>
+            <Text style={localStyles.nextStopEta}>
+              ETA {arrivalTime || '--'}
+              {stopDistance ? ` • ${stopDistance}` : ''}
+            </Text>
           </View>
         ) : null}
 
@@ -907,6 +998,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             const packageText = getStopPackageCount(item);
             const notes = getStopNotes(item);
             const issueText = failed ? getStopIssueText(item) : '';
+            const itemDistance = getStopDisplayDistance(item, index, allStops.length, distanceLabel);
 
             return (
               <Pressable
@@ -938,6 +1030,11 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
                   >
                     {timeInfo.label}
                   </Text>
+                  {itemDistance ? (
+                    <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                      {itemDistance}
+                    </Text>
+                  ) : null}
                 </View>
                 <View style={localStyles.markerColumn}>
                   <View
@@ -1028,6 +1125,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     );
     const phone = getStopPhone(detailStop);
     const canUpdateThisStop = isSameStop(detailStop, stop) && !isStopDone(detailStop);
+    const detailStopDistance = getStopDisplayDistance(detailStop, detailIndex, (stops || []).length, distanceLabel);
 
     return (
       <ScrollView
@@ -1090,6 +1188,17 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             value={detailArrivalTime || 'Not available'}
             rightIcon={false}
           />
+          {detailStopDistance ? (
+            <>
+              <View style={localStyles.detailDivider} />
+              <DetailRow
+                icon={<Feather name="map-pin" size={17} color="#475569" />}
+                label="Distance to stop"
+                value={detailStopDistance}
+                rightIcon={false}
+              />
+            </>
+          ) : null}
           <View style={localStyles.detailDivider} />
           <DetailRow
             icon={<Feather name="camera" size={17} color="#475569" />}

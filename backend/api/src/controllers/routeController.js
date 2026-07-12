@@ -1185,6 +1185,9 @@ const optimizeRoute = async (req, res) => {
           id: order.order_id,
           sequence_no: index + 1,
           order_preference: order.order_preference,
+          duration: optimizerStep.duration,
+          arrival: optimizerStep.arrival,
+          distance: optimizerStep.distance,
           ...(optimizerStep.location
             ? { location: optimizerStep.location }
             : { location: order.coordinates }),
