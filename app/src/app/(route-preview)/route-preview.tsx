@@ -296,7 +296,7 @@ export default function RoutePreviewScreen() {
     );
   };
 
-  console.log('[RoutePreviewScreen] active panel', activePanelMode);
+ 
   return (
     <GestureHandlerRootView style={styles.root}>
       <MapScreen
