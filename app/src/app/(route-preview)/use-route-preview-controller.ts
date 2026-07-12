@@ -393,6 +393,8 @@ export function useRoutePreviewController(
     useState<PlaceSuggestion | null>(null);
   const [selectedStop, setSelectedStop] = useState<RouteStop | null>(null);
   const [stopDetails, setStopDetails] = useState<StopDetails>(DEFAULT_STOP_DETAILS);
+  const [stopDetailsReturnMode, setStopDetailsReturnMode] =
+    useState<PanelMode>('setup');
   const [stopAddressReturnMode, setStopAddressReturnMode] =
     useState<PanelMode>('edit_stop');
   const [isUpdatingStopStatus, setIsUpdatingStopStatus] = useState(false);
@@ -986,6 +988,11 @@ const handleSaveStopPriority = useCallback(async (stopId: string, priority: numb
 }, [route, effectiveRouteId, markRouteNeedsReOptimization]);
 
 const handleOpenEditStopAddress = useCallback((stop?: RouteStop) => {
+  if (isInTransitStatus(routeStatus)) {
+    setErrorMessage('The stop address cannot be changed after the route has started.');
+    return;
+  }
+
   const targetStop = stop || selectedStop;
   if (!targetStop) return;
 
@@ -1001,7 +1008,7 @@ const handleOpenEditStopAddress = useCallback((stop?: RouteStop) => {
   setSuggestions([]);
   setErrorMessage('');
   setPanelMode('edit_stop_address');
-}, [panelMode, selectedStop]);
+}, [panelMode, routeStatus, selectedStop]);
 
 const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) => {
   if (!route || !selectedStop || !effectiveRouteId) return;
@@ -1164,6 +1171,7 @@ const handleRemoveEditedStop = useCallback(async () => {
   }, [route?.stops?.length, routeStatus]);
 
   const handleSelectSuggestion = useCallback((suggestion: PlaceSuggestion) => {
+    setStopDetailsReturnMode('setup');
     setSelectedSuggestion(suggestion);
     setSelectedStop(null);
     setStopDetails({ ...DEFAULT_STOP_DETAILS });
@@ -1172,13 +1180,16 @@ const handleRemoveEditedStop = useCallback(async () => {
   }, []);
 
   const handleOpenStopDetails = useCallback((stop: RouteStop) => {
+    setStopDetailsReturnMode(
+      isInTransitStatus(routeStatus) ? 'transit' : 'setup',
+    );
     setSelectedStop(stop);
     setSelectedSuggestion(buildSuggestionFromStop(stop));
     setStopDetails(buildStopDetailsFromStop(stop));
     setSearchText('');
     setSuggestions([]);
     setPanelMode('details');
-  }, []);
+  }, [routeStatus]);
 
   const handleStopDetailsChange = useCallback((details: StopDetails) => {
     setStopDetails(details);
@@ -1260,12 +1271,14 @@ const handleRemoveEditedStop = useCallback(async () => {
           stops: nextStops,
         });
 
-        await markRouteNeedsReOptimization();
+        if (stopDetailsReturnMode !== 'transit') {
+          await markRouteNeedsReOptimization();
+        }
 
         setSelectedStop(null);
         setSelectedSuggestion(null);
         setStopDetails({ ...DEFAULT_STOP_DETAILS });
-        setPanelMode('setup');
+        setPanelMode(stopDetailsReturnMode);
       } catch (error) {
         setErrorMessage(
           error instanceof Error ? error.message : 'Unable to update stop.',
@@ -1353,6 +1366,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     selectedStop,
     selectedSuggestion,
     stopDetails,
+    stopDetailsReturnMode,
   ]);
 
   const handleOptimizeRoute = useCallback(async () => {

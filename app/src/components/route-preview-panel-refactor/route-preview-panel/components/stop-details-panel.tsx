@@ -276,11 +276,17 @@ export function StopDetailsPanel({
   onChangeAddress,
   onDuplicateStop,
   onOpenEditStopAddress,
+  routeStatus,
 }: StopDetailsPanelProps) {
   const insets = useSafeAreaInsets();
   const panelAnim = useRef(new Animated.Value(0)).current;
   const isExistingStop = Boolean(editingStop);
   const stopIdentity = getStopIdentity(editingStop);
+  const normalizedRouteStatus = String(routeStatus || '').toLowerCase();
+  const isAddressEditable = ![
+    'in_transit',
+    'in-transit',
+  ].includes(normalizedRouteStatus);
 
   const details = useMemo<StopDetails>(
     () => ({
@@ -335,6 +341,8 @@ export function StopDetailsPanel({
   };
 
   const handleChangeAddress = () => {
+    if (!isAddressEditable) return;
+
     if (isExistingStop && onOpenEditStopAddress) {
       onOpenEditStopAddress(editingStop as any);
       return;
@@ -521,23 +529,39 @@ export function StopDetailsPanel({
           <Pressable
             style={({ pressed }) => [
               styles.addressCard,
-              pressed ? styles.cardPressed : null,
+              !isAddressEditable ? styles.addressCardLocked : null,
+              pressed && isAddressEditable ? styles.cardPressed : null,
             ]}
             onPress={handleChangeAddress}
+            disabled={!isAddressEditable}
+            accessibilityState={{ disabled: !isAddressEditable }}
           >
             <View style={styles.addressContent}>
-              <Feather name="map-pin" size={19} color={COLORS.text} />
+              <Feather
+                name={isAddressEditable ? 'map-pin' : 'lock'}
+                size={19}
+                color={isAddressEditable ? COLORS.text : COLORS.muted}
+              />
               <View style={styles.addressTextWrap}>
                 <Text style={styles.addressTitle}>Stop address</Text>
                 <Text style={styles.addressValue} numberOfLines={3}>
                   {stopAddress || 'Add an address'}
                 </Text>
-                <Text style={styles.addressHint}>
-                  Tap to search and update this address
+                <Text
+                  style={[
+                    styles.addressHint,
+                    !isAddressEditable ? styles.addressLockedHint : null,
+                  ]}
+                >
+                  {isAddressEditable
+                    ? 'Tap to search and update this address'
+                    : 'Address cannot be changed after the route has started'}
                 </Text>
               </View>
             </View>
-            <Feather name="chevron-right" size={21} color={COLORS.muted} />
+            {isAddressEditable ? (
+              <Feather name="chevron-right" size={21} color={COLORS.muted} />
+            ) : null}
           </Pressable>
 
           <Text style={styles.sectionTitle}>Notes</Text>
@@ -849,6 +873,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     gap: 12,
   },
+  addressCardLocked: {
+    backgroundColor: COLORS.surface,
+  },
   addressContent: {
     flex: 1,
     minWidth: 0,
@@ -878,6 +905,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '500',
     marginTop: 5,
+  },
+  addressLockedHint: {
+    color: COLORS.muted,
   },
   notesCard: {
     marginHorizontal: 18,
