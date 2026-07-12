@@ -18,6 +18,33 @@ import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
 import { useVoiceAddress } from '../../../../hooks/useVoiceAddress';
 
+const isUkLocation = (item: any) => {
+  const lat = Number(item?.latitude);
+  const lon = Number(item?.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0) {
+    if (lat >= 49.0 && lat <= 61.0 && lon >= -10.0 && lon <= 2.5) {
+      return true;
+    }
+  }
+
+  const address = (item?.address || item?.full_address || item?.fullAddress || '').toLowerCase();
+  const title = (item?.title || '').toLowerCase();
+  const country = (item?.country || '').toLowerCase();
+  const countryCode = (item?.country_code || item?.countryCode || '').toLowerCase();
+
+  return (
+    address.includes('united kingdom') ||
+    address.includes(', uk') ||
+    address.includes(', gb') ||
+    country.includes('united kingdom') ||
+    country === 'uk' ||
+    country === 'gb' ||
+    countryCode === 'gb' ||
+    countryCode === 'uk' ||
+    title.includes('united kingdom')
+  );
+};
+
 type SearchPanelExtraProps = {
   isWide: boolean;
   onChooseOnMap?: () => void;
@@ -131,6 +158,7 @@ export function SearchPanel({
   const { isListening, transcript, error, startListening, stopListening } = useVoiceAddress();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reviewStops, setReviewStops] = useState<any[]>([]);
+  const [ukErrorVisible, setUkErrorVisible] = useState(false);
 
   useEffect(() => {
     if (pendingManifestStops && pendingManifestStops.length > 0) {
@@ -212,6 +240,12 @@ export function SearchPanel({
   };
 
   const handleConfirmReview = async () => {
+    const hasOutsideUk = reviewStops.some((item) => !isUkLocation(item));
+    if (hasOutsideUk) {
+      setUkErrorVisible(true);
+      return;
+    }
+
     if (onConfirmManifestStops) {
       await onConfirmManifestStops(reviewStops);
     }
@@ -576,36 +610,43 @@ export function SearchPanel({
               </View>
 
               <ScrollView style={localStyles.reviewList} showsVerticalScrollIndicator={true}>
-                {reviewStops.map((item, idx) => (
-                  <View key={idx} style={localStyles.reviewRow}>
-                    <View style={localStyles.reviewRowContent}>
-                      <Text style={localStyles.reviewRowTitle} numberOfLines={1}>
-                        {item.title || `Stop ${idx + 1}`}
-                      </Text>
-                      <Text style={localStyles.reviewRowAddress} numberOfLines={2}>
-                        {item.address}
-                      </Text>
-                      <View style={localStyles.reviewRowBadgeRow}>
-                        {item.packages > 0 && (
-                          <Text style={localStyles.reviewRowBadge}>
-                            📦 {item.packages} pkg{item.packages === 1 ? '' : 's'}
-                          </Text>
-                        )}
-                        {item.stop_type && (
-                          <Text style={localStyles.reviewRowBadge}>
-                            🏷️ {item.stop_type === 'delivery' ? 'Delivery' : 'Pickup'}
-                          </Text>
-                        )}
-                        {item.notes ? (
-                          <Text
-                            style={[localStyles.reviewRowBadge, { backgroundColor: '#F1F5F9', color: '#475569' }]}
-                            numberOfLines={1}
-                          >
-                            📝 {item.notes}
-                          </Text>
-                        ) : null}
+                {reviewStops.map((item, idx) => {
+                  const isItemUk = isUkLocation(item);
+                  return (
+                    <View key={idx} style={[localStyles.reviewRow, !isItemUk && { borderColor: '#FECACA', borderWidth: 1, backgroundColor: '#FFF5F5' }]}>
+                      <View style={localStyles.reviewRowContent}>
+                        <Text style={localStyles.reviewRowTitle} numberOfLines={1}>
+                          {item.title || `Stop ${idx + 1}`}
+                        </Text>
+                        <Text style={localStyles.reviewRowAddress} numberOfLines={2}>
+                          {item.address}
+                        </Text>
+                        <View style={localStyles.reviewRowBadgeRow}>
+                          {!isItemUk && (
+                            <Text style={[localStyles.reviewRowBadge, { backgroundColor: '#FEE2E2', color: '#EF4444', fontWeight: 'bold' }]}>
+                              ⚠️ Outside UK
+                            </Text>
+                          )}
+                          {item.packages > 0 && (
+                            <Text style={localStyles.reviewRowBadge}>
+                              📦 {item.packages} pkg{item.packages === 1 ? '' : 's'}
+                            </Text>
+                          )}
+                          {item.stop_type && (
+                            <Text style={localStyles.reviewRowBadge}>
+                              🏷️ {item.stop_type === 'delivery' ? 'Delivery' : 'Pickup'}
+                            </Text>
+                          )}
+                          {item.notes ? (
+                            <Text
+                              style={[localStyles.reviewRowBadge, { backgroundColor: '#F1F5F9', color: '#475569' }]}
+                              numberOfLines={1}
+                            >
+                              📝 {item.notes}
+                            </Text>
+                          ) : null}
+                        </View>
                       </View>
-                    </View>
 
                     <Pressable
                       style={localStyles.reviewDeleteButton}
@@ -613,8 +654,9 @@ export function SearchPanel({
                     >
                       <Text style={localStyles.reviewDeleteText}>×</Text>
                     </Pressable>
-                  </View>
-                ))}
+                    </View>
+                  );
+                })}
               </ScrollView>
 
               <View style={localStyles.reviewFooter}>
@@ -625,6 +667,28 @@ export function SearchPanel({
                   <Text style={localStyles.reviewConfirmText}>Confirm ({reviewStops.length})</Text>
                 </Pressable>
               </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={ukErrorVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setUkErrorVisible(false)}
+        >
+          <View style={[localStyles.backdrop, { justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={localStyles.alertContainer}>
+              <Text style={localStyles.alertTitle}>Invalid Locations Detected</Text>
+              <Text style={localStyles.alertMessage}>
+                Please give only locations that are from United Kingdom only.
+              </Text>
+              <Pressable
+                style={localStyles.alertButton}
+                onPress={() => setUkErrorVisible(false)}
+              >
+                <Text style={localStyles.alertButtonText}>OK</Text>
+              </Pressable>
             </View>
           </View>
         </Modal>
@@ -1040,5 +1104,49 @@ const localStyles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 16,
     paddingHorizontal: 20,
+  },
+  alertContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+    maxWidth: 340,
+    alignSelf: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  alertButton: {
+    backgroundColor: '#2F74F5',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
