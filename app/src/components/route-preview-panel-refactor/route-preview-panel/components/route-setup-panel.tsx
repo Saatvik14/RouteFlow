@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RoutePreviewPanelProps } from '../types';
@@ -37,9 +37,7 @@ type StopLike = {
 type RouteSetupPanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
   onCancelRoute?: () => void;
-  onSelectStop?: (stop: StopLike, index: number) => void;
-  onOpenStopDetails?: (stop: StopLike, index: number) => void;
-  onStopPress?: (stop: StopLike, index: number) => void;
+  onOpenEditStop?: (stop: any, panelMode: any) => void;
 };
 
 function getLocationText(location: any, fallbackTitle: string, fallbackSubtitle: string) {
@@ -142,14 +140,8 @@ function HeaderSearchBar({ onOpenSearch }: { onOpenSearch?: () => void }) {
         <Text style={localStyles.searchPlaceholder} numberOfLines={1}>
           Tap to add more stops
         </Text>
-        {/* 
-        <Text style={localStyles.searchActionIcon}>⌗</Text>
-        <Text style={localStyles.searchActionIcon}>♬</Text> */}
       </Pressable>
 
-      {/* <Pressable style={localStyles.moreButton} hitSlop={10}>
-        <Text style={localStyles.moreIcon}>⋮</Text>
-      </Pressable> */}
     </View>
   );
 }
@@ -208,33 +200,6 @@ function RouteSetupRow({
   );
 }
 
-// function BreakToggleRow() {
-//   const [breakEnabled, setBreakEnabled] = useState(false);
-
-//   return (
-//     <View style={localStyles.breakRow}>
-//       <View style={localStyles.timelineCol}>
-//         <View style={localStyles.timelineDot} />
-//       </View>
-
-//       {/* <View style={localStyles.breakTextBox}>
-//         <Text style={localStyles.setupTitle}>Add break</Text>
-//         <Text style={localStyles.setupSubtitle}>
-//           {breakEnabled ? 'Break will be added during route planning' : 'Turn on to plan a break'}
-//         </Text>
-//       </View> */}
-
-//       {/* <Switch
-//         value={breakEnabled}
-//         onValueChange={setBreakEnabled}
-//         trackColor={{ false: '#D9E1EC', true: '#BFD5FF' }}
-//         thumbColor={breakEnabled ? '#2876F8' : '#FFFFFF'}
-//         ios_backgroundColor="#D9E1EC"
-//         style={localStyles.breakSwitch}
-//       />
-//     </View> */}
-//   );
-// }
 
 function StopRow({
   stop,
@@ -280,9 +245,7 @@ export function RouteSetupPanel({
   onOpenSearch,
   onOptimizeRoute,
   onCancelRoute,
-  onSelectStop,
-  onOpenStopDetails,
-  onStopPress,
+  onOpenEditStop,
   onSaveStopPriority,
 }: RouteSetupPanelProps) {
   const insets = useSafeAreaInsets();
@@ -293,8 +256,6 @@ export function RouteSetupPanel({
   const startText = getLocationText(start, 'Start from current location', 'Use GPS position when optimizing');
 
   const endText = getLocationText(end, 'Round trip', 'Return to start location');
-
-  const handleStopPress = onSelectStop || onOpenStopDetails || onStopPress;
 
   return (
     <DraggableRouteSheet isWide={isWide} initialSnap="middle" collapsedHeight={88}>
@@ -331,32 +292,6 @@ export function RouteSetupPanel({
               icon="⚑"
             />
 
-            {/* <BreakToggleRow /> */}
-
-            {/* <Pressable
-              style={({ pressed }) => [
-                localStyles.breakRow,
-                pressed && { backgroundColor: '#F8FAFC' }
-              ]}
-              onPress={() => setIsPriorityModalOpen(true)}
-            >
-              <View style={localStyles.timelineCol}>
-                <View style={localStyles.timelineDot} />
-              </View>
-
-              <View style={localStyles.breakTextBox}>
-                <Text style={localStyles.setupTitle}>Set priority</Text>
-                <Text style={localStyles.setupSubtitle}>
-                  {stops && stops.some((s: any) => s.priority)
-                    ? `${stops.filter((s: any) => s.priority).length} stops prioritized`
-                    : 'Set custom priorities for stops'}
-                </Text>
-              </View>
-
-              <View style={localStyles.setupIconBox}>
-                <Feather name="star" size={18} color="#2E76F6" />
-              </View>
-            </Pressable> */}
           </View>
 
           <SectionLabel title="Stops" />
@@ -368,7 +303,7 @@ export function RouteSetupPanel({
                   key={stop.id ?? `${index}`}
                   stop={stop}
                   index={index}
-                  onPress={handleStopPress}
+                 onPress={(stop) =>onOpenEditStop?.(stop, 'setup')}
                 />
               ))
             ) : (

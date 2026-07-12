@@ -452,9 +452,8 @@ export default function RoutePreviewScreen() {
           onOpenSearch={handleOpenSearch}
           onCloseSearch={handleCloseSearch}
           onSelectSuggestion={handleSelectSuggestion}
-          onSelectStop={handleOpenStopDetails}
+
           onOpenStopDetails={handleOpenStopDetails}
-          onStopPress={handleOpenStopDetails}
           onStopDetailsChange={handleStopDetailsChange}
           onConfirmStopDetails={handleConfirmStopDetails}
           onOptimizeRoute={handleOptimizeRoute}
@@ -521,9 +520,7 @@ export default function RoutePreviewScreen() {
           onOpenSearch={handleOpenSearch}
           onCloseSearch={handleCloseSearch}
           onSelectSuggestion={handleSelectSuggestion}
-          onSelectStop={handleOpenStopDetails}
           onOpenStopDetails={handleOpenStopDetails}
-          onStopPress={handleOpenStopDetails}
           onStopDetailsChange={handleStopDetailsChange}
           onConfirmStopDetails={handleConfirmStopDetails}
           onOptimizeRoute={handleOptimizeRoute}

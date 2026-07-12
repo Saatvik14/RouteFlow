@@ -85,8 +85,6 @@ export type RoutePreviewPanelProps = {
   pendingManifestStops?: any[];
   onConfirmManifestStops?: (stops: any[]) => Promise<void>;
   onCancelManifestStops?: () => void;
-  onSelectStop?: (stop: any, index?: number) => void;
-  onStopPress?: (stop: any) => void;
   onOpenStopDetails?: (stop: any) => void;
   onScanAddress?: () => void;
   onVoiceAddress?: () => void;
