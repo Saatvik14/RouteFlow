@@ -145,14 +145,6 @@ export default function RoutePreviewScreen() {
     setIsScannerVisible(true);
   };
 
-  useEffect(() => {
-    console.log('[RoutePreviewScreen] panel state', {
-      panelMode,
-      resolvedPanelMode,
-      routeStatus,
-    });
-  }, [panelMode, resolvedPanelMode, routeStatus]);
-
   // Auto-open copy stops modal when navigated with carryPastStops=true
   useEffect(() => {
     if (shouldCarryPastStops && route && !hasAutoOpenedCopyStops.current) {

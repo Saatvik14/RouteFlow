@@ -112,8 +112,6 @@ export const makeRequest = async <T = any>(
   };
 
   try {
-    console.log(`[API] ${method} ${url}`);
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -139,16 +137,12 @@ export const makeRequest = async <T = any>(
         await setAuthToken(null);
       }
 
-      console.error(`[API] Error: ${response.status} - ${errorMessage}`);
-
       return {
         success: false,
         error: errorMessage,
         statusCode: response.status,
       };
     }
-
-    console.log(`[API] Success: ${method} ${url}`);
 
     return {
       success: true,
@@ -164,8 +158,6 @@ export const makeRequest = async <T = any>(
     } else if (error instanceof TypeError) {
       errorMessage = ERROR_MESSAGES.NETWORK_ERROR;
     }
-
-    console.error(`[API] Exception: ${errorMessage}`, error);
 
     return {
       success: false,

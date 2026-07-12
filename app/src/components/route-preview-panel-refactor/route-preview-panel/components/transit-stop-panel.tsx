@@ -1074,27 +1074,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           </View>
         </View>
 
-        {/* <View style={localStyles.statusSummaryCard}>
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Total stops</Text>
-            <Text style={localStyles.summaryValue}>{totalStops}</Text>
-          </View>
-          <View style={localStyles.summaryDivider} />
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Delivered</Text>
-            <Text style={localStyles.summaryValue}>{deliveredCount}</Text>
-          </View>
-          <View style={localStyles.summaryDivider} />
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Failed</Text>
-            <Text style={localStyles.summaryValue}>{failedCount}</Text>
-          </View>
-          <View style={localStyles.summaryDivider} />
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Pending</Text>
-            <Text style={localStyles.summaryValue}>{pendingCount}</Text>
-          </View>
-        </View> */}
 
         {activeTitle ? (
           <View style={localStyles.nextStopCard}>
