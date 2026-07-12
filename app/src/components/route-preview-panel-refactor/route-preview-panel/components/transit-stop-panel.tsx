@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, Modal } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -92,6 +92,18 @@ const getStopDisplayDistance = (
   stopsCount: number,
   distanceLabel?: string,
 ) => {
+  const directLabel = getText(
+    stop?.distance_label,
+    stop?.distanceLabel,
+    stop?.distance_text,
+    stop?.distanceText,
+    typeof stop?.distance === 'string' && /[a-zA-Z]/.test(stop.distance)
+      ? stop.distance
+      : '',
+  );
+
+  if (directLabel) return directLabel;
+
   const directMeters = getNumericValue(
     stop?.distance_meters,
     stop?.distanceMeters,
@@ -215,6 +227,26 @@ const getStopOrderId = (stop: any, index: number) => {
 
 const getStopNotes = (stop: any) => {
   return getText(stop?.notes, stop?.note, stop?.deliveryNotes, stop?.delivery_notes);
+};
+
+const humanizeFieldValue = (...values: unknown[]) => {
+  const text = getText(...values);
+  if (!text) return '';
+
+  return text
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const getStopType = (stop: any) => {
+  return humanizeFieldValue(
+    stop?.stop_type,
+    stop?.stopType,
+    stop?.order_type,
+    stop?.orderType,
+    stop?.type,
+  );
 };
 
 const getStopPhone = (stop: any) => {
@@ -467,14 +499,46 @@ const getStopTimelineTimeInfo = (
 };
 
 const getStopPackageCount = (stop: any) => {
-  const packageCount = getNumericValue(
-    stop?.packageCount,
-    stop?.package_count,
-    Array.isArray(stop?.packages) ? stop.packages.length : undefined,
-  );
+  const packagesValue =
+    stop?.packages ??
+    stop?.packageCount ??
+    stop?.package_count ??
+    stop?.packagesCount ??
+    stop?.packages_count ??
+    stop?.numberOfPackages ??
+    stop?.number_of_packages;
 
-  if (packageCount === null) return '';
-  return `${packageCount} ${packageCount === 1 ? 'pkg' : 'pkgs'}`;
+  if (Array.isArray(packagesValue)) {
+    const count = packagesValue.length;
+    return `${count} ${count === 1 ? 'package' : 'packages'}`;
+  }
+
+  if (typeof packagesValue === 'number' && Number.isFinite(packagesValue)) {
+    return `${packagesValue} ${packagesValue === 1 ? 'package' : 'packages'}`;
+  }
+
+  if (typeof packagesValue === 'string' && packagesValue.trim()) {
+    const value = packagesValue.trim();
+    const numericValue = Number(value);
+
+    if (Number.isFinite(numericValue)) {
+      return `${numericValue} ${numericValue === 1 ? 'package' : 'packages'}`;
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        const count = parsed.length;
+        return `${count} ${count === 1 ? 'package' : 'packages'}`;
+      }
+    } catch {
+      // Keep a descriptive package value as-is, for example "2 boxes".
+    }
+
+    return value;
+  }
+
+  return '';
 };
 
 const getStopIssueText = (stop: any) => {
@@ -581,6 +645,102 @@ function DetailRow({
       </View>
       {rightIcon ? <Feather name="chevron-right" size={20} color="#94A3B8" /> : null}
     </Wrapper>
+  );
+}
+
+function StopInformationCard({
+  packages,
+  notes,
+  arrivalTime,
+  stopType,
+  onEdit,
+}: {
+  packages: string;
+  notes: string;
+  arrivalTime: string;
+  stopType: string;
+  onEdit?: () => void;
+}) {
+  return (
+    <View style={localStyles.stopInformationSection}>
+      <View style={localStyles.stopInformationHeader}>
+        <Text style={localStyles.stopInformationTitle}>Stop details</Text>
+        {onEdit ? (
+          <Pressable
+            style={({ pressed }) => [
+              localStyles.inlineEditButton,
+              pressed && localStyles.pressed,
+            ]}
+            onPress={onEdit}
+          >
+            <Feather name="edit-3" size={14} color="#2563EB" />
+            <Text style={localStyles.inlineEditText}>Edit stop</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={localStyles.stopInformationCard}>
+        <View style={localStyles.stopInformationTopRow}>
+          <View style={localStyles.stopInformationCompactItem}>
+            <View style={localStyles.stopInformationIconBlue}>
+              <Feather name="package" size={18} color="#2563EB" />
+            </View>
+            <Text style={localStyles.stopInformationLabel}>Packages</Text>
+            <Text style={localStyles.stopInformationValue} numberOfLines={2}>
+              {packages || 'Not specified'}
+            </Text>
+          </View>
+
+          <View style={localStyles.stopInformationVerticalDivider} />
+
+          <View style={localStyles.stopInformationCompactItem}>
+            <View style={localStyles.stopInformationIconPurple}>
+              <MaterialCommunityIcons name="truck-delivery-outline" size={19} color="#7C3AED" />
+            </View>
+            <Text style={localStyles.stopInformationLabel}>Stop type</Text>
+            <Text style={localStyles.stopInformationValue} numberOfLines={2}>
+              {stopType || 'Not specified'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={localStyles.stopInformationDivider} />
+
+        <View style={localStyles.stopInformationWideItem}>
+          <View style={localStyles.stopInformationIconGreen}>
+            <Feather name="clock" size={18} color="#15803D" />
+          </View>
+          <View style={localStyles.stopInformationTextBox}>
+            <Text style={localStyles.stopInformationLabel}>Time of arrival</Text>
+            <Text style={localStyles.stopInformationValue}>
+              {arrivalTime || 'Not available'}
+            </Text>
+          </View>
+          <View style={localStyles.sameAsEtaBadge}>
+            <Text style={localStyles.sameAsEtaBadgeText}>Same as ETA</Text>
+          </View>
+        </View>
+
+        <View style={localStyles.stopInformationDivider} />
+
+        <View style={[localStyles.stopInformationWideItem, localStyles.notesInformationItem]}>
+          <View style={localStyles.stopInformationIconSlate}>
+            <McIcon name="note-text-outline" size={18} color="#475569" />
+          </View>
+          <View style={localStyles.stopInformationTextBox}>
+            <Text style={localStyles.stopInformationLabel}>Notes</Text>
+            <Text
+              style={[
+                localStyles.stopInformationValue,
+                !notes && localStyles.stopInformationMutedValue,
+              ]}
+            >
+              {notes || 'No notes added for this stop'}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -777,8 +937,9 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
 
   const renderCurrentStop = () => {
     const currentIndex = activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex;
-    const stopCode = getStopOrderId(stop, currentIndex);
     const notes = getStopNotes(stop);
+    const packages = getStopPackageCount(stop);
+    const stopType = getStopType(stop);
     const stopDistance = getStopDisplayDistance(stop, currentIndex, totalStops, distanceLabel);
 
     return (
@@ -800,17 +961,32 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           </View>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-          <View style={localStyles.etaPillWide}>
-            <Feather name="clock" size={14} color="#2563EB" />
-            <Text style={localStyles.etaPillText}>ETA {arrivalTime || '--'}</Text>
-          </View>
-          {stopDistance ? (
-            <View style={[localStyles.etaPillWide, { marginLeft: 8 }]}>
-              <Feather name="map-pin" size={14} color="#2563EB" />
-              <Text style={localStyles.etaPillText}>{stopDistance}</Text>
+        <View style={localStyles.travelSummaryCard}>
+          <View style={localStyles.travelSummaryItem}>
+            <View style={localStyles.travelSummaryIconBlue}>
+              <Feather name="clock" size={18} color="#2563EB" />
             </View>
-          ) : null}
+            <View style={localStyles.travelSummaryTextBox}>
+              <Text style={localStyles.travelSummaryLabel}>ETA</Text>
+              <Text style={localStyles.travelSummaryValue} numberOfLines={1}>
+                {arrivalTime || '--'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={localStyles.travelSummaryDivider} />
+
+          <View style={localStyles.travelSummaryItem}>
+            <View style={localStyles.travelSummaryIconBlue}>
+              <Feather name="map-pin" size={18} color="#2563EB" />
+            </View>
+            <View style={localStyles.travelSummaryTextBox}>
+              <Text style={localStyles.travelSummaryLabel}>Distance</Text>
+              <Text style={localStyles.travelSummaryValue} numberOfLines={1}>
+                {stopDistance || '--'}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <View style={localStyles.currentActionsRow}>
@@ -849,47 +1025,13 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           </View>
         </View>
 
-        <View style={localStyles.detailCard}>
-          <DetailRow
-            icon={<McIcon name="note-text-outline" size={18} color="#475569" />}
-            label="Notes"
-            value={notes || 'Add notes for this stop'}
-            muted={!notes}
-          />
-          <View style={localStyles.detailDivider} />
-          <DetailRow
-            icon={<Feather name="package" size={17} color="#475569" />}
-            label="Order ID"
-            value={`${stopCode} Originally ${getOrdinal(currentIndex)}`}
-          />
-          <View style={localStyles.detailDivider} />
-          <DetailRow
-            icon={<Feather name="clock" size={17} color="#475569" />}
-            label="Time of arrival"
-            value={arrivalTime || 'Not available'}
-            rightIcon={false}
-          />
-          {stopDistance ? (
-            <>
-              <View style={localStyles.detailDivider} />
-              <DetailRow
-                icon={<Feather name="map-pin" size={17} color="#475569" />}
-                label="Distance to stop"
-                value={stopDistance}
-                rightIcon={false}
-              />
-            </>
-          ) : null}
-        </View>
-
-        <View style={localStyles.optionsCard}>
-          <DetailRow
-            icon={<Feather name="edit-3" size={18} color="#475569" />}
-            label="Edit stop"
-            value=""
-            onPress={() => onOpenStopDetails?.(stop)}
-          />
-        </View>
+        <StopInformationCard
+          packages={packages}
+          notes={notes}
+          arrivalTime={arrivalTime}
+          stopType={stopType}
+          onEdit={onOpenStopDetails ? () => onOpenStopDetails(stop) : undefined}
+        />
       </ScrollView>
     );
   };
@@ -932,27 +1074,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           </View>
         </View>
 
-        <View style={localStyles.statusSummaryCard}>
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Total stops</Text>
-            <Text style={localStyles.summaryValue}>{totalStops}</Text>
-          </View>
-          <View style={localStyles.summaryDivider} />
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Delivered</Text>
-            <Text style={localStyles.summaryValue}>{deliveredCount}</Text>
-          </View>
-          <View style={localStyles.summaryDivider} />
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Failed</Text>
-            <Text style={localStyles.summaryValue}>{failedCount}</Text>
-          </View>
-          <View style={localStyles.summaryDivider} />
-          <View style={localStyles.summaryItem}>
-            <Text style={localStyles.summaryLabel}>Pending</Text>
-            <Text style={localStyles.summaryValue}>{pendingCount}</Text>
-          </View>
-        </View>
 
         {activeTitle ? (
           <View style={localStyles.nextStopCard}>
@@ -994,10 +1115,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             const failed = isStopFailed(item);
             const statusMeta = getStopStatusMeta(item, isActive);
             const timeInfo = getStopTimelineTimeInfo(item, index, allStops.length, startTime, durationLabel);
-            const orderId = getStopOrderId(item, index);
-            const packageText = getStopPackageCount(item);
-            const notes = getStopNotes(item);
-            const issueText = failed ? getStopIssueText(item) : '';
             const itemDistance = getStopDisplayDistance(item, index, allStops.length, distanceLabel);
 
             return (
@@ -1061,17 +1178,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
                     <StatusPill label={statusMeta.label} tone={statusMeta.tone} />
                   </View>
                   <Text style={localStyles.timelineAddress} numberOfLines={2}>{getStopAddress(item)}</Text>
-
-                  <View style={localStyles.timelineMetaRow}>
-                    <MetaChip icon={<Feather name="package" size={12} color="#64748B" />} text={`Order ${orderId}`} />
-                    <MetaChip icon={<Feather name="box" size={12} color="#64748B" />} text={packageText} />
-                    {notes ? (
-                      <MetaChip icon={<Feather name="file-text" size={12} color="#64748B" />} text="Notes" />
-                    ) : null}
-                    {issueText ? (
-                      <MetaChip icon={<Feather name="alert-triangle" size={12} color="#EF4444" />} text={issueText} />
-                    ) : null}
-                  </View>
                 </View>
                 <Feather name="chevron-right" size={18} color="#CBD5E1" />
               </Pressable>
@@ -1116,7 +1222,8 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const detailTitle = getStopTitle(detailStop, detailIndex);
     const detailAddress = getStopAddress(detailStop);
     const detailNotes = getStopNotes(detailStop);
-    const detailOrderId = getStopOrderId(detailStop, detailIndex);
+    const detailPackages = getStopPackageCount(detailStop);
+    const detailStopType = getStopType(detailStop);
     const detailArrivalTime = getStopArrivalTime(
       detailStop,
       false,
@@ -1146,7 +1253,35 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
         <Text style={localStyles.detailTitle} numberOfLines={2}>{detailTitle}</Text>
         <Text style={localStyles.detailSubtitle} numberOfLines={2}>{detailAddress}</Text>
 
-        <View style={localStyles.detailQuickActions}>
+        <View style={localStyles.detailTravelSummaryCard}>
+          <View style={localStyles.travelSummaryItem}>
+            <View style={localStyles.travelSummaryIconBlue}>
+              <Feather name="clock" size={18} color="#2563EB" />
+            </View>
+            <View style={localStyles.travelSummaryTextBox}>
+              <Text style={localStyles.travelSummaryLabel}>ETA</Text>
+              <Text style={localStyles.travelSummaryValue} numberOfLines={1}>
+                {detailArrivalTime || '--'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={localStyles.travelSummaryDivider} />
+
+          <View style={localStyles.travelSummaryItem}>
+            <View style={localStyles.travelSummaryIconBlue}>
+              <Feather name="map-pin" size={18} color="#2563EB" />
+            </View>
+            <View style={localStyles.travelSummaryTextBox}>
+              <Text style={localStyles.travelSummaryLabel}>Distance</Text>
+              <Text style={localStyles.travelSummaryValue} numberOfLines={1}>
+                {detailStopDistance || '--'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* <View style={localStyles.detailQuickActions}>
           <Pressable
             style={[localStyles.quickActionCircle, !phone && localStyles.actionDisabled]}
             onPress={() => handleCallStop(detailStop)}
@@ -1165,68 +1300,28 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             <Feather name="more-horizontal" size={22} color="#0F172A" />
             <Text style={localStyles.quickActionText}>More</Text>
           </Pressable>
-        </View>
+        </View> */}
 
-        <View style={localStyles.detailCard}>
-          <DetailRow
-            icon={<McIcon name="note-text-outline" size={18} color="#475569" />}
-            label="Notes"
-            value={detailNotes || 'Leave with reception if not available.'}
-            rightIcon={false}
-          />
-          <View style={localStyles.detailDivider} />
-          <DetailRow
-            icon={<Feather name="package" size={17} color="#475569" />}
-            label="Order ID"
-            value={`${detailOrderId} Originally ${getOrdinal(detailIndex)}`}
-            rightIcon={false}
-          />
-          <View style={localStyles.detailDivider} />
-          <DetailRow
-            icon={<Feather name="clock" size={17} color="#475569" />}
-            label="Time of arrival"
-            value={detailArrivalTime || 'Not available'}
-            rightIcon={false}
-          />
-          {detailStopDistance ? (
-            <>
-              <View style={localStyles.detailDivider} />
-              <DetailRow
-                icon={<Feather name="map-pin" size={17} color="#475569" />}
-                label="Distance to stop"
-                value={detailStopDistance}
-                rightIcon={false}
-              />
-            </>
-          ) : null}
-          <View style={localStyles.detailDivider} />
-          <DetailRow
-            icon={<Feather name="camera" size={17} color="#475569" />}
-            label="Proof of delivery"
-            value="No proof uploaded"
-            rightIcon={false}
-          />
-        </View>
+        <StopInformationCard
+          packages={detailPackages}
+          notes={detailNotes}
+          arrivalTime={detailArrivalTime}
+          stopType={detailStopType}
+          onEdit={onOpenStopDetails ? () => onOpenStopDetails(detailStop) : undefined}
+        />
 
         <View style={localStyles.optionsCard}>
-          <DetailRow
+          {/* <DetailRow
             icon={<Feather name="plus-square" size={18} color="#2563EB" />}
             label="Add note"
             value=""
-          />
+          /> */}
           <View style={localStyles.detailDivider} />
           <DetailRow
             icon={<Feather name="flag" size={18} color="#EF4444" />}
             label="Report issue"
             value=""
             danger
-          />
-          <View style={localStyles.detailDivider} />
-          <DetailRow
-            icon={<Feather name="edit-3" size={18} color="#475569" />}
-            label="Edit stop"
-            value=""
-            onPress={() => onOpenStopDetails?.(detailStop)}
           />
         </View>
 
@@ -1420,10 +1515,86 @@ const localStyles = StyleSheet.create({
     color: '#2563EB',
     fontWeight: '600',
   },
-  etaPillWide: {
-    alignSelf: 'flex-start',
-    height: 32,
-    paddingHorizontal: 12,
+  travelSummaryCard: {
+    minHeight: 76,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  detailTravelSummaryCard: {
+    minHeight: 76,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  travelSummaryItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 0,
+  },
+  travelSummaryIconBlue: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  travelSummaryTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  travelSummaryLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  travelSummaryValue: {
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#1D4ED8',
+    fontWeight: '700',
+  },
+  travelSummaryDivider: {
+    width: 1,
+    height: 42,
+    backgroundColor: '#BFDBFE',
+    marginHorizontal: 12,
+  },
+  stopInformationSection: {
+    marginBottom: 14,
+  },
+  stopInformationHeader: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  stopInformationTitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  inlineEditButton: {
+    minHeight: 32,
+    paddingHorizontal: 10,
     borderRadius: 10,
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
@@ -1431,12 +1602,118 @@ const localStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 16,
   },
-  etaPillText: {
-    fontSize: 13,
-    lineHeight: 18,
+  inlineEditText: {
+    fontSize: 12,
+    lineHeight: 16,
     color: '#2563EB',
+    fontWeight: '600',
+  },
+  stopInformationCard: {
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  stopInformationTopRow: {
+    flexDirection: 'row',
+    minHeight: 118,
+  },
+  stopInformationCompactItem: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    alignItems: 'flex-start',
+  },
+  stopInformationVerticalDivider: {
+    width: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  stopInformationDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  stopInformationWideItem: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  notesInformationItem: {
+    alignItems: 'flex-start',
+  },
+  stopInformationTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  stopInformationIconBlue: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  stopInformationIconPurple: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#F5F3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  stopInformationIconGreen: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#F0FDF4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopInformationIconSlate: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopInformationLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  stopInformationValue: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#0F172A',
+    fontWeight: '600',
+  },
+  stopInformationMutedValue: {
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  sameAsEtaBadge: {
+    minHeight: 24,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sameAsEtaBadgeText: {
+    fontSize: 10,
+    lineHeight: 13,
+    color: '#15803D',
     fontWeight: '600',
   },
   currentActionsRow: {

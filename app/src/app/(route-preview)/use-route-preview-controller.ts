@@ -490,13 +490,6 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
   return panelMode;
 }, [panelMode, routeStatus, route?.stops?.length]);
 
-useEffect(() => {
-  console.log('[useRoutePreviewController] panel state', {
-    panelMode,
-    resolvedPanelMode,
-    routeStatus,
-  });
-}, [panelMode, resolvedPanelMode, routeStatus]);
 
   useEffect(() => {
     setActiveRouteId(routeIdFromParams);

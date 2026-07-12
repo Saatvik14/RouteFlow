@@ -30,11 +30,6 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
   const isWide = width >= 768;
   const normalizedStatus = normalizeRouteStatus(props.routeStatus);
 
-  console.log('[RoutePreviewPanel] render', {
-    mode: props.mode,
-    normalizedStatus,
-  });
-
   if (props.mode === 'reorder_stops') {
     return (
       <ReorderStopsPanel

@@ -145,14 +145,6 @@ export default function RoutePreviewScreen() {
     setIsScannerVisible(true);
   };
 
-  useEffect(() => {
-    console.log('[RoutePreviewScreen] panel state', {
-      panelMode,
-      resolvedPanelMode,
-      routeStatus,
-    });
-  }, [panelMode, resolvedPanelMode, routeStatus]);
-
   // Auto-open copy stops modal when navigated with carryPastStops=true
   useEffect(() => {
     if (shouldCarryPastStops && route && !hasAutoOpenedCopyStops.current) {
@@ -296,7 +288,7 @@ export default function RoutePreviewScreen() {
     );
   };
 
-  console.log('[RoutePreviewScreen] active panel', activePanelMode);
+ 
   return (
     <GestureHandlerRootView style={styles.root}>
       <MapScreen
