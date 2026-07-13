@@ -8,6 +8,7 @@ import { routesService } from '../services/api/routes';
 import MapScreen from '../components/maps/RouteMap';
 import { RoutePanel } from '../components/route-panel';
 import { Sidebar } from '../components/sidebar';
+import { IMAGES } from '../constants/theme';
 
 export default function Index() {
   const router = useRouter();
@@ -48,7 +49,7 @@ export default function Index() {
     return (
       <View style={styles.openingContainer}>
         <Image
-          source={require('../../assets/images/logo.png')}
+          source={IMAGES.LOGO}
           style={styles.openingLogo}
         />
         <Text style={styles.openingTitle}>

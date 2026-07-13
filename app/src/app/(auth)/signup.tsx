@@ -18,6 +18,7 @@ import {
 
 import { authService, setAuthToken } from './../../services/api';
 import { useAuth } from './../_layout';
+import { IMAGES } from '@/src/constants/theme';
 
 const APP_FONT = Platform.select({
   ios: 'System',
@@ -223,7 +224,7 @@ export default function SignupScreen() {
             <View style={[styles.card, isMobile && styles.cardMobile]}>
               <View style={styles.brandRow}>
                 <Image
-                  source={require('../../../assets/images/logo.png')}
+                  source={IMAGES.LOGO}
                   style={[styles.logoImage, isMobile && styles.logoImageMobile]}
                 />
 

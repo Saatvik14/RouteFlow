@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Dimensions, StyleSheet, View, Image } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
+import { IMAGES } from '../constants/theme';
 
 const INITIAL_SCALE_FACTOR = Dimensions.get('screen').height / 90;
 const DURATION = 600;
@@ -34,7 +35,7 @@ export function AnimatedSplashOverlay() {
       style={styles.backgroundContainer}
     >
       <Image
-        source={require('@/assets/images/logo.png')}
+        source={IMAGES.LOGO}
         style={styles.openingLogo}
       />
       <Animated.Text style={styles.openingTitle}>
@@ -87,7 +88,7 @@ export function AnimatedIcon() {
 
       <Animated.View entering={keyframe.duration(DURATION)} style={styles.background} />
       <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/logo.png')} />
+        <Image style={styles.image} source={IMAGES.LOGO} />
       </Animated.View>
     </View>
   );

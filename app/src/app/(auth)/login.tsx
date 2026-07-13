@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../_layout';
+import { IMAGES } from '@/src/constants/theme';
 
 const APP_FONT = Platform.select({
   ios: 'System',
@@ -111,7 +112,7 @@ export default function LoginScreen() {
             <View style={[styles.card, isMobile && styles.cardMobile]}>
               <View style={styles.brandRow}>
                 <Image
-                  source={require('../../../assets/images/logo.png')}
+                  source={IMAGES.LOGO}
                   style={[styles.logoImage, isMobile && styles.logoImageMobile]}
                 />
 
@@ -422,15 +423,15 @@ const styles = StyleSheet.create({
   },
 
   logoImage: {
-    width: 38,
-    height: 38,
+    width: 45,
+    height: 45,
     borderRadius: 10,
     marginRight: 10,
   },
 
   logoImageMobile: {
-    width: 34,
-    height: 34,
+    width: 45,  
+    height: 45,
     borderRadius: 8,
     marginRight: 8,
   },
