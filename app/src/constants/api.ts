@@ -111,6 +111,7 @@ export const API_ENDPOINTS = {
     ADD: '/order/add',
     ADD_BULK: '/order/add/bulk',
     EDIT: '/order/edit',
+    BULK_CREATE: '/order/add/bulk',
     REORDER_STOPS: '/order/reorder',
     DELETE_ALL: '/order/delete/all',
     DELETE: (id: string) => `/order/delete?id=${id}`,

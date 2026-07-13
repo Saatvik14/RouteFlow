@@ -802,18 +802,42 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
                 
                 <Pressable
                   onPress={handleConfirmCopyStops}
+                  disabled={
+                    isAddingStop ||
+                    Object.values(selectedPastStopKeys).filter(Boolean).length === 0
+                  }
                   style={({ pressed }) => ({
-                    backgroundColor: Object.values(selectedPastStopKeys).filter(Boolean).length === 0 ? '#93C5FD' : '#2F76F6',
+                    backgroundColor:
+                      isAddingStop ||
+                      Object.values(selectedPastStopKeys).filter(Boolean).length === 0
+                        ? '#93C5FD'
+                        : '#2F76F6',
                     borderRadius: 12,
                     height: 52,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    opacity: pressed ? 0.9 : 1,
+                    opacity: pressed && !isAddingStop ? 0.9 : 1,
                   })}
                 >
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF' }}>
-                    Copy {Object.values(selectedPastStopKeys).filter(Boolean).length} {Object.values(selectedPastStopKeys).filter(Boolean).length === 1 ? 'stop' : 'stops'} to {routeTitle ? routeTitle.replace(/\s*[Rr]oute\s*/, '') : 'Monday'}
-                  </Text>
+                  {isAddingStop ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: '600',
+                          color: '#FFFFFF',
+                          marginLeft: 10,
+                        }}
+                      >
+                        Copying stops...
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF' }}>
+                      Copy {Object.values(selectedPastStopKeys).filter(Boolean).length} {Object.values(selectedPastStopKeys).filter(Boolean).length === 1 ? 'stop' : 'stops'} to {routeTitle ? routeTitle.replace(/\s*[Rr]oute\s*/, '') : 'Monday'}
+                    </Text>
+                  )}
                 </Pressable>
               </View>
             </View>

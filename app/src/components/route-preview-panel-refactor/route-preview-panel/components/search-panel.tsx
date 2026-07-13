@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -148,7 +149,8 @@ export function SearchPanel({
   pendingManifestStops,
   onConfirmManifestStops,
   onCancelManifestStops,
-  subscriptionType
+  subscriptionType,
+  isAddingStop,
 }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [bulkUploadVisible, setBulkUploadVisible] = useState(false);
@@ -373,8 +375,12 @@ export function SearchPanel({
               </Pressable>
 
               <Pressable
-                style={localStyles.secondaryButton}
+                style={[
+                  localStyles.secondaryButton,
+                  isAddingStop && localStyles.disabledButton,
+                ]}
                 onPress={onCopyStopsFromPastRoute}
+                disabled={isAddingStop}
               >
                 <Text style={localStyles.secondaryButtonText}>
                   Copy stops from a past route
@@ -647,6 +653,18 @@ export function SearchPanel({
           </View>
         </Modal>
       </KeyboardAvoidingView>
+
+      {isAddingStop ? (
+        <View style={localStyles.copyingOverlay}>
+          <View style={localStyles.copyingCard}>
+            <ActivityIndicator size="large" color="#2F76F6" />
+            <Text style={localStyles.copyingTitle}>Copying stops</Text>
+            <Text style={localStyles.copyingText}>
+              Creating the selected stops and preparing your route...
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </DraggableRouteSheet>
   );
 }
@@ -819,6 +837,45 @@ const localStyles = StyleSheet.create({
     color: '#286EF0',
     fontSize: 14,
     fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.55,
+  },
+  copyingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    paddingHorizontal: 24,
+  },
+  copyingCard: {
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  copyingTitle: {
+    marginTop: 14,
+    color: '#0F172A',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  copyingText: {
+    marginTop: 6,
+    color: '#64748B',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
   },
   resultsContent: {
     paddingHorizontal: 16,

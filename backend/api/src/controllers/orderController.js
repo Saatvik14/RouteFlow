@@ -1146,8 +1146,8 @@ const insertOrderStop = async stop =>
 // @route   POST /order/add/bulk
 // @access  Private
 const addBulkOrders = async (req, res) => {
-  const { route_id, stops } = req.body;
-
+  const { route_id, orders } = req.body;
+  const stop = req.body.stops || orders;
   if (!route_id) {
     return res.status(400).json({
       message: 'route_id is required',

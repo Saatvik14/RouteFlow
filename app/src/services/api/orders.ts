@@ -85,6 +85,13 @@ export const ordersService = {
  *
  * Axios-style example:
  */
-reorderOrders: (payload: ReorderOrdersPayload) =>
-  apiPut(API_ENDPOINTS.ORDERS.REORDER_STOPS, payload),
+  reorderOrders: (payload: ReorderOrdersPayload) =>
+    apiPut(API_ENDPOINTS.ORDERS.REORDER_STOPS, payload),
+
+
+    /**
+   * BULK CREATE ORDER
+   */
+  bulkCreateOrders: (data: any) =>
+    apiPost(API_ENDPOINTS.ORDERS.BULK_CREATE, data),
 };

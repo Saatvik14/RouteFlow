@@ -2041,56 +2041,94 @@ const handleRemoveEditedStop = useCallback(async () => {
     setPendingManifestStops(payloads);
   }, [route, effectiveRouteId]);
 
-  const handleConfirmManifestStops = useCallback(async (selectedStops: any[]) => {
-    if (!route || !effectiveRouteId || isAddingStop) return;
+  const addStopsInBulk = useCallback(async (selectedStops: any[]) => {
+    if (!route || !effectiveRouteId || isAddingStop) return false;
 
-    if (!selectedStops || selectedStops.length === 0) {
+    if (!Array.isArray(selectedStops) || selectedStops.length === 0) {
       setPendingManifestStops([]);
-      return;
+      return false;
     }
 
     setIsAddingStop(true);
     setErrorMessage('');
 
     try {
-      const responseFromBackend = await addManifestStopsToBackend(selectedStops);
+      const payloadData = {
+        stops: selectedStops,
+        route_id: effectiveRouteId,
+      }
+      const responseFromBackend = await addManifestStopsToBackend(payloadData);
 
       if (!isSuccessResponse(responseFromBackend)) {
         throw new Error(
-          getResponseErrorMessage(responseFromBackend, 'Unable to add manifest stops.'),
+          getResponseErrorMessage(responseFromBackend, 'Unable to add stops.'),
         );
       }
 
-      const rawPayload = (responseFromBackend as any)?.data ?? responseFromBackend;
-      const createdOrders =
-        rawPayload?.created ||
-        rawPayload?.data?.created ||
-        rawPayload?.orders ||
-        rawPayload?.data?.orders ||
-        [];
+      const bulkResult =
+        (responseFromBackend as any)?.data ?? responseFromBackend;
+      const createdOrders = Array.isArray(bulkResult?.created)
+        ? bulkResult.created
+        : [];
+
+      const failedCount = Number(
+        bulkResult?.failed_count ?? bulkResult?.failedCount ?? 0,
+      );
+      const createdCount = Number(
+        bulkResult?.created_count ??
+          bulkResult?.createdCount ??
+          createdOrders.length ??
+          0,
+      );
+
+      if (failedCount > 0 || createdCount !== selectedStops.length) {
+        throw new Error(
+          `Only ${createdCount} of ${selectedStops.length} stops were created. No local stops were added.`,
+        );
+      }
 
       const fallbackStops: RouteStop[] = selectedStops.map((payload, index) => ({
         id: `${Date.now()}-manifest-${index}`,
         sequence: route.stops.length + index + 1,
         sequenceNo: route.stops.length + index + 1,
         markerLabel: String(route.stops.length + index + 1),
-        latitude: payload.latitude,
-        longitude: payload.longitude,
+        latitude: Number(payload.latitude),
+        longitude: Number(payload.longitude),
         title: payload.title,
         description: payload.address,
         address: payload.address,
-        packages: payload.packages,
-        order: 'auto',
-        stopType: payload.stop_type || 'delivery',
+        packages: Number(payload.packages || 1),
+        order:
+          payload.order_preference ?? payload.order ?? 'auto',
+        order_preference:
+          payload.order_preference ?? payload.order ?? 'auto',
+        stopType: payload.stop_type || payload.stopType || 'delivery',
+        stop_type: payload.stop_type || payload.stopType || 'delivery',
         notes: payload.notes || '',
         status: ROUTE_STATUS_PENDING,
+        timeAtStopMinutes:
+          payload.time_at_stop ??
+          payload.timeAtStopMinutes ??
+          null,
+        time_at_stop:
+          payload.time_at_stop ??
+          payload.timeAtStopMinutes ??
+          null,
+        planned_arrival_time:
+          payload.planned_arrival_time ??
+          payload.arrival_time ??
+          null,
       }));
 
-      const createdStops = Array.isArray(createdOrders) && createdOrders.length
-        ? createdOrders.map((item: any, index: number) =>
-            buildStopFromSavedOrder(unwrapOrderPayload(item), fallbackStops[index] || fallbackStops[0]),
-          )
-        : fallbackStops;
+      const createdStops =
+        createdOrders.length === selectedStops.length
+          ? createdOrders.map((item: any, index: number) =>
+              buildStopFromSavedOrder(
+                unwrapOrderPayload(item),
+                fallbackStops[index],
+              ),
+            )
+          : fallbackStops;
 
       const nextStops = [...route.stops, ...createdStops].map((stop, index) => ({
         ...stop,
@@ -2126,10 +2164,13 @@ const handleRemoveEditedStop = useCallback(async () => {
       setPanelMode('setup');
       recenterMap();
       setPendingManifestStops([]);
+
+      return true;
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to add manifest stops.',
+        error instanceof Error ? error.message : 'Unable to add stops.',
       );
+      return false;
     } finally {
       setIsAddingStop(false);
     }
@@ -2140,6 +2181,13 @@ const handleRemoveEditedStop = useCallback(async () => {
     route,
     routeStatus,
   ]);
+
+  const handleConfirmManifestStops = useCallback(
+    async (selectedStops: any[]) => {
+      await addStopsInBulk(selectedStops);
+    },
+    [addStopsInBulk],
+  );
 
   const handleScanAddress = useCallback(async () => {
     try {
@@ -2300,46 +2348,64 @@ const handleRemoveEditedStop = useCallback(async () => {
   }, []);
 
   const handleConfirmCopyStops = useCallback(async () => {
-    if (!route || !effectiveRouteId) return;
+    if (!route || !effectiveRouteId || isAddingStop) return;
 
-    const stopsToCopy = pastRouteStops.filter((stop) => selectedPastStopKeys[stop.id]);
+    const stopsToCopy = pastRouteStops.filter(
+      (stop) => selectedPastStopKeys[stop.id],
+    );
 
     if (stopsToCopy.length === 0) {
       setErrorMessage('Please select at least one stop to copy.');
       return;
     }
 
-    setIsCopyStopsModalOpen(false);
-    setIsAddingStop(true);
+    const payloads = stopsToCopy.map((stop, index) => {
+      const sequence = route.stops.length + index + 1;
+      const stopData = stop as any;
+
+      return {
+        sequence_no: sequence,
+        latitude: Number(stop.latitude),
+        longitude: Number(stop.longitude),
+        title: stop.title || `Stop ${sequence}`,
+        address: stop.address || stop.description || '',
+        packages: Math.max(1, Number(stop.packages || 1)),
+        order_preference:
+          stopData.order_preference ?? stopData.order ?? 'auto',
+        stop_type:
+          stopData.stop_type ?? stopData.stopType ?? 'delivery',
+        notes: stop.notes || '',
+        status: ROUTE_STATUS_PENDING,
+        planned_arrival_time:
+          stopData.planned_arrival_time ??
+          stopData.arrival_time ??
+          null,
+        time_at_stop:
+          stopData.time_at_stop ??
+          stopData.timeAtStopMinutes ??
+          null,
+        source_order_id: getStopBackendId(stop) || null,
+        source_route_id: selectedPastRouteId || null,
+      };
+    });
+
     setErrorMessage('');
 
-    try {
-      const payloads = stopsToCopy.map((stop, index) => {
-        return {
-          route_id: effectiveRouteId,
-          sequence: route.stops.length + index + 1,
-          latitude: stop.latitude,
-          longitude: stop.longitude,
-          title: stop.title || `Stop ${route.stops.length + index + 1}`,
-          address: stop.address || stop.description || '',
-          packages: Number(stop.packages || 1),
-          stop_type: stop.stop_type || 'delivery',
-          notes: stop.notes || '',
-          status: ROUTE_STATUS_PENDING,
-          planned_arrival_time: stop.planned_arrival_time || null,
-          timeAtStopMinutes: stop.timeAtStopMinutes || null,
-        };
-      });
+    const copiedSuccessfully = await addStopsInBulk(payloads);
 
-      await handleConfirmManifestStops(payloads);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to copy stops from past route.',
-      );
-    } finally {
-      setIsAddingStop(false);
+    if (copiedSuccessfully) {
+      setIsCopyStopsModalOpen(false);
+      setSelectedPastStopKeys({});
     }
-  }, [route, effectiveRouteId, pastRouteStops, selectedPastStopKeys, handleConfirmManifestStops]);
+  }, [
+    effectiveRouteId,
+    addStopsInBulk,
+    isAddingStop,
+    pastRouteStops,
+    route,
+    selectedPastRouteId,
+    selectedPastStopKeys,
+  ]);
 
   const handleSkipOptimization = useCallback(async () => {
     await handleConfirmRoute();

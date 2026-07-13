@@ -850,8 +850,11 @@ export default function RoutePointsScreen() {
             status: ROUTE_STATUS_PENDING,
           };
         });
-
-        const stopsResponse = await addManifestStopsToBackend(orderPayloads);
+        const payloadData = {
+          stps: orderPayloads,
+          routeId: newRouteId,
+        }
+        const stopsResponse = await addManifestStopsToBackend(payloadData);
         console.log('Copied stops saved successfully:', stopsResponse);
       }
 

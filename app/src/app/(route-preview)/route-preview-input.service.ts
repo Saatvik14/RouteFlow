@@ -15,10 +15,6 @@ function getRouteMethod<T extends (...args: any[]) => any>(name: string): T {
   return method.bind(routesService) as T;
 }
 
-function getOrderMethod<T extends (...args: any[]) => any>(name: string): T | null {
-  const method = (ordersService as Record<string, any>)[name];
-  return typeof method === 'function' ? (method.bind(ordersService) as T) : null;
-}
 
 function getAssetName(asset: any, fallbackName: string) {
   if (asset?.fileName) return String(asset.fileName);
@@ -421,29 +417,95 @@ export function buildManifestOrderPayloads({
     });
 }
 
-export async function addManifestStopsToBackend(payloads: any[]) {
-  if (payloads.length === 0) {
-    return {
-      created_count: 0,
-      failed_count: 0,
-      created: [],
-    };
-  }
+function normalizeBulkOrderPayload(payload: any, index: number) {
+  const sequence = Number(
+    payload?.sequence_no ??
+      payload?.sequenceNo ??
+      payload?.sequence ??
+      index + 1,
+  );
 
-  const routeId = payloads[0].route_id;
-  const result = await ordersService.addBulkOrders({
-    route_id: routeId,
-    stops: payloads,
-  });
+  const timeAtStopValue =
+    payload?.time_at_stop ??
+    payload?.timeAtStopMinutes ??
+    payload?.time_at_stop_minutes ??
+    null;
 
-  if (!result.success) {
-    throw new Error(result.error || 'Unable to add bulk stops.');
-  }
-
-  const data = result.data || {};
   return {
-    created_count: data.created_count || 0,
-    failed_count: data.failed_count || 0,
-    created: data.created || [],
+    ...payload,
+    sequence,
+    sequence_no: sequence,
+    order_preference:
+      payload?.order_preference ?? payload?.order ?? 'auto',
+    time_at_stop:
+      timeAtStopValue === null || timeAtStopValue === undefined
+        ? null
+        : Math.max(1, Number(timeAtStopValue)),
+  };
+}
+
+function getBulkCreatedOrders(payload: any) {
+  const rawPayload = payload?.data ?? payload;
+  const result = rawPayload?.data ?? rawPayload;
+
+  const created =
+    result?.created_orders ??
+    result?.createdOrders ??
+    result?.created ??
+    result?.orders ??
+    result?.results ??
+    [];
+
+  return Array.isArray(created) ? created : [];
+}
+
+export async function addManifestStopsToBackend( payloads: any) {
+  if (!Array.isArray(payloads.stops) || payloads.stops.length === 0) {
+    throw new Error('At least one stop is required for bulk creation.');
+  }
+
+  const payload = {
+    stops: payloads.stops.map(normalizeBulkOrderPayload),
+    route_id: payloads.route_id,
+  }
+
+  const response = await ordersService.bulkCreateOrders(payload);
+  const rawPayload = response?.data ?? response;
+  const result = rawPayload?.data ?? rawPayload;
+  const created = getBulkCreatedOrders(response);
+
+  const failedCount = Number(
+    result?.failed_count ??
+      result?.failedCount ??
+      result?.failures?.length ??
+      0,
+  );
+
+  const createdCount = Number(
+    result?.created_count ??
+      result?.createdCount ??
+      result?.inserted_count ??
+      result?.insertedCount ??
+      (created.length || (failedCount === 0 ? payloads.stops.length : 0)),
+  );
+
+  return {
+    success:
+      response?.success ??
+      rawPayload?.success ??
+      result?.success ??
+      failedCount === 0,
+    message:
+      result?.message ??
+      rawPayload?.message ??
+      response?.message ??
+      '',
+    data: {
+      created_count: createdCount,
+      failed_count: failedCount,
+      created,
+      errors: result?.errors ?? result?.failures ?? [],
+    },
+    raw_response: response,
   };
 }
