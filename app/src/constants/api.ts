@@ -109,6 +109,7 @@ export const API_ENDPOINTS = {
   // Order endpoints
   ORDERS: {
     ADD: '/order/add',
+    ADD_BULK: '/order/add/bulk',
     EDIT: '/order/edit',
     REORDER_STOPS: '/order/reorder',
     DELETE_ALL: '/order/delete/all',

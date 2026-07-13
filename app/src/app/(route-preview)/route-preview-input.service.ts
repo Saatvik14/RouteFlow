@@ -422,15 +422,28 @@ export function buildManifestOrderPayloads({
 }
 
 export async function addManifestStopsToBackend(payloads: any[]) {
-  const created = [];
-
-  for (const payload of payloads) {
-    created.push(await ordersService.addOrder(payload));
+  if (payloads.length === 0) {
+    return {
+      created_count: 0,
+      failed_count: 0,
+      created: [],
+    };
   }
 
+  const routeId = payloads[0].route_id;
+  const result = await ordersService.addBulkOrders({
+    route_id: routeId,
+    stops: payloads,
+  });
+
+  if (!result.success) {
+    throw new Error(result.error || 'Unable to add bulk stops.');
+  }
+
+  const data = result.data || {};
   return {
-    created_count: created.length,
-    failed_count: 0,
-    created,
+    created_count: data.created_count || 0,
+    failed_count: data.failed_count || 0,
+    created: data.created || [],
   };
 }

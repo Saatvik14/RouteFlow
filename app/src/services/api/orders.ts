@@ -34,6 +34,12 @@ export const ordersService = {
     apiPost<Order>(API_ENDPOINTS.ORDERS.ADD, data),
 
   /**
+   * Add multiple orders at once (bulk)
+   */
+  addBulkOrders: (data: { route_id: string; stops: any[] }) =>
+    apiPost<any>(API_ENDPOINTS.ORDERS.ADD_BULK, data),
+
+  /**
    * Edit an existing order
    */
   editOrder: (data: any) =>
