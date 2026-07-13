@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, Image, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,8 +46,16 @@ export default function Index() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2F76F6" />
+      <View style={styles.openingContainer}>
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.openingLogo}
+        />
+        <Text style={styles.openingTitle}>
+          Route<Text style={{ color: '#2F76F6' }}>Floww</Text>
+        </Text>
+        <Text style={styles.openingSubtitle}>Smart Route Optimization</Text>
+        <ActivityIndicator size="small" color="#2F76F6" style={{ marginTop: 32 }} />
       </View>
     );
   }
@@ -85,11 +93,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  loadingContainer: {
+  openingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+  },
+  openingLogo: {
+    width: 104,
+    height: 104,
+    borderRadius: 24,
+  },
+  openingTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 16,
+    letterSpacing: -0.5,
+  },
+  openingSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 6,
+    fontWeight: '500',
   },
   menuButton: {
     position: "absolute",

@@ -1,6 +1,5 @@
-import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, View, Image } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -14,33 +13,35 @@ export function AnimatedSplashOverlay() {
 
   const splashKeyframe = new Keyframe({
     0: {
-      transform: [{ scale: INITIAL_SCALE_FACTOR }],
       opacity: 1,
     },
-    20: {
+    80: {
       opacity: 1,
-    },
-    70: {
-      opacity: 0,
-      easing: Easing.elastic(0.7),
     },
     100: {
       opacity: 0,
-      transform: [{ scale: 1 }],
-      easing: Easing.elastic(0.7),
     },
   });
 
   return (
     <Animated.View
-      entering={splashKeyframe.duration(DURATION).withCallback((finished) => {
+      entering={splashKeyframe.duration(1200).withCallback((finished) => {
         'worklet';
         if (finished) {
           scheduleOnRN(setVisible, false);
         }
       })}
-      style={styles.backgroundSolidColor}
-    />
+      style={styles.backgroundContainer}
+    >
+      <Image
+        source={require('@/assets/images/logo.png')}
+        style={styles.openingLogo}
+      />
+      <Animated.Text style={styles.openingTitle}>
+        Route<Animated.Text style={{ color: '#2F76F6' }}>Floww</Animated.Text>
+      </Animated.Text>
+      <Animated.Text style={styles.openingSubtitle}>Smart Route Optimization</Animated.Text>
+    </Animated.View>
   );
 }
 
@@ -89,7 +90,7 @@ export function AnimatedIcon() {
 
       <Animated.View entering={keyframe.duration(DURATION)} style={styles.background} />
       <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
+        <Image style={styles.image} source={require('@/assets/images/logo.png')} />
       </Animated.View>
     </View>
   );
@@ -114,8 +115,9 @@ const styles = StyleSheet.create({
   },
   image: {
     position: 'absolute',
-    width: 76,
-    height: 71,
+    width: 88,
+    height: 88,
+    borderRadius: 22,
   },
   background: {
     borderRadius: 40,
@@ -124,9 +126,29 @@ const styles = StyleSheet.create({
     height: 128,
     position: 'absolute',
   },
-  backgroundSolidColor: {
+  backgroundContainer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#208AEF',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 1000,
+  },
+  openingLogo: {
+    width: 104,
+    height: 104,
+    borderRadius: 24,
+  },
+  openingTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 16,
+    letterSpacing: -0.5,
+  },
+  openingSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 6,
+    fontWeight: '500',
   },
 });

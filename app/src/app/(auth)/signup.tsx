@@ -13,6 +13,7 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  Image,
 } from 'react-native';
 
 import { authService, setAuthToken } from './../../services/api';
@@ -221,12 +222,13 @@ export default function SignupScreen() {
           <View style={[styles.container, isWide && styles.containerWide]}>
             <View style={[styles.card, isMobile && styles.cardMobile]}>
               <View style={styles.brandRow}>
-                <View style={[styles.logoBox, isMobile && styles.logoBoxMobile]}>
-                  <Text style={styles.logoArrow}>↗</Text>
-                </View>
+                <Image
+                  source={require('../../../assets/images/logo.png')}
+                  style={[styles.logoImage, isMobile && styles.logoImageMobile]}
+                />
 
                 <Text style={[styles.brandText, isMobile && styles.brandTextMobile]}>
-                  Route<Text style={styles.brandBlue}>Flow</Text>
+                  Route<Text style={styles.brandBlue}>Floww</Text>
                 </Text>
               </View>
 
@@ -803,6 +805,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  logoImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+
+  logoImageMobile: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    marginRight: 8,
   },
 
   logoBox: {
