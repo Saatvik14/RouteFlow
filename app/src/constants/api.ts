@@ -170,3 +170,12 @@ export const ROUTE_STATUS = {
   CANCELLED: 'cancelled',
   DELIVERED: 'delivered'
 } as const;
+
+
+export const SUBSCRIPTION_TYPES = {
+  FREE: 'free',
+  PREMIUM: 'premium',
+  ENTERPRISE: 'enterprise',
+  LITE: 'lite',
+  STANDARD: 'standard'
+} as const;

@@ -19,6 +19,7 @@ import {
   getMySubscription,
   verifySubscriptionPurchase,
 } from "./../../services/api/subscriptionApi";
+import { SUBSCRIPTION_TYPES } from "@/src/constants/api";
 
 const PRODUCT_IDS = {
   lite: "routeflow_lite_monthly",
@@ -370,7 +371,7 @@ export default function SubscriptionScreen() {
           )}
 
           <PlanCard
-            planCode="lite"
+            planCode={SUBSCRIPTION_TYPES.LITE}
             title="Lite"
             subtitle="Perfect for individual drivers"
             price={getPrice("lite", "£9.99")}
@@ -392,11 +393,12 @@ export default function SubscriptionScreen() {
               <MaterialCommunityIcons name="crown" size={24} color="#2563EB" />
             }
             features={[
-              "Unlimited routes",
-              "Camera address scanner",
-              "Voice address search",
-              "Turn-by-turn navigation",
-             ]}
+              "Unlimited Route Planning",
+              "Scan Addresses Using Your Camera",
+              "Search for Addresses Using Voice Commands",
+              "Turn-by-Turn Navigation",
+              "Manually Reorder Stops After Route Optimization"
+            ]}
             active={currentPlan === "standard"}
             loading={selectedPlan === "standard"}
             disabled={Boolean(selectedPlan) || storeLoading}

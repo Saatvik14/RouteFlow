@@ -17,6 +17,7 @@ import * as Sharing from 'expo-sharing';
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
 import { useVoiceAddress } from '../../../../hooks/useVoiceAddress';
+import { SUBSCRIPTION_TYPES } from '@/src/constants/api';
 
 const isUkLocation = (item: any) => {
   const lat = Number(item?.latitude);
@@ -140,8 +141,6 @@ export function SearchPanel({
   onSelectSuggestion,
   onChooseOnMap,
   onScanAddress,
-  onVoiceAddress,
-  onScanRouteManifest,
   onImportRouteManifest,
   onCopyStopsFromPastRoute,
   onSkipOptimization,
@@ -149,8 +148,7 @@ export function SearchPanel({
   pendingManifestStops,
   onConfirmManifestStops,
   onCancelManifestStops,
-  subscriptionType,
-  errorMessage,
+  subscriptionType
 }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [bulkUploadVisible, setBulkUploadVisible] = useState(false);
@@ -305,51 +303,7 @@ export function SearchPanel({
               ]}
             />
 
-            {/* {isListening ? (
-              <Pressable
-                onPress={handleVoicePress}
-                style={[
-                  localStyles.smallIconButton,
-                  { backgroundColor: '#FEE2E2' },
-                ]}
-              >
-                <Text style={[localStyles.headerIcon, { color: '#EF4444' }]}>🎙</Text>
-              </Pressable>
-            ) : searchText ? (
-              <Pressable
-                onPress={() => onSearchTextChange('')}
-                style={localStyles.smallIconButton}
-              >
-                <Text style={localStyles.clearText}>×</Text>
-              </Pressable>
-            ) : (
-              <>
-                {subscriptionType !== 'lite' && (
-                  <Pressable
-                    onPress={onScanAddress}
-                    style={localStyles.smallIconButton}
-                  >
-                    <Text style={localStyles.headerIcon}>⌗</Text>
-                  </Pressable>
-                )}
-
-                {subscriptionType !== 'lite' && (
-                  <Pressable
-                    onPress={handleVoicePress}
-                    style={localStyles.smallIconButton}
-                  >
-                    <Text style={localStyles.headerIcon}>🎙</Text>
-                  </Pressable>
-                )}
-              </>
-            )} */}
-
-            {/* <Pressable
-              onPress={() => setMenuVisible(true)}
-              style={localStyles.smallIconButton}
-            >
-              <Text style={localStyles.dots}>⋮</Text>
-            </Pressable> */}
+    
           </View>
 
           <Pressable onPress={onCloseSearch} style={localStyles.closeButton}>
@@ -376,7 +330,7 @@ export function SearchPanel({
                 </Text>
               </Text>
 
-              {subscriptionType !== 'lite' && (
+              {subscriptionType !== SUBSCRIPTION_TYPES.LITE && (
                 <View style={localStyles.actionGrid}>
                   <ActionCard
                     icon="+"
@@ -408,7 +362,7 @@ export function SearchPanel({
             </ScrollView>
 
             <View style={[
-              subscriptionType === 'lite' ? localStyles.liteFooter : localStyles.footer,
+              subscriptionType === SUBSCRIPTION_TYPES.LITE ? localStyles.liteFooter : localStyles.footer,
               { paddingBottom: Math.max(insets.bottom, 16) }
             ]}>
               <Pressable
@@ -486,7 +440,7 @@ export function SearchPanel({
             <Pressable style={localStyles.bottomMenu}>
               <View style={localStyles.menuHandle} />
 
-              {subscriptionType !== 'lite' && (
+              {subscriptionType !== SUBSCRIPTION_TYPES.LITE && (
                 <MenuRow
                   icon="⌗"
                   title="Scan address"
@@ -495,7 +449,7 @@ export function SearchPanel({
                 />
               )}
 
-              {subscriptionType !== 'lite' && (
+              {subscriptionType !== SUBSCRIPTION_TYPES.LITE && (
                 <MenuRow
                   icon="🎙"
                   title={isListening ? 'Stop listening' : 'Add address by voice'}
@@ -509,7 +463,7 @@ export function SearchPanel({
                 />
               )}
 
-              {subscriptionType !== 'lite' && (
+              {subscriptionType !== SUBSCRIPTION_TYPES.LITE && (
                 <MenuRow
                   icon="▣"
                   title="Bulk upload orders"

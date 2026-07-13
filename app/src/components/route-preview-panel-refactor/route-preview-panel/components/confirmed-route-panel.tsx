@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
+import { SUBSCRIPTION_TYPES } from '@/src/constants/api';
 
 type ConfirmedRoutePanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
@@ -57,6 +58,7 @@ export function ConfirmedRoutePanel({
   onCancelRoute,
   onOpenEditRoute,
   onOpenReorderStops,
+  subscriptionType
 }: ConfirmedRoutePanelProps) {
   const insets = useSafeAreaInsets();
 
@@ -269,7 +271,7 @@ export function ConfirmedRoutePanel({
               </Text>
             </Pressable>
 
-            <Pressable
+       {subscriptionType!= SUBSCRIPTION_TYPES.LITE &&     <Pressable
               style={({ pressed }) => [
                 localStyles.editButton,
                 !canOpenReorderStops && localStyles.disabledButton,
@@ -285,7 +287,7 @@ export function ConfirmedRoutePanel({
                 color="#1E293B"
               />
               <Text style={localStyles.editButtonText}>Reorder stops</Text>
-            </Pressable>
+            </Pressable>}
           </View>
 
           <Pressable
