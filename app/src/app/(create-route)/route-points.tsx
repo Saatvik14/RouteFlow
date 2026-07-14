@@ -613,9 +613,42 @@ export default function RoutePointsScreen() {
         return;
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      // Try last known location first to be super responsive
+      let currentLocation: Location.LocationObject | null = null;
+      try {
+        currentLocation = await Location.getLastKnownPositionAsync();
+        // If last known is older than 2 minutes, don't use it
+        if (currentLocation && Date.now() - currentLocation.timestamp > 120000) {
+          currentLocation = null;
+        }
+      } catch (err) {
+        console.log('Error getting last known position:', err);
+      }
+
+      // If no last known or it is too old, get fresh position with a 6-second timeout
+      if (!currentLocation) {
+        const freshLocationPromise = Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Location request timed out')), 6000)
+        );
+        currentLocation = await Promise.race([freshLocationPromise, timeoutPromise]);
+      }
+
+      if (!currentLocation) {
+        throw new Error('Unable to retrieve location');
+      }
+
+      // Fast-fail bounds check for UK coordinates (Latitude [49.0, 61.0], Longitude [-10.0, 2.5])
+      const lat = currentLocation.coords.latitude;
+      const lon = currentLocation.coords.longitude;
+      const isWithinUkBounds = lat >= 49.0 && lat <= 61.0 && lon >= -10.0 && lon <= 2.5;
+
+      if (!isWithinUkBounds) {
+        setErrorMessage('Only locations within the United Kingdom are supported. Your current location is outside the UK.');
+        return;
+      }
 
       let details: AddressDetails | null = null;
       let addressString = '';
@@ -648,8 +681,8 @@ export default function RoutePointsScreen() {
         console.error('Geoapify reverse geocoding failed, falling back to Expo Location:', error);
       }
 
-      let isUk = false;
-      if (details) {
+      let isUk: boolean = isWithinUkBounds;
+      if (details && !isUk) {
         const cc = String(details.countryCode || '').toLowerCase();
         const cname = String(details.country || '').toLowerCase();
         isUk = cc === 'gb' || cname.includes('united kingdom') || cname === 'uk';
@@ -657,18 +690,22 @@ export default function RoutePointsScreen() {
 
       let reverseAddress: Location.LocationGeocodedAddress[] = [];
       if (!addressString) {
-        reverseAddress = await Location.reverseGeocodeAsync({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-        });
-        if (reverseAddress && reverseAddress.length > 0) {
-          addressString = getReadableAddress(reverseAddress[0]);
-          const item = reverseAddress[0];
-          const cc = String(item.isoCountryCode || '').toLowerCase();
-          const cname = String(item.country || '').toLowerCase();
-          if (!isUk) {
-            isUk = cc === 'gb' || cname.includes('united kingdom') || cname === 'uk';
+        try {
+          reverseAddress = await Location.reverseGeocodeAsync({
+            latitude: currentLocation.coords.latitude,
+            longitude: currentLocation.coords.longitude,
+          });
+          if (reverseAddress && reverseAddress.length > 0) {
+            addressString = getReadableAddress(reverseAddress[0]);
+            const item = reverseAddress[0];
+            const cc = String(item.isoCountryCode || '').toLowerCase();
+            const cname = String(item.country || '').toLowerCase();
+            if (!isUk) {
+              isUk = cc === 'gb' || cname.includes('united kingdom') || cname === 'uk';
+            }
           }
+        } catch (err) {
+          console.error('Expo reverse geocode failed:', err);
         }
       }
 
@@ -684,12 +721,19 @@ export default function RoutePointsScreen() {
 
       setStartLocation({
         mode: 'current_location',
-        address: addressString,
+        address: addressString || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
         selectedFromSuggestion: true,
         details: details,
       });
+    } catch (err: any) {
+      console.error('Error fetching current location:', err);
+      setErrorMessage(
+        err?.message === 'Location request timed out'
+          ? 'Location request timed out. Please ensure GPS/location services are enabled and try again.'
+          : 'Failed to retrieve your current location. Please ensure location services are enabled.'
+      );
     } finally {
       setIsFetchingLocation(false);
     }
