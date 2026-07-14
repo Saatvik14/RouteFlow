@@ -346,22 +346,16 @@ export default function SignupScreen() {
                     {agreeToTerms && <Text style={styles.checkboxCheckmark}>✓</Text>}
                   </View>
                 </Pressable>
-                <Text style={styles.agreeText}>
-                  I agree to the{' '}
-                  <Text
-                    style={styles.agreeLink}
-                    onPress={() => setShowTermsModal(true)}
-                  >
-                    Terms of Service
-                  </Text>{' '}
-                  and{' '}
-                  <Text
-                    style={styles.agreeLink}
-                    onPress={() => setShowPrivacyModal(true)}
-                  >
-                    Privacy Policy
-                  </Text>
-                </Text>
+                <View style={styles.agreeTextContainer}>
+                  <Text style={styles.agreeNormalText}>I agree to the </Text>
+                  <Pressable onPress={() => setShowTermsModal(true)} hitSlop={12}>
+                    <Text style={styles.agreeLinkText}>Terms of Service</Text>
+                  </Pressable>
+                  <Text style={styles.agreeNormalText}> and </Text>
+                  <Pressable onPress={() => setShowPrivacyModal(true)} hitSlop={12}>
+                    <Text style={styles.agreeLinkText}>Privacy Policy</Text>
+                  </Pressable>
+                </View>
               </View>
 
               <Pressable
@@ -1281,18 +1275,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  agreeText: {
+  agreeTextContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    flex: 1,
+    marginLeft: 4,
+  },
+  agreeNormalText: {
     fontSize: 13,
     color: '#64748B',
     fontFamily: APP_FONT,
-    flex: 1,
-    lineHeight: 18,
-    marginLeft: 4,
+    lineHeight: 20,
   },
-  agreeLink: {
+  agreeLinkText: {
+    fontSize: 13,
     color: '#2563EB',
+    fontFamily: APP_FONT,
+    fontWeight: '600',
     textDecorationLine: 'underline',
-    fontWeight: '500',
+    lineHeight: 20,
   },
   documentModalContainer: {
     width: '100%',
