@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
+import { API_BASE_URL } from "../../constants/api";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = API_BASE_URL;
 
 // Change this value if your app stores the login token under a different key.
 const ACCESS_TOKEN_KEY = "accessToken";
@@ -37,7 +38,7 @@ async function getAccessToken(): Promise<string> {
 
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!API_URL) {
-    throw new Error("EXPO_PUBLIC_API_URL is not configured.");
+    throw new Error("API_BASE_URL is not configured.");
   }
 
   const token = await getAccessToken();
