@@ -1,11 +1,8 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { ErrorCode, deepLinkToSubscriptions, useIAP } from "../../services/iap-safe-wrapper";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Platform,
   Pressable,
@@ -17,91 +14,292 @@ import {
 } from "react-native";
 
 import {
+  ErrorCode,
+  deepLinkToSubscriptions,
+  useIAP,
+} from "../../services/iap-safe-wrapper";
+import {
   getMySubscription,
   verifySubscriptionPurchase,
-} from "./../../services/api/subscriptionApi";
-import { SUBSCRIPTION_TYPES } from "@/src/constants/api";
+} from "../../services/api/subscriptionApi";
+
+const COLORS = {
+  background: "#F7F9FC",
+  surface: "#FFFFFF",
+  surfaceMuted: "#F4F7FB",
+  primary: "#4F46E5",
+  primaryDark: "#3730A3",
+  primarySoft: "#EEF2FF",
+  primaryBorder: "#C7D2FE",
+  textPrimary: "#111827",
+  textSecondary: "#64748B",
+  textMuted: "#94A3B8",
+  border: "#E2E8F0",
+  success: "#16A34A",
+  successSoft: "#ECFDF3",
+  warning: "#B45309",
+  warningSoft: "#FFF7ED",
+  white: "#FFFFFF",
+  overlay: "rgba(15, 23, 42, 0.58)",
+  shadow: "#0F172A",
+} as const;
 
 const PRODUCT_IDS = {
   lite: "routeflow_lite_monthly",
   standard: "routeflow_standard_monthly",
 } as const;
 
-type PlanCode = keyof typeof PRODUCT_IDS;
+const MONTHLY_BASE_PLAN_ID = "monthly";
+const BILLING_PERIOD = "/month";
 
-type PlanProps = {
-  planCode: PlanCode;
-  title: string;
-  subtitle: string;
-  price: string;
-  icon: ReactNode;
-  features: string[];
+const SCREEN_COPY = {
+  brand: "RouteFloww Premium",
+  eyebrow: "PLANS FOR EVERY DRIVER",
+  title: "Drive smarter on every route",
+  subtitle:
+    "Choose a plan that matches your daily workload. Upgrade or cancel through Google Play at any time.",
+  loadingPlans: "Refreshing prices from Google Play…",
+  storePriceNote: "Final pricing is shown and charged by Google Play.",
+  renewalNotice:
+    "Subscriptions renew automatically each month unless cancelled. Manage or cancel your plan from Google Play subscriptions.",
+  manageSubscription: "Manage subscription",
+  bestValue: "BEST VALUE",
+  currentPlan: "Current plan",
+  paymentInProgress: "Opening Google Play…",
+  choosePlan: "Choose",
+} as const;
+
+const ALERT_COPY = {
+  paymentUnsuccessfulTitle: "Payment unsuccessful",
+  paymentUnsuccessfulMessage: "The purchase could not be completed.",
+  verificationFailedTitle: "Verification failed",
+  verificationFailedMessage:
+    "Google Play did not return the purchase information required to activate your plan.",
+  subscriptionActivatedTitle: "Subscription activated",
+  continue: "Continue",
+  activationFailedTitle: "Could not activate subscription",
+  activationFailedMessage:
+    "Please try again. You will not be charged twice for the same purchase.",
+  applePaymentTitle: "Apple payment required",
+  applePaymentMessage:
+    "Google Play Billing is available only on Android. Connect this screen to Apple In-App Purchase before offering subscriptions on iPhone.",
+  storeUnavailableTitle: "Google Play unavailable",
+  storeUnavailableMessage:
+    "Google Play is not connected yet. Reopen the app and try again.",
+  planUnavailableTitle: "Plan unavailable",
+  planUnavailableMessage:
+    "This plan is not available from Google Play right now. Check its product and base-plan configuration in Play Console.",
+  paymentStartFailedTitle: "Unable to start payment",
+  paymentStartFailedMessage: "Please try again.",
+  manageFailedTitle: "Unable to open subscriptions",
+  manageFailedMessage:
+    "Open Google Play, tap your profile, then select Payments & subscriptions.",
+} as const;
+
+const WEB_SANDBOX_COPY = {
+  confirmTitle: "Web Sandbox Mode",
+  confirmMessage:
+    "Would you like to simulate this purchase and test your backend verification endpoint?",
+  success: "The simulated purchase request reached your backend.",
+  expectedFailure:
+    "The backend rejected the mock token, which is expected when Google verification is enabled.",
+} as const;
+
+type PlanCode = keyof typeof PRODUCT_IDS;
+type IconLibrary = "feather" | "material-community";
+
+type PlanDefinition = {
+  code: PlanCode;
+  name: string;
+  description: string;
+  fallbackPrice: string;
+  routeLabel: string;
+  features: readonly string[];
   popular?: boolean;
-  active?: boolean;
-  loading?: boolean;
-  disabled?: boolean;
+  iconLibrary: IconLibrary;
+  iconName: string;
+};
+
+const PLAN_DEFINITIONS: readonly PlanDefinition[] = [
+  {
+    code: "lite",
+    name: "Lite",
+    description: "For part-time drivers and lighter delivery schedules.",
+    fallbackPrice: "£9.99",
+    routeLabel: "Up to 10 routes per day",
+    iconLibrary: "feather",
+    iconName: "navigation",
+    features: [
+      "Plan up to 10 routes every day",
+      "Navigate to every stop with turn-by-turn directions",
+    ],
+  },
+  {
+    code: "standard",
+    name: "Standard",
+    description: "For professional drivers managing routes every day.",
+    fallbackPrice: "£14.99",
+    routeLabel: "Unlimited daily routes",
+    iconLibrary: "material-community",
+    iconName: "crown-outline",
+    popular: true,
+    features: [
+      "Plan unlimited routes",
+      "Scan printed addresses with your camera",
+      "Find addresses quickly using voice search",
+      "Navigate to every stop with turn-by-turn directions",
+      "Reorder stops after route optimisation",
+    ],
+  },
+] as const;
+
+const PRODUCT_ID_LIST = Object.values(PRODUCT_IDS);
+
+const getPlanDefinition = (planCode: PlanCode) =>
+  PLAN_DEFINITIONS.find((plan) => plan.code === planCode);
+
+type AlertButton = {
+  text: string;
+  onPress?: () => void;
+  style?: "default" | "cancel";
+};
+
+type CustomAlertState = {
+  visible: boolean;
+  title: string;
+  message: string;
+  buttons: AlertButton[];
+};
+
+type PlanCardProps = {
+  plan: PlanDefinition;
+  price: string;
+  active: boolean;
+  loading: boolean;
+  disabled: boolean;
   onPress: () => void;
 };
 
+function PlanIcon({ plan }: { plan: PlanDefinition }) {
+  if (plan.iconLibrary === "material-community") {
+    return (
+      <MaterialCommunityIcons
+        name={plan.iconName as any}
+        size={24}
+        color={COLORS.primary}
+      />
+    );
+  }
+
+  return (
+    <Feather
+      name={plan.iconName as any}
+      size={22}
+      color={COLORS.primary}
+    />
+  );
+}
+
 function PlanCard({
-  title,
-  subtitle,
+  plan,
   price,
-  icon,
-  features,
-  popular,
   active,
   loading,
   disabled,
   onPress,
-}: PlanProps) {
+}: PlanCardProps) {
+  const buttonLabel = active
+    ? SCREEN_COPY.currentPlan
+    : loading
+      ? SCREEN_COPY.paymentInProgress
+      : `${SCREEN_COPY.choosePlan} ${plan.name}`;
+
   return (
-    <View style={[styles.card, popular && styles.popularCard]}>
-      {popular && (
-        <View style={styles.popularBadge}>
-          <Text style={styles.popularText}>MOST POPULAR</Text>
-        </View>
-      )}
+    <View
+      style={[
+        styles.planCard,
+        plan.popular && styles.featuredPlanCard,
+        active && styles.activePlanCard,
+      ]}
+    >
+      <View style={styles.planCardTopRow}>
+        <View style={styles.planIdentityRow}>
+          <View style={styles.planIconContainer}>
+            <PlanIcon plan={plan} />
+          </View>
 
-      <View style={styles.headerRow}>
-        <View style={styles.iconCircle}>{icon}</View>
-
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.planTitle}>{title}</Text>
-          <Text style={styles.planSubtitle}>{subtitle}</Text>
+          <View style={styles.planIdentityText}>
+            <View style={styles.planNameRow}>
+              <Text style={styles.planName}>{plan.name}</Text>
+              {active ? (
+                <View style={styles.currentPlanBadge}>
+                  <Text style={styles.currentPlanBadgeText}>
+                    {SCREEN_COPY.currentPlan}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.planDescription}>{plan.description}</Text>
+          </View>
         </View>
+
+        {plan.popular && !active ? (
+          <View style={styles.popularBadge}>
+            <MaterialCommunityIcons
+              name="star-four-points"
+              size={12}
+              color={COLORS.primaryDark}
+            />
+            <Text style={styles.popularBadgeText}>{SCREEN_COPY.bestValue}</Text>
+          </View>
+        ) : null}
       </View>
 
-      <View style={styles.priceRow}>
+      <View style={styles.priceSection}>
         <Text style={styles.price}>{price}</Text>
-        <Text style={styles.billingPeriod}> / month</Text>
+        <Text style={styles.billingPeriod}>{BILLING_PERIOD}</Text>
       </View>
 
-      <View style={styles.featureContainer}>
-        {features.map((feature) => (
+      <View style={styles.routeAllowancePill}>
+        <Feather name="map" size={15} color={COLORS.primaryDark} />
+        <Text style={styles.routeAllowanceText}>{plan.routeLabel}</Text>
+      </View>
+
+      <View style={styles.divider} />
+
+      <View style={styles.featureList}>
+        {plan.features.map((feature) => (
           <View key={feature} style={styles.featureRow}>
-            <Feather name="check-circle" size={18} color="#16A34A" />
+            <View style={styles.featureIconContainer}>
+              <Feather name="check" size={13} color={COLORS.success} />
+            </View>
             <Text style={styles.featureText}>{feature}</Text>
           </View>
         ))}
       </View>
 
       <Pressable
-        style={({ pressed }) => [
-          styles.button,
-          active && styles.activeButton,
-          (disabled || loading) && styles.disabledButton,
-          pressed && !disabled && !loading && styles.buttonPressed,
-        ]}
+        accessibilityRole="button"
+        accessibilityLabel={buttonLabel}
         disabled={disabled || loading || active}
         onPress={onPress}
+        style={({ pressed }) => [
+          styles.planButton,
+          plan.popular && styles.featuredPlanButton,
+          active && styles.activePlanButton,
+          (disabled || loading) && styles.disabledPlanButton,
+          pressed && !disabled && !loading && !active && styles.pressedButton,
+        ]}
       >
         {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={COLORS.white} size="small" />
         ) : (
-          <Text style={styles.buttonText}>
-            {active ? "Current plan" : "Continue"}
-          </Text>
+          <>
+            <Text style={styles.planButtonText}>{buttonLabel}</Text>
+            {!active ? (
+              <Feather name="arrow-right" size={17} color={COLORS.white} />
+            ) : null}
+          </>
         )}
       </Pressable>
     </View>
@@ -110,47 +308,36 @@ function PlanCard({
 
 export default function SubscriptionScreen() {
   const router = useRouter();
-  const [customAlert, setCustomAlert] = useState<{
-    visible: boolean;
-    title: string;
-    message: string;
-    buttons?: Array<{
-      text: string;
-      onPress?: () => void;
-      style?: "default" | "cancel";
-    }>;
-  }>({
+  const processedPurchaseTokens = useRef(new Set<string>());
+
+  const [customAlert, setCustomAlert] = useState<CustomAlertState>({
     visible: false,
     title: "",
     message: "",
+    buttons: [],
   });
-
-  const Alert = {
-    alert: (
-      title: string,
-      message?: string,
-      buttons?: Array<{
-        text: string;
-        onPress?: () => void;
-        style?: "default" | "cancel";
-      }>
-    ) => {
-      setCustomAlert({
-        visible: true,
-        title,
-        message: message || "",
-        buttons: buttons || [{ text: "OK" }],
-      });
-    }
-  };
-
   const [selectedPlan, setSelectedPlan] = useState<PlanCode | null>(null);
   const [currentPlan, setCurrentPlan] = useState<PlanCode | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
+  const [loadingStoreProducts, setLoadingStoreProducts] = useState(false);
   const [purchaseToProcess, setPurchaseToProcess] = useState<any>(null);
-  const processedPurchaseTokens = useRef(new Set<string>());
 
-  const productIds = useMemo(() => Object.values(PRODUCT_IDS), []);
+  const showAlert = (
+    title: string,
+    message = "",
+    buttons: AlertButton[] = [{ text: "OK" }],
+  ) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      message,
+      buttons,
+    });
+  };
+
+  const closeAlert = () => {
+    setCustomAlert((previous) => ({ ...previous, visible: false }));
+  };
 
   const {
     connected,
@@ -166,25 +353,45 @@ export default function SubscriptionScreen() {
       setSelectedPlan(null);
 
       if (error.code !== ErrorCode.UserCancelled) {
-        Alert.alert(
-          "Payment unsuccessful",
-          error.message || "The purchase could not be completed.",
+        showAlert(
+          ALERT_COPY.paymentUnsuccessfulTitle,
+          error.message || ALERT_COPY.paymentUnsuccessfulMessage,
         );
       }
     },
   });
+
+  const productIds = useMemo(() => PRODUCT_ID_LIST, []);
 
   useEffect(() => {
     if (!connected || Platform.OS !== "android") {
       return;
     }
 
-    fetchProducts({
-      skus: productIds,
-      type: "subs",
-    }).catch((error: any) => {
-      console.error("Failed to load subscription products", error);
-    });
+    let mounted = true;
+
+    const loadStoreProducts = async () => {
+      setLoadingStoreProducts(true);
+
+      try {
+        await fetchProducts({
+          skus: productIds,
+          type: "subs",
+        });
+      } catch (error) {
+        console.error("Failed to load subscription products", error);
+      } finally {
+        if (mounted) {
+          setLoadingStoreProducts(false);
+        }
+      }
+    };
+
+    loadStoreProducts();
+
+    return () => {
+      mounted = false;
+    };
   }, [connected, fetchProducts, productIds]);
 
   useEffect(() => {
@@ -198,7 +405,7 @@ export default function SubscriptionScreen() {
           return;
         }
 
-        setCurrentPlan(result.subscription.planCode);
+        setCurrentPlan(result.subscription.planCode as PlanCode);
       } catch (error) {
         console.warn("Could not load current subscription", error);
       } finally {
@@ -228,9 +435,9 @@ export default function SubscriptionScreen() {
 
       if (!purchaseToken || !productId) {
         setSelectedPlan(null);
-        Alert.alert(
-          "Verification failed",
-          "Google Play did not return the required purchase information.",
+        showAlert(
+          ALERT_COPY.verificationFailedTitle,
+          ALERT_COPY.verificationFailedMessage,
         );
         return;
       }
@@ -242,11 +449,6 @@ export default function SubscriptionScreen() {
       processedPurchaseTokens.current.add(purchaseToken);
 
       try {
-        Alert.alert(
-          "Backend Verification",
-          `Sending purchase token to RouteFloww backend to verify subscription for product: ${productId}.`
-        );
-
         const result = await verifySubscriptionPurchase({
           platform: "android",
           productId,
@@ -260,22 +462,25 @@ export default function SubscriptionScreen() {
           );
         }
 
-        // Finish only after your backend has verified and stored the purchase.
         await finishTransaction({
           purchase: purchaseToProcess,
           isConsumable: false,
         });
 
-        setCurrentPlan(result.subscription.planCode);
+        const activatedPlan = result.subscription.planCode as PlanCode;
+        const activatedPlanName =
+          getPlanDefinition(activatedPlan)?.name || activatedPlan;
+
+        setCurrentPlan(activatedPlan);
         setSelectedPlan(null);
         setPurchaseToProcess(null);
 
-        Alert.alert(
-          "Subscription activated",
-          `Your ${result.subscription.planCode} plan is now active.`,
+        showAlert(
+          ALERT_COPY.subscriptionActivatedTitle,
+          `Your ${activatedPlanName} plan is now active.`,
           [
             {
-              text: "Continue",
+              text: ALERT_COPY.continue,
               onPress: () => router.replace("/"),
             },
           ],
@@ -284,11 +489,11 @@ export default function SubscriptionScreen() {
         processedPurchaseTokens.current.delete(purchaseToken);
         setSelectedPlan(null);
 
-        Alert.alert(
-          "Could not activate subscription",
+        showAlert(
+          ALERT_COPY.activationFailedTitle,
           error instanceof Error
             ? error.message
-            : "Please try again. You will not be charged twice.",
+            : ALERT_COPY.activationFailedMessage,
         );
       }
     };
@@ -299,51 +504,61 @@ export default function SubscriptionScreen() {
   const getStoreProduct = (productId: string) =>
     subscriptions.find((product: any) => product.id === productId) as any;
 
-  const getPrice = (planCode: PlanCode, fallback: string) => {
-    const product = getStoreProduct(PRODUCT_IDS[planCode]);
-    return product?.displayPrice || fallback;
+  const getPrice = (plan: PlanDefinition) => {
+    const product = getStoreProduct(PRODUCT_IDS[plan.code]);
+    return product?.displayPrice || plan.fallbackPrice;
   };
 
   const purchasePlan = async (planCode: PlanCode) => {
+    const plan = getPlanDefinition(planCode);
+
+    if (!plan) {
+      return;
+    }
+
     if (Platform.OS === "web") {
-      const confirmPurchase = window.confirm(`[Web Sandbox Mode]\n\nWould you like to simulate a purchase of RouteFloww ${planCode === "lite" ? "Lite" : "Standard"}? This will test the connection to your backend verification endpoint.`);
-      if (confirmPurchase) {
-        try {
-          setSelectedPlan(planCode);
-          const productId = PRODUCT_IDS[planCode];
-          const mockToken = `mock_token_${Date.now()}`;
-          
-          alert("Initiating simulated backend verification with token: " + mockToken);
-          
-          await verifySubscriptionPurchase({
-            platform: "android",
-            productId,
-            purchaseToken: mockToken,
-          });
-          
-          alert("Success! Purchase simulated and recorded on your database.");
-          router.replace("/");
-        } catch (error: any) {
-          alert("Verification Request Sent!\n\nBackend rejected mock token as expected (since it is not a real Google token):\n" + (error.message || "Unknown error"));
-        } finally {
-          setSelectedPlan(null);
-        }
+      const confirmed = window.confirm(
+        `[${WEB_SANDBOX_COPY.confirmTitle}]\n\n${plan.name}\n${WEB_SANDBOX_COPY.confirmMessage}`,
+      );
+
+      if (!confirmed) {
+        return;
       }
+
+      try {
+        setSelectedPlan(planCode);
+
+        await verifySubscriptionPurchase({
+          platform: "android",
+          productId: PRODUCT_IDS[planCode],
+          purchaseToken: `mock_token_${Date.now()}`,
+        });
+
+        window.alert(WEB_SANDBOX_COPY.success);
+        router.replace("/");
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : WEB_SANDBOX_COPY.expectedFailure;
+        window.alert(`${WEB_SANDBOX_COPY.expectedFailure}\n\n${message}`);
+      } finally {
+        setSelectedPlan(null);
+      }
+
       return;
     }
 
     if (Platform.OS !== "android") {
-      Alert.alert(
-        "Apple payment required",
-        "On iPhone, this screen must be connected to Apple In-App Purchase. Google Play Billing only works on Android.",
+      showAlert(
+        ALERT_COPY.applePaymentTitle,
+        ALERT_COPY.applePaymentMessage,
       );
       return;
     }
 
     if (!connected) {
-      Alert.alert(
-        "Store unavailable",
-        "Google Play is not connected. Please reopen the app and try again.",
+      showAlert(
+        ALERT_COPY.storeUnavailableTitle,
+        ALERT_COPY.storeUnavailableMessage,
       );
       return;
     }
@@ -352,23 +567,20 @@ export default function SubscriptionScreen() {
     const product = getStoreProduct(productId);
     const offers = product?.subscriptionOfferDetailsAndroid || [];
     const monthlyOffer =
-      offers.find((offer: any) => offer.basePlanId === "monthly") || offers[0];
+      offers.find(
+        (offer: any) => offer.basePlanId === MONTHLY_BASE_PLAN_ID,
+      ) || offers[0];
 
     if (!product || !monthlyOffer?.offerToken) {
-      Alert.alert(
-        "Plan unavailable",
-        "This subscription is not configured correctly in Google Play Console.",
+      showAlert(
+        ALERT_COPY.planUnavailableTitle,
+        ALERT_COPY.planUnavailableMessage,
       );
       return;
     }
 
     try {
       setSelectedPlan(planCode);
-
-      Alert.alert(
-        "Google Play Connection",
-        `Initiating purchase flow with Google Play Store for package: ${productId}.`
-      );
 
       await requestPurchase({
         request: {
@@ -386,10 +598,11 @@ export default function SubscriptionScreen() {
       });
     } catch (error) {
       setSelectedPlan(null);
-
-      Alert.alert(
-        "Unable to start payment",
-        error instanceof Error ? error.message : "Please try again.",
+      showAlert(
+        ALERT_COPY.paymentStartFailedTitle,
+        error instanceof Error
+          ? error.message
+          : ALERT_COPY.paymentStartFailedMessage,
       );
     }
   };
@@ -400,9 +613,9 @@ export default function SubscriptionScreen() {
         skuAndroid: currentPlan ? PRODUCT_IDS[currentPlan] : undefined,
       });
     } catch {
-      Alert.alert(
-        "Unable to open subscriptions",
-        "Open Google Play, tap your profile, then Payments & subscriptions.",
+      showAlert(
+        ALERT_COPY.manageFailedTitle,
+        ALERT_COPY.manageFailedMessage,
       );
     }
   };
@@ -410,12 +623,14 @@ export default function SubscriptionScreen() {
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
-    } else {
-      router.replace("/");
+      return;
     }
+
+    router.replace("/");
   };
 
-  const storeLoading = Platform.OS === "android" && (!connected || !subscriptions.length);
+  const showLoadingState = checkingSubscription || loadingStoreProducts;
+  const plansDisabled = Boolean(selectedPlan) || checkingSubscription;
 
   return (
     <>
@@ -426,72 +641,109 @@ export default function SubscriptionScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Pressable style={styles.backButton} onPress={handleBack}>
-            <Feather name="arrow-left" size={22} color="#2563EB" />
-          </Pressable>
-
-          <Text style={styles.title}>Choose your subscription</Text>
-          <Text style={styles.subtitle}>
-            Unlock premium delivery and route-planning features.
-          </Text>
-
-          {(checkingSubscription || storeLoading) && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color="#2563EB" />
-              <Text style={styles.loadingText}>Loading store plans...</Text>
-            </View>
-          )}
-
-          <PlanCard
-            planCode={SUBSCRIPTION_TYPES.LITE}
-            title="Lite"
-            subtitle="Perfect for individual drivers"
-            price={getPrice("lite", "£9.99")}
-            icon={<Feather name="navigation" size={22} color="#2563EB" />}
-            features={["10 routes per day", "Turn-by-turn navigation"]}
-            active={currentPlan === "lite"}
-            loading={selectedPlan === "lite"}
-            disabled={Boolean(selectedPlan) || storeLoading}
-            onPress={() => purchasePlan("lite")}
-          />
-
-          <PlanCard
-            popular
-            planCode="standard"
-            title="Standard"
-            subtitle="Best for professional drivers"
-            price={getPrice("standard", "£14.99")}
-            icon={
-              <MaterialCommunityIcons name="crown" size={24} color="#2563EB" />
-            }
-            features={[
-              "Unlimited Route Planning",
-              "Scan Addresses Using Your Camera",
-              "Search for Addresses Using Voice Commands",
-              "Turn-by-Turn Navigation",
-              "Manually Reorder Stops After Route Optimization"
-            ]}
-            active={currentPlan === "standard"}
-            loading={selectedPlan === "standard"}
-            disabled={Boolean(selectedPlan) || storeLoading}
-            onPress={() => purchasePlan("standard")}
-          />
-
-          <Text style={styles.renewalText}>
-            Payment is charged by Google Play. Your subscription renews
-            automatically every month until cancelled. You can cancel at any
-            time from Google Play subscriptions.
-          </Text>
-
-          {currentPlan && (
+          <View style={styles.navigationRow}>
             <Pressable
-              style={styles.manageButton}
-              onPress={handleManageSubscription}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              style={({ pressed }) => [
+                styles.backButton,
+                pressed && styles.backButtonPressed,
+              ]}
+              onPress={handleBack}
             >
-              <Feather name="settings" size={17} color="#2563EB" />
-              <Text style={styles.manageButtonText}>Manage subscription</Text>
+              <Feather
+                name="arrow-left"
+                size={21}
+                color={COLORS.textPrimary}
+              />
             </Pressable>
-          )}
+
+            <Text style={styles.brandText}>{SCREEN_COPY.brand}</Text>
+            <View style={styles.navigationSpacer} />
+          </View>
+
+          <View style={styles.heroSection}>
+            <View style={styles.eyebrowPill}>
+              <MaterialCommunityIcons
+                name="lightning-bolt-outline"
+                size={14}
+                color={COLORS.primaryDark}
+              />
+              <Text style={styles.eyebrowText}>{SCREEN_COPY.eyebrow}</Text>
+            </View>
+
+            <Text style={styles.title}>{SCREEN_COPY.title}</Text>
+            <Text style={styles.subtitle}>{SCREEN_COPY.subtitle}</Text>
+          </View>
+
+          <View style={styles.valueStrip}>
+            <View style={styles.valueItem}>
+              <View style={styles.valueIcon}>
+                <Feather name="clock" size={16} color={COLORS.primary} />
+              </View>
+              <Text style={styles.valueText}>Save planning time</Text>
+            </View>
+
+            <View style={styles.valueSeparator} />
+
+            <View style={styles.valueItem}>
+              <View style={styles.valueIcon}>
+                <Feather name="compass" size={16} color={COLORS.primary} />
+              </View>
+              <Text style={styles.valueText}>Navigate with confidence</Text>
+            </View>
+          </View>
+
+          {showLoadingState ? (
+            <View style={styles.loadingBanner}>
+              <ActivityIndicator color={COLORS.primary} size="small" />
+              <Text style={styles.loadingText}>{SCREEN_COPY.loadingPlans}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.planList}>
+            {PLAN_DEFINITIONS.map((plan) => (
+              <PlanCard
+                key={plan.code}
+                plan={plan}
+                price={getPrice(plan)}
+                active={currentPlan === plan.code}
+                loading={selectedPlan === plan.code}
+                disabled={plansDisabled}
+                onPress={() => purchasePlan(plan.code)}
+              />
+            ))}
+          </View>
+
+          <View style={styles.billingInfoCard}>
+            <View style={styles.billingInfoIcon}>
+              <Feather name="shield" size={18} color={COLORS.primary} />
+            </View>
+            <View style={styles.billingInfoTextContainer}>
+              <Text style={styles.billingInfoTitle}>
+                {SCREEN_COPY.storePriceNote}
+              </Text>
+              <Text style={styles.renewalText}>
+                {SCREEN_COPY.renewalNotice}
+              </Text>
+            </View>
+          </View>
+
+          {currentPlan ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleManageSubscription}
+              style={({ pressed }) => [
+                styles.manageButton,
+                pressed && styles.manageButtonPressed,
+              ]}
+            >
+              <Feather name="settings" size={17} color={COLORS.primary} />
+              <Text style={styles.manageButtonText}>
+                {SCREEN_COPY.manageSubscription}
+              </Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
 
@@ -499,37 +751,43 @@ export default function SubscriptionScreen() {
         visible={customAlert.visible}
         transparent
         animationType="fade"
-        onRequestClose={() => setCustomAlert(prev => ({ ...prev, visible: false }))}
+        onRequestClose={closeAlert}
       >
         <View style={styles.modalOverlay}>
-          <Pressable 
-            style={styles.modalBackdrop} 
-            onPress={() => setCustomAlert(prev => ({ ...prev, visible: false }))} 
-          />
+          <Pressable style={styles.modalBackdrop} onPress={closeAlert} />
+
           <View style={styles.modalContent}>
-            <Text style={styles.modalAlertTitle}>{customAlert.title}</Text>
+            <View style={styles.modalIconContainer}>
+              <Feather name="info" size={22} color={COLORS.primary} />
+            </View>
+
+            <Text style={styles.modalTitle}>{customAlert.title}</Text>
             {customAlert.message ? (
-              <Text style={styles.modalAlertSubtitle}>{customAlert.message}</Text>
+              <Text style={styles.modalMessage}>{customAlert.message}</Text>
             ) : null}
-            
-            <View style={styles.modalAlertButtonContainer}>
-              {customAlert.buttons?.map((btn, idx) => (
+
+            <View style={styles.modalButtonContainer}>
+              {customAlert.buttons.map((button, index) => (
                 <Pressable
-                  key={idx}
-                  style={[
-                    styles.modalAlertButton,
-                    btn.style === "cancel" && styles.modalAlertCancelButton
+                  key={`${button.text}-${index}`}
+                  style={({ pressed }) => [
+                    styles.modalButton,
+                    button.style === "cancel" && styles.modalCancelButton,
+                    pressed && styles.modalButtonPressed,
                   ]}
                   onPress={() => {
-                    setCustomAlert(prev => ({ ...prev, visible: false }));
-                    if (btn.onPress) btn.onPress();
+                    closeAlert();
+                    button.onPress?.();
                   }}
                 >
-                  <Text style={[
-                    styles.modalAlertButtonText,
-                    btn.style === "cancel" && styles.modalAlertCancelButtonText
-                  ]}>
-                    {btn.text}
+                  <Text
+                    style={[
+                      styles.modalButtonText,
+                      button.style === "cancel" &&
+                        styles.modalCancelButtonText,
+                    ]}
+                  >
+                    {button.text}
                   </Text>
                 </Pressable>
               ))}
@@ -544,186 +802,380 @@ export default function SubscriptionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
   },
   content: {
-    padding: 20,
-    paddingBottom: 42,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 40,
+  },
+  navigationRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   backButton: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#DDE8F7",
-    justifyContent: "center",
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
     alignItems: "center",
-    marginBottom: 24,
-    backgroundColor: "#F8FBFF",
+    justifyContent: "center",
+  },
+  backButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+  brandText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  navigationSpacer: {
+    width: 42,
+  },
+  heroSection: {
+    alignItems: "center",
+    paddingTop: 26,
+    paddingHorizontal: 8,
+  },
+  eyebrowPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+  },
+  eyebrowText: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    color: COLORS.primaryDark,
   },
   title: {
-    fontSize: 28,
+    marginTop: 16,
+    fontSize: 30,
+    lineHeight: 37,
     fontWeight: "600",
-    color: "#0F172A",
+    color: COLORS.textPrimary,
+    textAlign: "center",
   },
   subtitle: {
+    marginTop: 10,
+    maxWidth: 480,
     fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-    marginTop: 8,
-    marginBottom: 22,
+    lineHeight: 23,
+    color: COLORS.textSecondary,
+    textAlign: "center",
   },
-  loadingRow: {
+  valueStrip: {
+    marginTop: 22,
+    minHeight: 66,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
-    marginBottom: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 14,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  valueItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  valueIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+    marginRight: 9,
+  },
+  valueText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "500",
+    color: COLORS.textPrimary,
+  },
+  valueSeparator: {
+    width: 1,
+    height: 34,
+    marginHorizontal: 12,
+    backgroundColor: COLORS.border,
+  },
+  loadingBanner: {
+    marginTop: 16,
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    paddingHorizontal: 14,
   },
   loadingText: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: "#64748B",
+    marginLeft: 9,
+    fontSize: 13,
+    color: COLORS.primaryDark,
   },
-  card: {
-    borderRadius: 22,
+  planList: {
+    marginTop: 20,
+    gap: 18,
+  },
+  planCard: {
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#DDE8F7",
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
     padding: 20,
-    marginBottom: 22,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#0F172A",
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.05,
-    shadowRadius: 14,
-    elevation: 4,
+    shadowRadius: 18,
+    elevation: 3,
   },
-  popularCard: {
-    borderColor: "#2563EB",
+  featuredPlanCard: {
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+  },
+  activePlanCard: {
+    borderColor: COLORS.success,
+  },
+  planCardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  planIdentityRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  planIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    marginRight: 13,
+  },
+  planIdentityText: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  planNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  planName: {
+    fontSize: 21,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  planDescription: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.textSecondary,
   },
   popularBadge: {
-    position: "absolute",
-    right: 18,
-    top: -12,
-    backgroundColor: "#DBEAFE",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  popularText: {
-    color: "#2563EB",
-    fontWeight: "600",
-    fontSize: 11,
-  },
-  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    gap: 4,
+    borderRadius: 999,
+    backgroundColor: COLORS.primarySoft,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
   },
-  headerTextContainer: {
-    flex: 1,
-  },
-  iconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 14,
-  },
-  planTitle: {
-    fontSize: 22,
+  popularBadgeText: {
+    fontSize: 10,
     fontWeight: "600",
-    color: "#0F172A",
+    letterSpacing: 0.4,
+    color: COLORS.primaryDark,
   },
-  planSubtitle: {
-    fontSize: 14,
-    color: "#64748B",
-    marginTop: 3,
+  currentPlanBadge: {
+    borderRadius: 999,
+    backgroundColor: COLORS.successSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  priceRow: {
+  currentPlanBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: COLORS.success,
+  },
+  priceSection: {
+    marginTop: 22,
     flexDirection: "row",
     alignItems: "baseline",
-    marginBottom: 22,
   },
   price: {
-    fontSize: 30,
+    fontSize: 34,
+    lineHeight: 40,
     fontWeight: "600",
-    color: "#2563EB",
+    letterSpacing: -0.5,
+    color: COLORS.textPrimary,
   },
   billingPeriod: {
+    marginLeft: 4,
     fontSize: 14,
-    color: "#64748B",
+    color: COLORS.textSecondary,
   },
-  featureContainer: {
-    marginBottom: 24,
+  routeAllowancePill: {
+    alignSelf: "flex-start",
+    marginTop: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderRadius: 10,
+    backgroundColor: COLORS.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  routeAllowanceText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.primaryDark,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 20,
+    backgroundColor: COLORS.border,
+  },
+  featureList: {
+    gap: 13,
   },
   featureRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  featureIconContainer: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
-    marginBottom: 14,
+    justifyContent: "center",
+    backgroundColor: COLORS.successSoft,
+    marginRight: 10,
+    marginTop: 1,
   },
   featureText: {
     flex: 1,
-    fontSize: 15,
-    color: "#334155",
-    marginLeft: 12,
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.textPrimary,
   },
-  button: {
-    height: 52,
-    backgroundColor: "#2563EB",
+  planButton: {
+    marginTop: 22,
+    minHeight: 52,
     borderRadius: 16,
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: COLORS.primaryDark,
   },
-  activeButton: {
-    backgroundColor: "#16A34A",
+  featuredPlanButton: {
+    backgroundColor: COLORS.primary,
   },
-  disabledButton: {
-    opacity: 0.65,
+  activePlanButton: {
+    backgroundColor: COLORS.success,
   },
-  buttonPressed: {
+  disabledPlanButton: {
+    opacity: 0.62,
+  },
+  pressedButton: {
+    opacity: 0.9,
     transform: [{ scale: 0.99 }],
   },
-  buttonText: {
-    color: "#FFFFFF",
+  planButtonText: {
+    fontSize: 15,
     fontWeight: "600",
-    fontSize: 16,
+    color: COLORS.white,
+  },
+  billingInfoCard: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceMuted,
+    padding: 15,
+  },
+  billingInfoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+    marginRight: 11,
+  },
+  billingInfoTextContainer: {
+    flex: 1,
+  },
+  billingInfoTitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
   },
   renewalText: {
+    marginTop: 4,
     fontSize: 12,
     lineHeight: 18,
-    color: "#64748B",
-    textAlign: "center",
-    paddingHorizontal: 8,
+    color: COLORS.textSecondary,
   },
   manageButton: {
-    marginTop: 18,
-    height: 46,
-    borderRadius: 14,
+    marginTop: 14,
+    minHeight: 48,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#BFDBFE",
-    backgroundColor: "#EFF6FF",
+    borderColor: COLORS.primaryBorder,
+    backgroundColor: COLORS.primarySoft,
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  manageButtonPressed: {
+    opacity: 0.76,
   },
   manageButtonText: {
-    marginLeft: 8,
-    color: "#2563EB",
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
+    color: COLORS.primary,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(11, 24, 48, 0.6)",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.overlay,
     padding: 20,
   },
   modalBackdrop: {
@@ -731,54 +1183,67 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "100%",
-    maxWidth: 320,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    maxWidth: 340,
+    alignItems: "center",
+    borderRadius: 22,
+    backgroundColor: COLORS.surface,
     padding: 24,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 10,
   },
-  modalAlertTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 8,
+  modalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 19,
+    lineHeight: 25,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
     textAlign: "center",
   },
-  modalAlertSubtitle: {
+  modalMessage: {
+    marginTop: 8,
     fontSize: 14,
-    color: "#64748B",
+    lineHeight: 21,
+    color: COLORS.textSecondary,
     textAlign: "center",
-    marginBottom: 20,
-    lineHeight: 20,
   },
-  modalAlertButtonContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
+  modalButtonContainer: {
     width: "100%",
+    marginTop: 22,
+    flexDirection: "row",
+    gap: 10,
   },
-  modalAlertButton: {
+  modalButton: {
     flex: 1,
-    height: 44,
-    backgroundColor: "#2563EB",
-    borderRadius: 12,
-    justifyContent: "center",
+    minHeight: 46,
+    borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 14,
   },
-  modalAlertButtonText: {
-    color: "#FFFFFF",
+  modalCancelButton: {
+    backgroundColor: COLORS.surfaceMuted,
+  },
+  modalButtonPressed: {
+    opacity: 0.8,
+  },
+  modalButtonText: {
     fontSize: 14,
     fontWeight: "600",
+    color: COLORS.white,
   },
-  modalAlertCancelButton: {
-    backgroundColor: "#F1F5F9",
-  },
-  modalAlertCancelButtonText: {
-    color: "#475569",
+  modalCancelButtonText: {
+    color: COLORS.textSecondary,
   },
 });
