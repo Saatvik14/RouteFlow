@@ -98,11 +98,18 @@ export function useIAP(options?: {
 
   // Safe mock implementation
   return {
-    connected: false,
+    connected: true,
     products: [],
+    subscriptions: [
+      { id: 'routeflow_lite_monthly', displayPrice: '£9.99', name: 'RouteFloww Lite' },
+      { id: 'routeflow_standard_monthly', displayPrice: '£14.99', name: 'RouteFloww Standard' }
+    ],
     fetchProducts: async () => {
       console.warn('fetchProducts called but expo-iap native module is not available.');
-      return [];
+      return [
+        { id: 'routeflow_lite_monthly', displayPrice: '£9.99', name: 'RouteFloww Lite' },
+        { id: 'routeflow_standard_monthly', displayPrice: '£14.99', name: 'RouteFloww Standard' }
+      ];
     },
     requestPurchase: async () => {
       console.warn('requestPurchase called but expo-iap native module is not available.');

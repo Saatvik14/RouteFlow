@@ -119,7 +119,7 @@ export default function SubscriptionScreen() {
 
   const {
     connected,
-    products,
+    subscriptions,
     fetchProducts,
     requestPurchase,
     finishTransaction,
@@ -207,6 +207,11 @@ export default function SubscriptionScreen() {
       processedPurchaseTokens.current.add(purchaseToken);
 
       try {
+        Alert.alert(
+          "Backend Verification",
+          `Sending purchase token to RouteFloww backend to verify subscription for product: ${productId}.`
+        );
+
         const result = await verifySubscriptionPurchase({
           platform: "android",
           productId,
@@ -257,7 +262,7 @@ export default function SubscriptionScreen() {
   }, [finishTransaction, purchaseToProcess, router]);
 
   const getStoreProduct = (productId: string) =>
-    products.find((product: any) => product.id === productId) as any;
+    subscriptions.find((product: any) => product.id === productId) as any;
 
   const getPrice = (planCode: PlanCode, fallback: string) => {
     const product = getStoreProduct(PRODUCT_IDS[planCode]);
@@ -265,6 +270,33 @@ export default function SubscriptionScreen() {
   };
 
   const purchasePlan = async (planCode: PlanCode) => {
+    if (Platform.OS === "web") {
+      const confirmPurchase = window.confirm(`[Web Sandbox Mode]\n\nWould you like to simulate a purchase of RouteFloww ${planCode === "lite" ? "Lite" : "Standard"}? This will test the connection to your backend verification endpoint.`);
+      if (confirmPurchase) {
+        try {
+          setSelectedPlan(planCode);
+          const productId = PRODUCT_IDS[planCode];
+          const mockToken = `mock_token_${Date.now()}`;
+          
+          alert("Initiating simulated backend verification with token: " + mockToken);
+          
+          await verifySubscriptionPurchase({
+            platform: "android",
+            productId,
+            purchaseToken: mockToken,
+          });
+          
+          alert("Success! Purchase simulated and recorded on your database.");
+          router.replace("/");
+        } catch (error: any) {
+          alert("Verification Request Sent!\n\nBackend rejected mock token as expected (since it is not a real Google token):\n" + (error.message || "Unknown error"));
+        } finally {
+          setSelectedPlan(null);
+        }
+      }
+      return;
+    }
+
     if (Platform.OS !== "android") {
       Alert.alert(
         "Apple payment required",
@@ -297,6 +329,11 @@ export default function SubscriptionScreen() {
 
     try {
       setSelectedPlan(planCode);
+
+      Alert.alert(
+        "Google Play Connection",
+        `Initiating purchase flow with Google Play Store for package: ${productId}.`
+      );
 
       await requestPurchase({
         request: {
@@ -343,7 +380,7 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const storeLoading = Platform.OS === "android" && (!connected || !products.length);
+  const storeLoading = Platform.OS === "android" && (!connected || !subscriptions.length);
 
   return (
     <>
