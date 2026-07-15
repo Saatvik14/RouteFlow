@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -109,6 +110,40 @@ function PlanCard({
 
 export default function SubscriptionScreen() {
   const router = useRouter();
+  const [customAlert, setCustomAlert] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    buttons?: Array<{
+      text: string;
+      onPress?: () => void;
+      style?: "default" | "cancel";
+    }>;
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+  });
+
+  const Alert = {
+    alert: (
+      title: string,
+      message?: string,
+      buttons?: Array<{
+        text: string;
+        onPress?: () => void;
+        style?: "default" | "cancel";
+      }>
+    ) => {
+      setCustomAlert({
+        visible: true,
+        title,
+        message: message || "",
+        buttons: buttons || [{ text: "OK" }],
+      });
+    }
+  };
+
   const [selectedPlan, setSelectedPlan] = useState<PlanCode | null>(null);
   const [currentPlan, setCurrentPlan] = useState<PlanCode | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
@@ -459,6 +494,49 @@ export default function SubscriptionScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      <Modal
+        visible={customAlert.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCustomAlert(prev => ({ ...prev, visible: false }))}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable 
+            style={styles.modalBackdrop} 
+            onPress={() => setCustomAlert(prev => ({ ...prev, visible: false }))} 
+          />
+          <View style={styles.modalContent}>
+            <Text style={styles.modalAlertTitle}>{customAlert.title}</Text>
+            {customAlert.message ? (
+              <Text style={styles.modalAlertSubtitle}>{customAlert.message}</Text>
+            ) : null}
+            
+            <View style={styles.modalAlertButtonContainer}>
+              {customAlert.buttons?.map((btn, idx) => (
+                <Pressable
+                  key={idx}
+                  style={[
+                    styles.modalAlertButton,
+                    btn.style === "cancel" && styles.modalAlertCancelButton
+                  ]}
+                  onPress={() => {
+                    setCustomAlert(prev => ({ ...prev, visible: false }));
+                    if (btn.onPress) btn.onPress();
+                  }}
+                >
+                  <Text style={[
+                    styles.modalAlertButtonText,
+                    btn.style === "cancel" && styles.modalAlertCancelButtonText
+                  ]}>
+                    {btn.text}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -640,5 +718,67 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontSize: 14,
     fontWeight: "500",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(11, 24, 48, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalAlertTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalAlertSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalAlertButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    width: "100%",
+  },
+  modalAlertButton: {
+    flex: 1,
+    height: 44,
+    backgroundColor: "#2563EB",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalAlertButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modalAlertCancelButton: {
+    backgroundColor: "#F1F5F9",
+  },
+  modalAlertCancelButtonText: {
+    color: "#475569",
   },
 });
