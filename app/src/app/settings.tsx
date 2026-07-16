@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { ReactNode, useState } from "react";
 import {
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -10,6 +11,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { openExternalUrl } from "./../hooks/open-external-url";
+import { LEGAL_URLS } from "../constants/legal";
+
+
 
 type SettingRowProps = {
   title: string;
@@ -72,6 +78,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [avoidTolls, setAvoidTolls] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const handleLogout = () => {
     // Add your logout logic here, then navigate to login screen if required.
@@ -156,13 +163,140 @@ export default function SettingsScreen() {
 
           <Section>
             <SettingRow title="Licenses" onPress={() => {}} />
-            <SettingRow title="Terms of use" onPress={() => {}} />
-            <SettingRow title="Privacy policy" onPress={() => {}} />
+            <SettingRow
+              title="Terms of Service"
+              onPress={() => setShowTermsModal(true)}
+            />
+            <SettingRow
+              title="Privacy policy"
+              onPress={() => void openExternalUrl(LEGAL_URLS.PRIVACY_POLICY)}
+            />
             <SettingRow title="Version" value="Spoke-v3.65.1" />
             <SettingRow title="Logout" danger onPress={handleLogout} />
           </Section>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showTermsModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowTermsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.documentModalContainer}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalHeaderTitle}>Terms of Service</Text>
+              <Pressable
+                onPress={() => setShowTermsModal(false)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Close Terms of Service"
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.documentScroll}
+              contentContainerStyle={styles.documentScrollContent}
+              showsVerticalScrollIndicator
+            >
+              <Text style={styles.documentBodyTitle}>
+                RouteFloww Terms of Service
+              </Text>
+              <Text style={styles.documentLastUpdated}>
+                Last Updated: July 2026
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Overview</Text>
+              <Text style={styles.documentParagraph}>
+                These Terms govern worldwide use of RouteFloww. By creating an
+                account or using the app, users agree to these Terms. The app is
+                jointly owned by Vaibhav Garg and Uttam Chand Rawat and is
+                governed by the laws of India.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Eligibility</Text>
+              <Text style={styles.documentParagraph}>
+                Users must be at least 18 years old or use the Service with
+                legally required parental or guardian consent.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Accounts</Text>
+              <Text style={styles.documentParagraph}>
+                Users register using email OTP and provide name, email, phone
+                number and password. Users are responsible for maintaining
+                account security.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Services</Text>
+              <Text style={styles.documentParagraph}>
+                Route creation, stop management, navigation, saved routes, route
+                history and future related services.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Subscriptions</Text>
+              <Text style={styles.documentParagraph}>
+                Lite and Standard plans are available with a 7-day free trial.
+                Charges renew unless cancelled according to the store policies.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Refunds</Text>
+              <Text style={styles.documentParagraph}>
+                Refund requests are reviewed individually. Approved refunds may
+                be reduced by non-recoverable taxes or platform fees.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>User Content</Text>
+              <Text style={styles.documentParagraph}>
+                Users retain ownership of route information they create while
+                granting RouteFloww a limited licence to host, process and
+                display that content for providing the Service.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>
+                Prohibited Conduct
+              </Text>
+              <Text style={styles.documentParagraph}>
+                No reverse engineering, scraping, bots, abuse, malware, illegal
+                use or infringement of intellectual property.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>
+                Navigation Disclaimer
+              </Text>
+              <Text style={styles.documentParagraph}>
+                Navigation is provided for convenience only. Users remain
+                responsible for obeying traffic laws and exercising independent
+                judgment.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Liability</Text>
+              <Text style={styles.documentParagraph}>
+                The Service is provided as is. Liability is limited to the
+                maximum extent permitted by applicable law.
+              </Text>
+
+              <Text style={styles.documentSectionTitle}>Disputes</Text>
+              <Text style={styles.documentParagraph}>
+                Governed by Indian law. Arbitration seat: Muzaffarnagar, Uttar
+                Pradesh, India.
+              </Text>
+            </ScrollView>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.modalButton,
+                pressed && styles.modalButtonPressed,
+              ]}
+              onPress={() => setShowTermsModal(false)}
+            >
+              <Text style={styles.modalButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -298,5 +432,109 @@ const styles = StyleSheet.create({
   dangerText: {
     color: "#E45454",
     fontWeight: "600",
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(11, 24, 48, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+
+  documentModalContainer: {
+    width: "100%",
+    maxWidth: 540,
+    maxHeight: "80%",
+    padding: 20,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+
+  modalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+
+  modalHeaderTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  modalCloseText: {
+    padding: 4,
+    fontSize: 18,
+    color: "#64748B",
+  },
+
+  documentScroll: {
+    flex: 1,
+    marginBottom: 16,
+  },
+
+  documentScrollContent: {
+    paddingBottom: 8,
+  },
+
+  documentBodyTitle: {
+    marginBottom: 4,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+
+  documentLastUpdated: {
+    marginBottom: 16,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#64748B",
+  },
+
+  documentSectionTitle: {
+    marginTop: 16,
+    marginBottom: 6,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+
+  documentParagraph: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "400",
+    color: "#334155",
+  },
+
+  modalButton: {
+    height: 44,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+  },
+
+  modalButtonPressed: {
+    opacity: 0.75,
+  },
+
+  modalButtonText: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: "#475569",
   },
 });

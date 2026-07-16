@@ -19,6 +19,9 @@ import {
 import { authService, setAuthToken } from './../../services/api';
 import { useAuth } from './../_layout';
 import { IMAGES } from '@/src/constants/theme';
+import { openExternalUrl } from './../../hooks/open-external-url';
+import { LEGAL_URLS } from '@/src/constants/legal';
+
 
 const APP_FONT = Platform.select({
   ios: 'System',
@@ -58,10 +61,9 @@ export default function SignupScreen() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState(''); // New state for OTP modal errors
 
-  // Terms and Privacy States
+  // Terms and agreement state
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   const { height, width } = useWindowDimensions();
   const router = useRouter();
@@ -352,7 +354,12 @@ export default function SignupScreen() {
                     <Text style={styles.agreeLinkText}>Terms of Service</Text>
                   </Pressable>
                   <Text style={styles.agreeNormalText}> and </Text>
-                  <Pressable onPress={() => setShowPrivacyModal(true)} hitSlop={12}>
+                  <Pressable
+                    onPress={() => void openExternalUrl(LEGAL_URLS.PRIVACY_POLICY)}
+                    hitSlop={12}
+                    accessibilityRole="link"
+                    accessibilityLabel="Open RouteFloww Privacy Policy"
+                  >
                     <Text style={styles.agreeLinkText}>Privacy Policy</Text>
                   </Pressable>
                 </View>
@@ -569,58 +576,6 @@ export default function SignupScreen() {
         </View>
       </Modal>
 
-      {/* Privacy Policy Modal */}
-      <Modal
-        visible={showPrivacyModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowPrivacyModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.documentModalContainer}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalHeaderTitle}>Privacy Policy</Text>
-              <Pressable onPress={() => setShowPrivacyModal(false)} hitSlop={10}>
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
-            <ScrollView style={styles.documentScroll} showsVerticalScrollIndicator={true}>
-              <Text style={styles.documentBodyTitle}>RouteFlow Privacy Policy</Text>
-              <Text style={styles.documentLastUpdated}>Last Updated: July 2026</Text>
-
-              <Text style={styles.documentSectionTitle}>1. Information We Collect</Text>
-              <Text style={styles.documentParagraph}>
-                - Account Data: Full name, email address, phone number, and password hashes.{"\n"}
-                - Geolocation Data: With your permission, we collect precise latitude and longitude coordinates from your device to display your location on maps and verify delivery progress.{"\n"}
-                - Manifest Data: Stops addresses, recipient details, barcode data, and packages information.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>2. How We Use Your Data</Text>
-              <Text style={styles.documentParagraph}>
-                We process collected information to optimize your delivery schedules, verify coordinates are strictly within the United Kingdom, generate turn-by-turn routing sequences, and save your historical routes for your personal reference.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>3. Data Sharing</Text>
-              <Text style={styles.documentParagraph}>
-                RouteFlow does not sell or lease your personal details to third parties. We share location inputs with trusted mapping APIs (such as Geoapify and OpenStreetMap) solely to calculate paths and geocoding details.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>4. Data Security</Text>
-              <Text style={styles.documentParagraph}>
-                We employ standard industry encryption protocols (HTTPS/SSL) to protect all data transmissions. Database stores are protected by access permissions and security firewalls.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>5. Retention and Deletion</Text>
-              <Text style={styles.documentParagraph}>
-                Your user profile and delivery records are retained for as long as your account remains active. You can request account deletion at any time by contacting our support team.
-              </Text>
-            </ScrollView>
-            <Pressable style={styles.modalButton} onPress={() => setShowPrivacyModal(false)}>
-              <Text style={styles.modalButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
