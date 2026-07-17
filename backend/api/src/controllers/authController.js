@@ -8,6 +8,7 @@ const {
   JWT_ACCESS_EXPIRES_IN, 
   JWT_REFRESH_EXPIRES_IN,
 } = require('../config/env');
+const { sendEmailWithGmailApi } = require('../utils/emailSender');
 
 // Helper functions to generate tokens
 const generateAccessToken = (id, email, role, name) => {
