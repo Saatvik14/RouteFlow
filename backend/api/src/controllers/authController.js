@@ -213,71 +213,227 @@ const createTransporter = () => {
 // @desc    Send OTP email
 // @route   POST /auth/send-otp
 // @access  Public
+// const sendOtpEmail = async (req, res) => {
+//   const { email } = req.body;
+
+//   if (!email) {
+//     return res.status(400).json({ message: 'Email is required.' });
+//   }
+
+//   if (!process.env.GOOGLE_SMTP_USER || !process.env.GOOGLE_SMTP_PASS) {
+//     console.error('SMTP credentials not set in environment variables.');
+//     return res.status(500).json({ message: 'Server email configuration error.' });
+//   }
+
+//   try {
+//     const otp = generateOTP();
+//     const transporter = createTransporter();
+
+//     // Calculate expiration time (5 minutes from now)
+//     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+//     // Securely hash the OTP before storing it
+//     const salt = await bcrypt.genSalt(10);
+//     const hashedOtp = await bcrypt.hash(otp, salt);
+
+//     // Timely cleanup: Delete expired records globally and old records for this specific user
+//     await runQuery('DELETE FROM otps WHERE expires_at < NOW() OR email = $1', [email]);
+
+//     // Store hashed OTP in the database
+//     await runQuery(
+//       `INSERT INTO otps (email, otp_code, expires_at, is_used)
+//        VALUES ($1, $2, $3, FALSE)`,
+//       [email, hashedOtp, expiresAt]
+//     );
+
+//     console.log(`Hashed OTP stored safely for ${email} in database, expires at ${expiresAt.toISOString()}`);
+//     console.log(`[DEVELOPMENT OTP] Generated OTP for ${email}: ${otp}`);
+
+//     // Send email
+//     const mailOptions = {
+//       from: `"RouteFlow Team" <${process.env.GOOGLE_SMTP_USER}>`,
+//       to: email,
+//       subject: `${otp} is your RouteFlow verification code`,
+//       text: `Hello,\n\nYour One-Time Password (OTP) is: ${otp}\n\nThis code is valid for a limited time. Please do not share it with anyone.\n\nRegards,\nRouteFlow Team`,
+//       html: `
+//         <p>Hello,</p>
+//         <p>Your One-Time Password (OTP) is: <strong>${otp}</strong></p>
+//         <p>This OTP is valid for a limited time. Please do not share it with anyone.</p>
+//         <p>Regards,<br>RouteFlow Team</p>
+//       `,
+//     };
+
+//     // Send email asynchronously to prevent blocking the HTTP response and causing a timeout
+//     transporter.sendMail(mailOptions)
+//       .then(() => {
+//         console.log(`OTP email sent successfully to ${email}`);
+//       })
+//       .catch((err) => {
+//         console.error(`Failed to send OTP email to ${email}:`, err.message);
+//       });
+
+//     res.status(200).json({
+//       message: 'OTP email sent successfully.'
+//     });
+//   } catch (error) {
+//     console.error('Error sending OTP email:', error);
+//     res.status(500).json({ message: 'Failed to send OTP email.' });
+//   }
+// };
+
+// @desc    Send OTP email
+// @route   POST /auth/send-otp
+// @access  Public
 const sendOtpEmail = async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ message: 'Email is required.' });
+    return res.status(400).json({
+      message: 'Email is required.',
+    });
   }
 
-  if (!process.env.GOOGLE_SMTP_USER || !process.env.GOOGLE_SMTP_PASS) {
-    console.error('SMTP credentials not set in environment variables.');
-    return res.status(500).json({ message: 'Server email configuration error.' });
+  if (!process.env.BREVO_API_KEY || !process.env.EMAIL_FROM) {
+    console.error('Brevo email environment variables are missing.');
+
+    return res.status(500).json({
+      message: 'Server email configuration error.',
+    });
   }
+
+  let otpStored = false;
 
   try {
     const otp = generateOTP();
-    const transporter = createTransporter();
-
-    // Calculate expiration time (5 minutes from now)
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Securely hash the OTP before storing it
+    // Hash OTP before saving
     const salt = await bcrypt.genSalt(10);
     const hashedOtp = await bcrypt.hash(otp, salt);
 
-    // Timely cleanup: Delete expired records globally and old records for this specific user
-    await runQuery('DELETE FROM otps WHERE expires_at < NOW() OR email = $1', [email]);
-
-    // Store hashed OTP in the database
+    // Remove expired OTPs and previous OTPs for this email
     await runQuery(
-      `INSERT INTO otps (email, otp_code, expires_at, is_used)
-       VALUES ($1, $2, $3, FALSE)`,
+      'DELETE FROM otps WHERE expires_at < NOW() OR email = $1',
+      [email]
+    );
+
+    // Save new hashed OTP
+    await runQuery(
+      `INSERT INTO otps (
+        email,
+        otp_code,
+        expires_at,
+        is_used
+      )
+      VALUES ($1, $2, $3, FALSE)`,
       [email, hashedOtp, expiresAt]
     );
 
-    console.log(`Hashed OTP stored safely for ${email} in database, expires at ${expiresAt.toISOString()}`);
-    console.log(`[DEVELOPMENT OTP] Generated OTP for ${email}: ${otp}`);
+    otpStored = true;
 
-    // Send email
-    const mailOptions = {
-      from: `"RouteFlow Team" <${process.env.GOOGLE_SMTP_USER}>`,
-      to: email,
-      subject: `${otp} is your RouteFlow verification code`,
-      text: `Hello,\n\nYour One-Time Password (OTP) is: ${otp}\n\nThis code is valid for a limited time. Please do not share it with anyone.\n\nRegards,\nRouteFlow Team`,
-      html: `
-        <p>Hello,</p>
-        <p>Your One-Time Password (OTP) is: <strong>${otp}</strong></p>
-        <p>This OTP is valid for a limited time. Please do not share it with anyone.</p>
-        <p>Regards,<br>RouteFlow Team</p>
-      `,
-    };
+    const emailResponse = await fetch(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'api-key': process.env.BREVO_API_KEY,
+        },
+        body: JSON.stringify({
+          sender: {
+            name: 'RouteFlow Team',
+            email: process.env.EMAIL_FROM,
+          },
+          to: [
+            {
+              email,
+            },
+          ],
+          subject: `${otp} is your RouteFlow verification code`,
+          textContent: `Hello,
 
-    // Send email asynchronously to prevent blocking the HTTP response and causing a timeout
-    transporter.sendMail(mailOptions)
-      .then(() => {
-        console.log(`OTP email sent successfully to ${email}`);
-      })
-      .catch((err) => {
-        console.error(`Failed to send OTP email to ${email}:`, err.message);
-      });
+Your RouteFlow verification code is: ${otp}
 
-    res.status(200).json({
-      message: 'OTP email sent successfully.'
+This code is valid for 5 minutes. Please do not share it with anyone.
+
+Regards,
+RouteFlow Team`,
+          htmlContent: `
+            <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto;">
+              <h2 style="margin-bottom: 8px;">RouteFlow verification</h2>
+
+              <p>Hello,</p>
+
+              <p>Your verification code is:</p>
+
+              <div
+                style="
+                  font-size: 32px;
+                  font-weight: 700;
+                  letter-spacing: 8px;
+                  margin: 24px 0;
+                "
+              >
+                ${otp}
+              </div>
+
+              <p>This code is valid for 5 minutes.</p>
+
+              <p>Please do not share this code with anyone.</p>
+
+              <p>
+                Regards,<br />
+                RouteFlow Team
+              </p>
+            </div>
+          `,
+        }),
+      }
+    );
+
+    const responseText = await emailResponse.text();
+
+    if (!emailResponse.ok) {
+      throw new Error(
+        `Brevo email failed with status ${emailResponse.status}: ${responseText}`
+      );
+    }
+
+    let emailResult = {};
+
+    if (responseText) {
+      try {
+        emailResult = JSON.parse(responseText);
+      } catch {
+        emailResult = { response: responseText };
+      }
+    }
+
+    console.log(`OTP email sent successfully to ${email}`, emailResult);
+
+    return res.status(200).json({
+      message: 'OTP email sent successfully.',
+      expiresIn: 300,
     });
   } catch (error) {
-    console.error('Error sending OTP email:', error);
-    res.status(500).json({ message: 'Failed to send OTP email.' });
+    console.error('Error sending OTP email:', {
+      message: error.message,
+      stack: error.stack,
+    });
+
+    // Delete OTP if email sending failed
+    if (otpStored) {
+      try {
+        await runQuery('DELETE FROM otps WHERE email = $1', [email]);
+      } catch (cleanupError) {
+        console.error('Failed to remove unsent OTP:', cleanupError);
+      }
+    }
+
+    return res.status(500).json({
+      message: 'Failed to send verification email. Please try again.',
+    });
   }
 };
 
