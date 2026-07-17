@@ -1,6 +1,6 @@
 const { google } = require('googleapis');
 
-export const sendEmailWithGmailApi = async ({
+const sendEmailWithGmailApi = async ({
   to,
   subject,
   text,
@@ -78,3 +78,5 @@ export const sendEmailWithGmailApi = async ({
 
   return result.data;
 };
+
+module.exports = { sendEmailWithGmailApi };
