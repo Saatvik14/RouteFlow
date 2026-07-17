@@ -442,16 +442,29 @@ const createTransporter = () => {
 // @route   POST /auth/send-otp
 // @access  Public
 const sendOtpEmail = async (req, res) => {
-  const normalizedEmail = req.body.email?.trim().toLowerCase();
+  const email = req.body.email?.trim().toLowerCase();
 
-  if (!normalizedEmail) {
+  if (!email) {
     return res.status(400).json({
       message: 'Email is required.',
     });
   }
 
-  if (!process.env.BREVO_API_KEY || !process.env.EMAIL_FROM) {
-    console.error('Brevo environment variables are missing.');
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailPattern.test(email)) {
+    return res.status(400).json({
+      message: 'Please enter a valid email address.',
+    });
+  }
+
+  if (
+    !process.env.GOOGLE_CLIENT_ID ||
+    !process.env.GOOGLE_CLIENT_SECRET ||
+    !process.env.GOOGLE_REFRESH_TOKEN ||
+    !process.env.GOOGLE_SENDER_EMAIL
+  ) {
+    console.error('Gmail API environment variables are missing.');
 
     return res.status(500).json({
       message: 'Server email configuration error.',
@@ -464,21 +477,20 @@ const sendOtpEmail = async (req, res) => {
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Hash OTP before storing it
     const salt = await bcrypt.genSalt(10);
     const hashedOtp = await bcrypt.hash(otp, salt);
 
-    // Remove expired OTPs and previous OTPs for this email
+    // Delete expired OTPs and any previous OTP for this email.
     await runQuery(
       `
         DELETE FROM otps
         WHERE expires_at < NOW()
         OR email = $1
       `,
-      [normalizedEmail]
+      [email]
     );
 
-    // Save hashed OTP
+    // Store the new hashed OTP.
     await runQuery(
       `
         INSERT INTO otps (
@@ -489,32 +501,15 @@ const sendOtpEmail = async (req, res) => {
         )
         VALUES ($1, $2, $3, FALSE)
       `,
-      [normalizedEmail, hashedOtp, expiresAt]
+      [email, hashedOtp, expiresAt]
     );
 
     otpSaved = true;
 
-    const emailResponse = await fetch(
-      'https://api.brevo.com/v3/smtp/email',
-      {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-          'api-key': process.env.BREVO_API_KEY,
-        },
-        body: JSON.stringify({
-          sender: {
-            name: process.env.EMAIL_FROM_NAME || 'RouteFloww Team',
-            email: process.env.EMAIL_FROM,
-          },
-          to: [
-            {
-              email: normalizedEmail,
-            },
-          ],
-          subject: `${otp} is your RouteFloww verification code`,
-          textContent: `Hello,
+    const emailResult = await sendEmailWithGmailApi({
+      to: email,
+      subject: `${otp} is your RouteFloww verification code`,
+      text: `Hello,
 
 Your RouteFloww verification code is: ${otp}
 
@@ -524,81 +519,64 @@ Please do not share this verification code with anyone.
 
 Regards,
 RouteFloww Team`,
-          htmlContent: `
-            <!DOCTYPE html>
-            <html>
-              <body style="margin: 0; padding: 0; background-color: #f5f5f7;">
-                <div
-                  style="
-                    max-width: 520px;
-                    margin: 30px auto;
-                    padding: 32px;
-                    background-color: #ffffff;
-                    border-radius: 12px;
-                    font-family: Arial, Helvetica, sans-serif;
-                    color: #1f2937;
-                  "
-                >
-                  <h2 style="margin-top: 0;">
-                    Verify your RouteFloww account
-                  </h2>
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <body style="margin:0;padding:0;background:#f5f5f7;">
+            <div
+              style="
+                max-width:520px;
+                margin:30px auto;
+                padding:32px;
+                background:#ffffff;
+                border-radius:12px;
+                font-family:Arial,Helvetica,sans-serif;
+                color:#1f2937;
+              "
+            >
+              <h2 style="margin-top:0;">
+                Verify your RouteFloww account
+              </h2>
 
-                  <p>Hello,</p>
+              <p>Hello,</p>
 
-                  <p>Use the verification code below to continue:</p>
+              <p>Use the verification code below to continue:</p>
 
-                  <div
-                    style="
-                      margin: 24px 0;
-                      padding: 16px;
-                      background-color: #f3f0ff;
-                      border-radius: 10px;
-                      text-align: center;
-                      font-size: 32px;
-                      font-weight: 600;
-                      letter-spacing: 8px;
-                    "
-                  >
-                    ${otp}
-                  </div>
+              <div
+                style="
+                  margin:24px 0;
+                  padding:16px;
+                  background:#f3f0ff;
+                  border-radius:10px;
+                  text-align:center;
+                  font-size:32px;
+                  font-weight:600;
+                  letter-spacing:8px;
+                "
+              >
+                ${otp}
+              </div>
 
-                  <p>This code will expire in 5 minutes.</p>
+              <p>This code will expire in 5 minutes.</p>
 
-                  <p>
-                    Please do not share this verification code with anyone.
-                  </p>
+              <p>
+                Please do not share this verification code with anyone.
+              </p>
 
-                  <p style="margin-bottom: 0;">
-                    Regards,<br />
-                    RouteFloww Team
-                  </p>
-                </div>
-              </body>
-            </html>
-          `,
-        }),
-      }
-    );
+              <p style="margin-bottom:0;">
+                Regards,<br />
+                RouteFloww Team
+              </p>
+            </div>
+          </body>
+        </html>
+      `,
+    });
 
-    const responseBody = await emailResponse.text();
-
-    if (!emailResponse.ok) {
-      throw new Error(
-        `Brevo request failed with status ${emailResponse.status}: ${responseBody}`
-      );
-    }
-
-    let emailResult = null;
-
-    try {
-      emailResult = responseBody ? JSON.parse(responseBody) : null;
-    } catch {
-      emailResult = responseBody;
-    }
-
-    console.log('OTP email sent successfully:', {
-      email: normalizedEmail,
-      messageId: emailResult?.messageId,
+    console.log('OTP email sent through Gmail API:', {
+      recipient: email,
+      gmailMessageId: emailResult.id,
+      threadId: emailResult.threadId,
     });
 
     return res.status(200).json({
@@ -606,20 +584,25 @@ RouteFloww Team`,
       expiresIn: 300,
     });
   } catch (error) {
-    console.error('Failed to send OTP email:', {
+    console.error('Gmail OTP sending failed:', {
       message: error.message,
-      stack: error.stack,
+      code: error.code,
+      status: error.response?.status,
+      response: error.response?.data,
     });
 
-    // Remove unusable OTP when email delivery fails
+    // Remove the OTP if the email could not be sent.
     if (otpSaved) {
       try {
         await runQuery(
           'DELETE FROM otps WHERE email = $1',
-          [normalizedEmail]
+          [email]
         );
       } catch (cleanupError) {
-        console.error('Failed to remove unsent OTP:', cleanupError.message);
+        console.error(
+          'Failed to remove unsent OTP:',
+          cleanupError.message
+        );
       }
     }
 
