@@ -177,6 +177,7 @@ type PlanCardProps = {
   active: boolean;
   loading: boolean;
   disabled: boolean;
+  currentPlan: PlanCode | null;
   onPress: () => void;
 };
 
@@ -206,13 +207,18 @@ function PlanCard({
   active,
   loading,
   disabled,
+  currentPlan,
   onPress,
 }: PlanCardProps) {
-  const buttonLabel = active
+  let buttonLabel = active
     ? SCREEN_COPY.currentPlan
     : loading
       ? SCREEN_COPY.paymentInProgress
       : `${SCREEN_COPY.choosePlan} ${plan.name}`;
+
+  if (currentPlan === "lite" && plan.code === "standard") {
+    buttonLabel = "Upgrade to Standard";
+  }
 
   return (
     <View
@@ -701,19 +707,41 @@ export default function SubscriptionScreen() {
             </View>
           ) : null}
 
-          <View style={styles.planList}>
-            {PLAN_DEFINITIONS.map((plan) => (
-              <PlanCard
-                key={plan.code}
-                plan={plan}
-                price={getPrice(plan)}
-                active={currentPlan === plan.code}
-                loading={selectedPlan === plan.code}
-                disabled={plansDisabled}
-                onPress={() => purchasePlan(plan.code)}
-              />
-            ))}
-          </View>
+          {currentPlan === "lite" && (
+            <View style={styles.upgradeCallout}>
+              <Feather name="trending-up" size={18} color={COLORS.primaryDark} />
+              <Text style={styles.upgradeCalloutText}>
+                You are currently on the Lite plan. Upgrade to Standard below to unlock unlimited routes, camera scanning, and advanced tools!
+              </Text>
+            </View>
+          )}
+
+          {currentPlan === "standard" ? (
+            <View style={styles.standardActiveCard}>
+              <View style={styles.successBadgeContainer}>
+                <MaterialCommunityIcons name="check-circle" size={32} color={COLORS.success} />
+              </View>
+              <Text style={styles.standardActiveTitle}>You have subscribed to Standard Subscription</Text>
+              <Text style={styles.standardActiveSubtitle}>
+                Enjoy unlimited route planning and premium navigation features. Thank you for using RouteFloww!
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.planList}>
+              {PLAN_DEFINITIONS.map((plan) => (
+                <PlanCard
+                  key={plan.code}
+                  plan={plan}
+                  price={getPrice(plan)}
+                  active={currentPlan === plan.code}
+                  loading={selectedPlan === plan.code}
+                  disabled={plansDisabled}
+                  currentPlan={currentPlan}
+                  onPress={() => purchasePlan(plan.code)}
+                />
+              ))}
+            </View>
+          )}
 
           <View style={styles.billingInfoCard}>
             <View style={styles.billingInfoIcon}>
@@ -1245,5 +1273,60 @@ const styles = StyleSheet.create({
   },
   modalCancelButtonText: {
     color: COLORS.textSecondary,
+  },
+  standardActiveCard: {
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: COLORS.success,
+    backgroundColor: COLORS.surface,
+    padding: 24,
+    alignItems: "center",
+    marginTop: 20,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  successBadgeContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.successSoft,
+    marginBottom: 16,
+  },
+  standardActiveTitle: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  standardActiveSubtitle: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+  },
+  upgradeCallout: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primaryBorder,
+    backgroundColor: COLORS.primarySoft,
+    padding: 16,
+    marginTop: 20,
+  },
+  upgradeCalloutText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "500",
+    color: COLORS.primaryDark,
   },
 });
