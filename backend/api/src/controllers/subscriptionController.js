@@ -1,5 +1,5 @@
 const { runQuery } = require("../config/db");
-const { getPlanByProductId } = require("./../constants/subscription");
+const { getPlanByProductId, SUBSCRIPTION_PLANS } = require("./../constants/subscription");
 const {
   acknowledgeGoogleSubscription,
   getGoogleSubscription,
@@ -255,7 +255,19 @@ async function getMySubscription(req, res) {
   }
 }
 
+const getSubscriptionPlans = (_req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      plans: SUBSCRIPTION_PLANS,
+    },
+  });
+};
+
 module.exports = {
   verifyPurchase,
   getMySubscription,
+  getSubscriptionPlans
 };

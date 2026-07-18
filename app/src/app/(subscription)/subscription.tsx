@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -20,7 +20,10 @@ import {
 } from "../../services/iap-safe-wrapper";
 import {
   getMySubscription,
+  getSubscriptionPlans,
   verifySubscriptionPurchase,
+  type PlanCode,
+  type SubscriptionPlan,
 } from "../../services/api/subscriptionApi";
 
 const COLORS = {
@@ -44,11 +47,6 @@ const COLORS = {
   shadow: "#0F172A",
 } as const;
 
-const PRODUCT_IDS = {
-  lite: "routeflow_lite_monthly",
-  standard: "routeflow_standard_monthly",
-} as const;
-
 const MONTHLY_BASE_PLAN_ID = "monthly";
 const BILLING_PERIOD = "/month";
 
@@ -58,7 +56,7 @@ const SCREEN_COPY = {
   title: "Drive smarter on every route",
   subtitle:
     "Choose a plan that matches your daily workload. Upgrade or cancel through Google Play at any time.",
-  loadingPlans: "Refreshing prices from Google Play…",
+  loadingPlans: "Loading subscription plans…",
   storePriceNote: "Final pricing is shown and charged by Google Play.",
   renewalNotice:
     "Subscriptions renew automatically each month unless cancelled. Manage or cancel your plan from Google Play subscriptions.",
@@ -67,6 +65,7 @@ const SCREEN_COPY = {
   currentPlan: "Current plan",
   paymentInProgress: "Opening Google Play…",
   choosePlan: "Choose",
+  retry: "Try again",
 } as const;
 
 const ALERT_COPY = {
@@ -105,58 +104,7 @@ const WEB_SANDBOX_COPY = {
     "The backend rejected the mock token, which is expected when Google verification is enabled.",
 } as const;
 
-type PlanCode = keyof typeof PRODUCT_IDS;
-type IconLibrary = "feather" | "material-community";
-
-type PlanDefinition = {
-  code: PlanCode;
-  name: string;
-  description: string;
-  fallbackPrice: string;
-  routeLabel: string;
-  features: readonly string[];
-  popular?: boolean;
-  iconLibrary: IconLibrary;
-  iconName: string;
-};
-
-const PLAN_DEFINITIONS: readonly PlanDefinition[] = [
-  {
-    code: "lite",
-    name: "Lite",
-    description: "For part-time drivers and lighter delivery schedules.",
-    fallbackPrice: "£9.99",
-    routeLabel: "Up to 10 routes per day",
-    iconLibrary: "feather",
-    iconName: "navigation",
-    features: [
-      "Plan up to 10 routes every day",
-      "Navigate to every stop with turn-by-turn directions",
-    ],
-  },
-  {
-    code: "standard",
-    name: "Standard",
-    description: "For professional drivers managing routes every day.",
-    fallbackPrice: "£14.99",
-    routeLabel: "Unlimited daily routes",
-    iconLibrary: "material-community",
-    iconName: "crown-outline",
-    popular: true,
-    features: [
-      "Plan unlimited routes",
-      "Scan printed addresses with your camera",
-      "Find addresses quickly using voice search",
-      "Navigate to every stop with turn-by-turn directions",
-      "Reorder stops after route optimisation",
-    ],
-  },
-] as const;
-
-const PRODUCT_ID_LIST = Object.values(PRODUCT_IDS);
-
-const getPlanDefinition = (planCode: PlanCode) =>
-  PLAN_DEFINITIONS.find((plan) => plan.code === planCode);
+type PlanDefinition = SubscriptionPlan;
 
 type AlertButton = {
   text: string;
@@ -256,14 +204,18 @@ function PlanCard({
               size={12}
               color={COLORS.primaryDark}
             />
-            <Text style={styles.popularBadgeText}>{SCREEN_COPY.bestValue}</Text>
+            <Text style={styles.popularBadgeText}>
+              {plan.badgeLabel || SCREEN_COPY.bestValue}
+            </Text>
           </View>
         ) : null}
       </View>
 
       <View style={styles.priceSection}>
         <Text style={styles.price}>{price}</Text>
-        <Text style={styles.billingPeriod}>{BILLING_PERIOD}</Text>
+        <Text style={styles.billingPeriod}>
+          {plan.billingPeriod || BILLING_PERIOD}
+        </Text>
       </View>
 
       <View style={styles.routeAllowancePill}>
@@ -322,6 +274,9 @@ export default function SubscriptionScreen() {
     message: "",
     buttons: [],
   });
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [loadingPlanDetails, setLoadingPlanDetails] = useState(true);
+  const [planDetailsError, setPlanDetailsError] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<PlanCode | null>(null);
   const [currentPlan, setCurrentPlan] = useState<PlanCode | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
@@ -345,6 +300,37 @@ export default function SubscriptionScreen() {
     setCustomAlert((previous) => ({ ...previous, visible: false }));
   };
 
+  const loadPlanDetails = useCallback(async () => {
+    setLoadingPlanDetails(true);
+    setPlanDetailsError("");
+
+    try {
+      const result = await getSubscriptionPlans();
+      const nextPlans = [...result.plans].sort(
+        (first, second) => first.sortOrder - second.sortOrder,
+      );
+
+      if (!nextPlans.length) {
+        throw new Error("No subscription plans are currently available.");
+      }
+
+      setPlans(nextPlans);
+    } catch (error) {
+      setPlans([]);
+      setPlanDetailsError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load subscription plans.",
+      );
+    } finally {
+      setLoadingPlanDetails(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPlanDetails();
+  }, [loadPlanDetails]);
+
   const {
     connected,
     subscriptions,
@@ -367,10 +353,17 @@ export default function SubscriptionScreen() {
     },
   });
 
-  const productIds = useMemo(() => PRODUCT_ID_LIST, []);
+  const productIds = useMemo(
+    () => plans.map((plan) => plan.productId),
+    [plans],
+  );
 
   useEffect(() => {
-    if (!connected || Platform.OS !== "android") {
+    if (
+      !connected ||
+      Platform.OS !== "android" ||
+      productIds.length === 0
+    ) {
       return;
     }
 
@@ -475,7 +468,8 @@ export default function SubscriptionScreen() {
 
         const activatedPlan = result.subscription.planCode as PlanCode;
         const activatedPlanName =
-          getPlanDefinition(activatedPlan)?.name || activatedPlan;
+          plans.find((plan) => plan.code === activatedPlan)?.name ||
+          activatedPlan;
 
         setCurrentPlan(activatedPlan);
         setSelectedPlan(null);
@@ -505,18 +499,18 @@ export default function SubscriptionScreen() {
     };
 
     processPurchase();
-  }, [finishTransaction, purchaseToProcess, router]);
+  }, [finishTransaction, plans, purchaseToProcess, router]);
 
   const getStoreProduct = (productId: string) =>
     subscriptions.find((product: any) => product.id === productId) as any;
 
   const getPrice = (plan: PlanDefinition) => {
-    const product = getStoreProduct(PRODUCT_IDS[plan.code]);
+    const product = getStoreProduct(plan.productId);
     return product?.displayPrice || plan.fallbackPrice;
   };
 
   const purchasePlan = async (planCode: PlanCode) => {
-    const plan = getPlanDefinition(planCode);
+    const plan = plans.find((item) => item.code === planCode);
 
     if (!plan) {
       return;
@@ -536,7 +530,7 @@ export default function SubscriptionScreen() {
 
         await verifySubscriptionPurchase({
           platform: "android",
-          productId: PRODUCT_IDS[planCode],
+          productId: plan.productId,
           purchaseToken: `mock_token_${Date.now()}`,
         });
 
@@ -569,12 +563,13 @@ export default function SubscriptionScreen() {
       return;
     }
 
-    const productId = PRODUCT_IDS[planCode];
+    const productId = plan.productId;
     const product = getStoreProduct(productId);
     const offers = product?.subscriptionOfferDetailsAndroid || [];
     const monthlyOffer =
       offers.find(
-        (offer: any) => offer.basePlanId === MONTHLY_BASE_PLAN_ID,
+        (offer: any) =>
+          offer.basePlanId === (plan.basePlanId || MONTHLY_BASE_PLAN_ID),
       ) || offers[0];
 
     if (!product || !monthlyOffer?.offerToken) {
@@ -615,8 +610,10 @@ export default function SubscriptionScreen() {
 
   const handleManageSubscription = async () => {
     try {
+      const activePlan = plans.find((plan) => plan.code === currentPlan);
+
       await deepLinkToSubscriptions({
-        skuAndroid: currentPlan ? PRODUCT_IDS[currentPlan] : undefined,
+        skuAndroid: activePlan?.productId,
       });
     } catch {
       showAlert(
@@ -635,8 +632,10 @@ export default function SubscriptionScreen() {
     router.replace("/");
   };
 
-  const showLoadingState = checkingSubscription || loadingStoreProducts;
-  const plansDisabled = Boolean(selectedPlan) || checkingSubscription;
+  const showLoadingState =
+    checkingSubscription || loadingPlanDetails || loadingStoreProducts;
+  const plansDisabled =
+    Boolean(selectedPlan) || checkingSubscription || loadingPlanDetails;
 
   return (
     <>
@@ -703,11 +702,37 @@ export default function SubscriptionScreen() {
           {showLoadingState ? (
             <View style={styles.loadingBanner}>
               <ActivityIndicator color={COLORS.primary} size="small" />
-              <Text style={styles.loadingText}>{SCREEN_COPY.loadingPlans}</Text>
+              <Text style={styles.loadingText}>
+                {loadingPlanDetails
+                  ? SCREEN_COPY.loadingPlans
+                  : "Refreshing prices from Google Play…"}
+              </Text>
             </View>
           ) : null}
 
-          {currentPlan === "lite" && (
+          {planDetailsError ? (
+            <View style={styles.planErrorCard}>
+              <View style={styles.planErrorIcon}>
+                <Feather name="alert-circle" size={18} color={COLORS.warning} />
+              </View>
+              <View style={styles.planErrorTextContainer}>
+                <Text style={styles.planErrorTitle}>Unable to load plans</Text>
+                <Text style={styles.planErrorText}>{planDetailsError}</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={loadPlanDetails}
+                style={({ pressed }) => [
+                  styles.retryButton,
+                  pressed && styles.manageButtonPressed,
+                ]}
+              >
+                <Text style={styles.retryButtonText}>{SCREEN_COPY.retry}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {currentPlan === "lite" && !planDetailsError && (
             <View style={styles.upgradeCallout}>
               <Feather name="trending-up" size={18} color={COLORS.primaryDark} />
               <Text style={styles.upgradeCalloutText}>
@@ -728,7 +753,7 @@ export default function SubscriptionScreen() {
             </View>
           ) : (
             <View style={styles.planList}>
-              {PLAN_DEFINITIONS.map((plan) => (
+              {plans.map((plan) => (
                 <PlanCard
                   key={plan.code}
                   plan={plan}
@@ -1144,6 +1169,53 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: COLORS.white,
+  },
+  planErrorCard: {
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    backgroundColor: COLORS.warningSoft,
+    padding: 14,
+  },
+  planErrorIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFEDD5",
+    marginRight: 10,
+  },
+  planErrorTextContainer: {
+    flex: 1,
+  },
+  planErrorTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  planErrorText: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.textSecondary,
+  },
+  retryButton: {
+    marginLeft: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.warning,
   },
   billingInfoCard: {
     marginTop: 20,

@@ -2,6 +2,40 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../../constants/api";
 
 const API_URL = API_BASE_URL;
+export type PlanCode = "lite" | "standard";
+export type IconLibrary = "feather" | "material-community";
+
+export type SubscriptionPlan = {
+  code: PlanCode;
+  productId: string;
+  basePlanId: string;
+  name: string;
+  description: string;
+  fallbackPrice: string;
+  billingPeriod: string;
+  routeLabel: string;
+  limits: {
+    dailyRoutes: number | null;
+  };
+  capabilities: {
+    cameraAddressScanner: boolean;
+    voiceAddressSearch: boolean;
+    routeManifestImport: boolean;
+    copyPastRouteStops: boolean;
+    reorderOptimisedStops: boolean;
+    advancedStopPreferences: boolean;
+  };
+  badgeLabel?: string | null;
+  popular: boolean;
+  sortOrder: number;
+  iconLibrary: IconLibrary;
+  iconName: string;
+  features: string[];
+};
+
+export type SubscriptionPlansResponse = {
+  plans: SubscriptionPlan[];
+};
 
 export type VerifySubscriptionPayload = {
   platform: "android";
@@ -14,7 +48,7 @@ export type SubscriptionResponse = {
   active: boolean;
   message?: string;
   subscription: null | {
-    planCode: "lite" | "standard";
+    planCode: PlanCode;
     productId: string;
     provider: "google_play";
     status: string;
@@ -68,4 +102,12 @@ export function verifySubscriptionPurchase(
 
 export function getMySubscription(): Promise<SubscriptionResponse> {
   return apiRequest<SubscriptionResponse>("/api/subscriptions/me");
+}
+
+export async function getSubscriptionPlans(): Promise<SubscriptionPlansResponse> {
+  const response = await apiRequest<
+    SubscriptionPlansResponse | { data: SubscriptionPlansResponse }
+  >("/api/subscriptions/plans");
+
+  return "data" in response ? response.data : response;
 }
