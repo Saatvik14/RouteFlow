@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { ordersService } from './../../services/api/orders';
@@ -1325,6 +1325,11 @@ const handleRemoveEditedStop = useCallback(async () => {
         details: stopDetails,
       });
       const response = await ordersService.addOrder(payload);
+      if (!isSuccessResponse(response)) {
+        throw new Error(
+          getResponseErrorMessage(response, 'Unable to add stop.'),
+        );
+      }
       const savedOrder = unwrapOrderPayload(response);
       const newStop = buildStopFromSavedOrder(savedOrder, fallbackStop);
 
@@ -1350,10 +1355,12 @@ const handleRemoveEditedStop = useCallback(async () => {
       setStopDetails({ ...DEFAULT_STOP_DETAILS });
       setPanelMode('setup');
       recenterMap();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to add stop on backend.',
-      );
+    } catch (error: any) {
+      const msg = error instanceof Error ? error.message : 'Unable to add stop on backend.';
+      setErrorMessage(msg);
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 5000);
     } finally {
       setIsAddingStop(false);
     }
@@ -1500,10 +1507,12 @@ const handleRemoveEditedStop = useCallback(async () => {
       setRouteStatus(ROUTE_STATUS_OPTIMIZED);
       setPanelMode('confirmed');
       recenterMap();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to optimize route.',
-      );
+    } catch (error: any) {
+      const msg = error instanceof Error ? error.message : 'Unable to optimize route.';
+      setErrorMessage(msg);
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 5000);
     } finally {
       setIsOptimizing(false);
     }
@@ -2171,10 +2180,12 @@ const handleRemoveEditedStop = useCallback(async () => {
       setPendingManifestStops([]);
 
       return true;
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to add stops.',
-      );
+    } catch (error: any) {
+      const msg = error instanceof Error ? error.message : 'Unable to add stops.';
+      setErrorMessage(msg);
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 5000);
       return false;
     } finally {
       setIsAddingStop(false);

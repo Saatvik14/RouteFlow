@@ -912,10 +912,11 @@ export default function RoutePointsScreen() {
       } as never);
     } catch (error: any) {
       console.log('Create route error:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Unable to create route. Please try again.'
-      );
+      const msg = error.message || 'Unable to create route. Please try again.';
+      setErrorMessage(msg);
+      setTimeout(() => {
+        setErrorMessage(null);
+      }, 5000);
     } finally {
       setIsSubmitting(false);
     }
