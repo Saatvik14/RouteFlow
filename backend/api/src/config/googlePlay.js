@@ -3,10 +3,19 @@ const { google } = require("googleapis");
 let androidPublisherClient = null;
 
 function parseServiceAccountCredentials() {
-  const rawCredentials = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON;
+  let rawCredentials = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON;
 
   if (!rawCredentials) {
     return undefined;
+  }
+
+  // Strip wrapping single or double quotes if present
+  rawCredentials = rawCredentials.trim();
+  if (
+    (rawCredentials.startsWith("'") && rawCredentials.endsWith("'")) ||
+    (rawCredentials.startsWith('"') && rawCredentials.endsWith('"'))
+  ) {
+    rawCredentials = rawCredentials.slice(1, -1).trim();
   }
 
   const credentials = JSON.parse(rawCredentials);
