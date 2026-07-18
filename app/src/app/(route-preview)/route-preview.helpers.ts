@@ -512,6 +512,10 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
           item?.updatedAt ||
           null,
         priority: item?.priority !== undefined && item?.priority !== null ? Number(item.priority) : null,
+        etaDuration: item?.eta_duration != null ? Number(item.eta_duration) : (item?.etaDuration != null ? Number(item.etaDuration) : null),
+        eta_duration: item?.eta_duration != null ? Number(item.eta_duration) : (item?.etaDuration != null ? Number(item.etaDuration) : null),
+        etaDistance: item?.eta_distance != null ? Number(item.eta_distance) : (item?.etaDistance != null ? Number(item.etaDistance) : null),
+        eta_distance: item?.eta_distance != null ? Number(item.eta_distance) : (item?.etaDistance != null ? Number(item.etaDistance) : null),
       } as RouteStop;
     })
     .filter(Boolean) as RouteStop[];
@@ -628,6 +632,9 @@ export async function buildRouteFromBackendResponse(
     startTime: formatTimeFromDateTime(
       rawRoute.start_datetime || rawRoute.startDateTime || rawRoute.start?.dateTime,
     ),
+    rawStartDatetime: String(
+      rawRoute.start_datetime || rawRoute.startDateTime || rawRoute.start?.dateTime || '',
+    ),
     routeMeta: {
       distanceLabel: formatMiles(distance),
       durationLabel: formatDuration(duration),
@@ -740,12 +747,16 @@ export async function persistRouteSnapshot({
   route,
   distanceMeters,
   durationSeconds,
+  startDatetime,
+  endDatetime,
 }: {
   routeId: string;
   status?: string;
   route: AppRoute;
   distanceMeters?: number;
   durationSeconds?: number;
+  startDatetime?: string;
+  endDatetime?: string;
 }) {
   if (!routeId) return;
 
@@ -757,8 +768,14 @@ export async function persistRouteSnapshot({
   if (distanceMeters !== undefined && Number.isFinite(distanceMeters)) {
     payload.distance = distanceMeters * 0.000621371;
   }
-  if (Number.isFinite(durationSeconds)) {
+  if (durationSeconds !== undefined && Number.isFinite(durationSeconds)) {
     payload.duration = durationSeconds;
+  }
+  if (startDatetime) {
+    payload.start_datetime = startDatetime;
+  }
+  if (endDatetime) {
+    payload.end_datetime = endDatetime;
   }
 
   await routesService.updateRoute(payload);

@@ -223,6 +223,10 @@ function buildStopWithOptimizeTiming(stop: RouteStop, step: any): RouteStop {
     step?.distance,
   );
 
+  const distanceMiles = Number.isFinite(Number(step?.distance))
+    ? Number(step.distance) * 0.000621371
+    : null;
+
   return {
     ...stop,
     etaSeconds: arrivalOffsetSeconds,
@@ -231,8 +235,12 @@ function buildStopWithOptimizeTiming(stop: RouteStop, step: any): RouteStop {
     arrival_offset_seconds: arrivalOffsetSeconds,
     cumulativeDurationSeconds: arrivalOffsetSeconds,
     cumulative_duration_seconds: arrivalOffsetSeconds,
+    etaDuration: arrivalOffsetSeconds,
+    eta_duration: arrivalOffsetSeconds,
     distanceMeters,
     distance_meters: distanceMeters,
+    etaDistance: distanceMiles,
+    eta_distance: distanceMiles,
   } as RouteStop;
 }
 
@@ -371,6 +379,7 @@ export function useRoutePreviewController(
   const [route, setRoute] = useState<AppRoute | null>(null);
   const [routeTitle, setRouteTitle] = useState('Route');
   const [previewStartTime, setPreviewStartTime] = useState('');
+  const [routeStartDatetime, setRouteStartDatetime] = useState('');
   const [routeMeta, setRouteMeta] = useState<RouteMeta>({
     distanceLabel: '0 mi',
     durationLabel: '0 min',
@@ -556,6 +565,7 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
         setRoute(nextRoute);
         setRouteTitle(result.routeTitle);
         setPreviewStartTime(result.startTime);
+        setRouteStartDatetime(result.rawStartDatetime || '');
         setRouteMeta(nextRouteMeta);
         setRouteStatus(result.routeStatus);
         setPanelMode(result.panelMode);
@@ -566,6 +576,7 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
         setRoute(emptyRouteFallback());
         setRouteTitle('Route');
         setPreviewStartTime('');
+        setRouteStartDatetime('');
         setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_PENDING));
         setPanelMode('empty');
         setErrorMessage(
@@ -753,6 +764,7 @@ const handleSaveRouteTime = useCallback(async (target: 'start' | 'end', isoDateT
 
     if (target === 'start') {
       setPreviewStartTime(formatTimeFromDateTime(isoDateTime));
+      setRouteStartDatetime(isoDateTime);
     }
 
     setRouteStatus(ROUTE_STATUS_PENDING);
@@ -1578,12 +1590,14 @@ const handleRemoveEditedStop = useCallback(async () => {
         coordinates: path.coordinates,
       };
 
+      const actualStartTimeIso = new Date().toISOString();
       await persistRouteSnapshot({
         routeId: effectiveRouteId,
         status: ROUTE_STATUS_IN_TRANSIT,
         route: nextRoute,
         distanceMeters: path.distanceMeters,
         durationSeconds: path.durationSeconds,
+        startDatetime: actualStartTimeIso,
       });
 
       setRoute(nextRoute);
@@ -1591,6 +1605,8 @@ const handleRemoveEditedStop = useCallback(async () => {
         distanceLabel: formatDistance(path.distanceMeters),
         durationLabel: formatDuration(path.durationSeconds),
       });
+      setRouteStartDatetime(actualStartTimeIso);
+      setPreviewStartTime(formatTimeFromDateTime(actualStartTimeIso));
       setRouteStatus(ROUTE_STATUS_IN_TRANSIT);
       setPanelMode('transit');
       recenterMap();
@@ -1763,11 +1779,22 @@ const handleRemoveEditedStop = useCallback(async () => {
     setErrorMessage('');
 
     try {
+      const completionTime = new Date();
+      const startTime = routeStartDatetime ? new Date(routeStartDatetime) : new Date();
+      const durationSeconds = Math.max(0, Math.round((completionTime.getTime() - startTime.getTime()) / 1000));
+
       await persistRouteSnapshot({
         routeId: effectiveRouteId,
         status: ROUTE_STATUS_COMPLETED,
         route,
+        durationSeconds,
+        endDatetime: completionTime.toISOString(),
       });
+
+      setRouteMeta((prev) => ({
+        ...prev,
+        durationLabel: formatDuration(durationSeconds),
+      }));
 
       setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_COMPLETED));
       setPanelMode('transit');
@@ -1779,7 +1806,7 @@ const handleRemoveEditedStop = useCallback(async () => {
     } finally {
       setIsCompletingRoute(false);
     }
-  }, [effectiveRouteId, isCompletingRoute, recenterMap, route]);
+  }, [effectiveRouteId, isCompletingRoute, recenterMap, route, routeStartDatetime]);
 
   const handleRetryFailedStops = useCallback(async (failedStops: RouteStop[]) => {
     if (

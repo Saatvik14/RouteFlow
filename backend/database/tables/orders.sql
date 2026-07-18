@@ -86,3 +86,9 @@ END $$;
 
 ALTER TABLE orders
 RENAME COLUMN time_at_stop_minutes TO time_at_stop;
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS eta_duration DECIMAL(12, 2) DEFAULT NULL;
+
+ALTER TABLE orders
+ADD COLUMN IF NOT EXISTS eta_distance DECIMAL(12, 6) DEFAULT NULL;

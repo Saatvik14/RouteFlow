@@ -17,8 +17,8 @@ type TransitStopPanelProps = RoutePreviewPanelProps & {
   onOpenStopDetails?: (stop: any) => void;
 };
 
-const DONE_STATUSES = new Set(['delivered', 'failed', 'completed']);
-const FAILED_STATUSES = new Set(['failed', 'cancelled', 'canceled']);
+const DONE_STATUSES = ['delivered', 'failed', 'completed'];
+const FAILED_STATUSES = ['failed', 'cancelled', 'canceled'];
 
 const getText = (...values: unknown[]) => {
   for (const value of values) {
@@ -86,35 +86,49 @@ const getDistributedStopDistance = (index: number, stopsCount: number, distanceL
   return `${distributedVal.toFixed(1)} ${unit}`;
 };
 
-const getStopDisplayDistance = (
+const getStopSegmentDistance = (
   stop: any,
   index: number,
-  stopsCount: number,
-  distanceLabel?: string,
+  activeIdx: number,
+  allStops: any[],
+  totalDistanceLabel?: string,
 ) => {
-  const directLabel = getText(
-    stop?.distance_label,
-    stop?.distanceLabel,
-    stop?.distance_text,
-    stop?.distanceText,
-    typeof stop?.distance === 'string' && /[a-zA-Z]/.test(stop.distance)
-      ? stop.distance
-      : '',
-  );
-
-  if (directLabel) return directLabel;
-
-  const directMeters = getNumericValue(
-    stop?.distance_meters,
-    stop?.distanceMeters,
-    stop?.distance,
-  );
-  if (directMeters !== null) {
-    const formatted = formatStopDistance(directMeters);
-    if (formatted) return formatted;
+  if (index < activeIdx) {
+    return '0.0 mi';
   }
 
-  return getDistributedStopDistance(index, stopsCount, distanceLabel) || '';
+  const getCumulativeMiles = (s: any, idx: number): number => {
+    // First check persisted eta_distance (already in miles from the backend)
+    const etaDist = getNumericValue(s?.etaDistance, s?.eta_distance);
+    if (etaDist !== null) return etaDist;
+
+    const rawVal = getNumericValue(s?.distance);
+    if (rawVal !== null) return rawVal;
+
+    const meters = getNumericValue(s?.distance_meters, s?.distanceMeters);
+    if (meters !== null) return meters * 0.000621371;
+
+    const distLabel = getDistributedStopDistance(idx, allStops.length, totalDistanceLabel);
+    if (distLabel) {
+      const match = distLabel.match(/(\d+(?:\.\d+)?)/);
+      if (match) return parseFloat(match[1]);
+    }
+    return 0;
+  };
+
+  const dist_i = getCumulativeMiles(stop, index);
+
+  if (index === activeIdx) {
+    const prevStop = activeIdx > 0 ? allStops[activeIdx - 1] : null;
+    const dist_prev = prevStop ? getCumulativeMiles(prevStop, activeIdx - 1) : 0;
+    const diff = Math.max(0, dist_i - dist_prev);
+    return `${diff.toFixed(1)} mi`;
+  } else {
+    const activeStopObj = allStops[activeIdx];
+    const dist_active = getCumulativeMiles(activeStopObj, activeIdx);
+    const diff = Math.max(0, dist_i - dist_active);
+    return `${diff.toFixed(1)} mi`;
+  }
 };
 
 const getOrdinal = (value: number) => {
@@ -148,7 +162,10 @@ const buildAddressFromObject = (address: any) => {
     address.country,
   ].filter(Boolean);
 
-  return [...new Set(parts.map(String))].join(', ');
+  return parts
+    .map(String)
+    .filter((value, index, self) => self.indexOf(value) === index)
+    .join(', ');
 };
 
 const getStopAddress = (stop: any) => {
@@ -297,6 +314,8 @@ const getStopOffsetSeconds = (stop: any, fallbackOffsetSeconds?: number | null) 
     stop?.cumulative_duration_seconds,
     stop?.durationSeconds,
     stop?.duration_seconds,
+    stop?.etaDuration,
+    stop?.eta_duration,
     stop?.arrival,
     stop?.duration,
   );
@@ -325,6 +344,22 @@ const formatArrivalFromOffset = (startTime: unknown, offsetSeconds: number | nul
   return formatArrivalTime(arrival.toISOString(), { includeDay });
 };
 
+const parseTimeOnlyString = (timeStr: string) => {
+  const match = timeStr.match(/(\d+):(\d+)\s*(am|pm)?/i);
+  if (!match) return null;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3]?.toLowerCase();
+
+  if (ampm === 'pm' && hours < 12) hours += 12;
+  if (ampm === 'am' && hours === 12) hours = 0;
+
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+};
+
 const getStopArrivalTime = (
   stop: any,
   includeDay = false,
@@ -337,7 +372,7 @@ const getStopArrivalTime = (
     if (actualTime) return actualTime;
   }
 
-  // ETA = current time + time taken to cover that stop
+  // ETA = start time + travel duration
   const travelDuration = getNumericValue(
     stop?.duration_seconds,
     stop?.durationSeconds,
@@ -350,7 +385,19 @@ const getStopArrivalTime = (
   );
 
   if (travelDuration !== null) {
-    const baseTime = new Date();
+    let baseTime = new Date();
+    const startText = getText(fallbackStartTime);
+    if (startText) {
+      const parsedStart = new Date(startText);
+      if (!Number.isNaN(parsedStart.getTime())) {
+        baseTime = parsedStart;
+      } else {
+        const parsedTimeOnly = parseTimeOnlyString(startText);
+        if (parsedTimeOnly) {
+          baseTime = parsedTimeOnly;
+        }
+      }
+    }
     const arrival = new Date(baseTime.getTime() + travelDuration * 1000);
     return formatArrivalTime(arrival.toISOString(), { includeDay });
   }
@@ -374,6 +421,7 @@ const getStopArrivalTime = (
       stop?.plannedArrival ||
       stop?.planned_arrival ||
       stop?.expectedArrival ||
+      stop?.expected_origin ||
       stop?.expected_arrival ||
       stop?.scheduledTime ||
       stop?.scheduled_time,
@@ -411,17 +459,17 @@ function getStopStatus(stop: any) {
 }
 
 function isStopDone(stop: any) {
-  return DONE_STATUSES.has(getStopStatus(stop));
+  return DONE_STATUSES.indexOf(getStopStatus(stop)) !== -1;
 }
 
 function isStopFailed(stop: any) {
-  return FAILED_STATUSES.has(getStopStatus(stop));
+  return FAILED_STATUSES.indexOf(getStopStatus(stop)) !== -1;
 }
 
 const getStopStatusMeta = (stop: any, isActive: boolean) => {
   const status = getStopStatus(stop);
 
-  if (FAILED_STATUSES.has(status)) {
+  if (FAILED_STATUSES.indexOf(status) !== -1) {
     return { label: 'Failed', tone: 'red' as const };
   }
 
@@ -462,39 +510,23 @@ function getStopActualArrivalTime(stop: any, includeDay = false) {
 
 const getStopTimelineTimeInfo = (
   stop: any,
-  index: number,
-  stopsCount: number,
-  startTime: unknown,
-  durationLabel?: string,
+  computedETAs: Record<string, string>,
 ) => {
   const failed = isStopFailed(stop);
   const done = isStopDone(stop);
+  const stopId = getStopIdentity(stop);
+  const timeText = computedETAs[stopId] || '--';
 
   if (done) {
-    const actualTime =
-      getStopActualArrivalTime(stop, true) ||
-      getStopArrivalTime(
-        stop,
-        true,
-        startTime,
-        getDistributedOffsetSeconds(index, stopsCount, durationLabel),
-      );
-
     return {
       label: failed ? 'Failed at' : 'Arrived',
-      value: actualTime || '--',
+      value: timeText,
     };
   }
 
   return {
     label: 'ETA',
-    value:
-      getStopArrivalTime(
-        stop,
-        true,
-        startTime,
-        getDistributedOffsetSeconds(index, stopsCount, durationLabel),
-      ) || '--',
+    value: timeText,
   };
 };
 
@@ -827,6 +859,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
   const {
     isWide,
     routeName,
+    routeStatus,
     start,
     end,
     stops,
@@ -856,6 +889,80 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
 
   const stop: any = activeStop || null;
 
+  const allStops = useMemo(() => stops || [], [stops]);
+  const activeIdx = useMemo(() => allStops.findIndex((s: any) => !isStopDone(s)), [allStops]);
+
+  // Resolve base starting time
+  const routeBaseTime = useMemo(() => {
+    let baseTime = new Date();
+    const startText = getText(startTime);
+    if (startText) {
+      const parsedStart = new Date(startText);
+      if (!Number.isNaN(parsedStart.getTime())) {
+        baseTime = parsedStart;
+      } else {
+        const parsedTimeOnly = parseTimeOnlyString(startText);
+        if (parsedTimeOnly) {
+          baseTime = parsedTimeOnly;
+        }
+      }
+    }
+    return baseTime;
+  }, [startTime]);
+
+  const computedETAs = useMemo(() => {
+    const etas: Record<string, string> = {};
+    
+    // Check if route is currently in transit
+    const isInTransit = routeStatus === 'in_transit' || routeStatus === 'in-transit';
+    
+    // Current time reference
+    const currentRefTime = isInTransit ? new Date() : routeBaseTime;
+
+    if (activeIdx === -1) {
+      // All stops are done, just show their actual arrival times
+      allStops.forEach((s: any) => {
+        const stopId = getStopIdentity(s);
+        etas[stopId] = getStopActualArrivalTime(s) || '';
+      });
+      return etas;
+    }
+
+    // Active stop and its offset
+    const activeStopObj = allStops[activeIdx];
+    const activeOffset = getStopOffsetSeconds(activeStopObj) ?? 0;
+
+    // Previous stop offset
+    const prevStopObj = activeIdx > 0 ? allStops[activeIdx - 1] : null;
+    const prevOffset = prevStopObj ? (getStopOffsetSeconds(prevStopObj) ?? 0) : 0;
+
+    // Travel time from last completed stop to active stop
+    const travelTimeToActive = Math.max(0, activeOffset - prevOffset);
+
+    // ETA of the active stop
+    const activeETA = new Date(currentRefTime.getTime() + travelTimeToActive * 1000);
+
+    allStops.forEach((s: any, idx: number) => {
+      const stopId = getStopIdentity(s);
+      
+      if (idx < activeIdx) {
+        // Completed stop
+        etas[stopId] = getStopActualArrivalTime(s) || '';
+      } else if (idx === activeIdx) {
+        // Active stop
+        etas[stopId] = formatArrivalTime(activeETA.toISOString());
+      } else {
+        // Future stop
+        const offset_i = getStopOffsetSeconds(s) ?? getDistributedOffsetSeconds(idx, allStops.length, durationLabel) ?? 0;
+        const travelTimeFromActiveToI = Math.max(0, offset_i - activeOffset);
+        const futureETA = new Date(activeETA.getTime() + travelTimeFromActiveToI * 1000);
+        etas[stopId] = formatArrivalTime(futureETA.toISOString());
+      }
+    });
+
+    return etas;
+  }, [allStops, activeIdx, routeStatus, routeBaseTime, durationLabel]);
+
   const activeIndexInAllStops = useMemo(() => {
     if (!stop) return -1;
     const index = (stops || []).findIndex((item: any) => isSameStop(item, stop));
@@ -874,7 +981,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
         durationLabel={durationLabel}
         distanceLabel={distanceLabel}
         isCompletingRoute={isCompletingRoute}
-        onOpenSearch={onOpenSearch}
         onMarkRouteCompleted={onMarkRouteCompleted}
       />
     );
@@ -890,7 +996,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     (stops || []).length,
     durationLabel,
   );
-  const arrivalTime = getStopArrivalTime(stop, false, startTime, currentFallbackOffsetSeconds);
+  const arrivalTime = computedETAs[getStopIdentity(stop)] || '';
   const completedStops = (stops || []).filter((item: any) => isStopDone(item)).length;
   const progressPercent = Math.min(100, Math.max(8, (completedStops / totalStops) * 100));
 
@@ -940,7 +1046,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const notes = getStopNotes(stop);
     const packages = getStopPackageCount(stop);
     const stopType = getStopType(stop);
-    const stopDistance = getStopDisplayDistance(stop, currentIndex, totalStops, distanceLabel);
+    const stopDistance = getStopSegmentDistance(stop, currentIndex, activeIdx, allStops, distanceLabel);
 
     return (
       <ScrollView
@@ -1042,7 +1148,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const failedCount = allStops.filter((item: any) => isStopFailed(item)).length;
     const pendingCount = allStops.filter((item: any) => !isStopDone(item)).length;
     const activeTitle = stop ? getStopTitle(stop, activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex) : '';
-    const stopDistance = getStopDisplayDistance(stop, progressIndex - 1, totalStops, distanceLabel);
+    const stopDistance = getStopSegmentDistance(stop, activeIdx, activeIdx, allStops, distanceLabel);
 
     return (
       <ScrollView
@@ -1114,8 +1220,8 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             const done = isStopDone(item);
             const failed = isStopFailed(item);
             const statusMeta = getStopStatusMeta(item, isActive);
-            const timeInfo = getStopTimelineTimeInfo(item, index, allStops.length, startTime, durationLabel);
-            const itemDistance = getStopDisplayDistance(item, index, allStops.length, distanceLabel);
+            const timeInfo = getStopTimelineTimeInfo(item, computedETAs);
+            const itemDistance = getStopSegmentDistance(item, index, activeIdx, allStops, distanceLabel);
 
             return (
               <Pressable
@@ -1224,15 +1330,10 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const detailNotes = getStopNotes(detailStop);
     const detailPackages = getStopPackageCount(detailStop);
     const detailStopType = getStopType(detailStop);
-    const detailArrivalTime = getStopArrivalTime(
-      detailStop,
-      false,
-      startTime,
-      getDistributedOffsetSeconds(detailIndex, (stops || []).length, durationLabel),
-    );
+    const detailArrivalTime = computedETAs[getStopIdentity(detailStop)] || '';
     const phone = getStopPhone(detailStop);
     const canUpdateThisStop = isSameStop(detailStop, stop) && !isStopDone(detailStop);
-    const detailStopDistance = getStopDisplayDistance(detailStop, detailIndex, (stops || []).length, distanceLabel);
+    const detailStopDistance = getStopSegmentDistance(detailStop, detailIndex, activeIdx, allStops, distanceLabel);
 
     return (
       <ScrollView

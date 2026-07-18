@@ -62,6 +62,7 @@ export type RouteLoadResult = {
   route: AppRoute;
   routeTitle: string;
   startTime: string;
+  rawStartDatetime?: string;
   routeMeta: RouteMeta;
   panelMode: PanelMode;
   routeStatus: RouteStatus;

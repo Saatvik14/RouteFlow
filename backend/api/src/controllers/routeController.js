@@ -1174,18 +1174,30 @@ const optimizeRoute = async (req, res) => {
       (_, index) => index + 1
     );
 
+    const etaDurations = optimizedOrders.map(
+      ({ optimizerStep }) => Number.isFinite(Number(optimizerStep.duration)) ? Number(optimizerStep.duration) : null
+    );
+
+    const etaDistances = optimizedOrders.map(
+      ({ optimizerStep }) => Number.isFinite(Number(optimizerStep.distance)) ? Number(optimizerStep.distance) * 0.000621371 : null
+    );
+
     await runQuery(
       `
         UPDATE orders AS o
-        SET sequence_no = updated.sequence_no
+        SET sequence_no = updated.sequence_no,
+            eta_duration = updated.eta_duration,
+            eta_distance = updated.eta_distance
         FROM unnest(
           $1::bigint[],
-          $2::integer[]
-        ) AS updated(order_id, sequence_no)
+          $2::integer[],
+          $3::decimal[],
+          $4::decimal[]
+        ) AS updated(order_id, sequence_no, eta_duration, eta_distance)
         WHERE o.order_id = updated.order_id
-          AND o.route_id = $3
+          AND o.route_id = $5
       `,
-      [orderIds, sequenceNumbers, route_id]
+      [orderIds, sequenceNumbers, etaDurations, etaDistances, route_id]
     );
 
     /*
