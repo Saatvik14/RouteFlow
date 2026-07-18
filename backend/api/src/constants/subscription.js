@@ -10,7 +10,7 @@
 // });
 
 function getPlanByProductId(productId) {
-  return SUBSCRIPTION_PLANS[productId] || null;
+  return SUBSCRIPTION_PLANS.find(plan => plan.productId === productId) || null;
 }
 
 const SUBSCRIPTION_PLANS = Object.freeze([

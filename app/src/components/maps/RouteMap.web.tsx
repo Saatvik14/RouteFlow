@@ -117,21 +117,33 @@ function buildDisplayMarkers(route: ConfirmedRoute): DisplayMarker[] {
     {
       key: 'start',
       type: 'start' as const,
-      point: route.start,
+      point: {
+        ...route.start,
+        latitude: Number(route.start.latitude),
+        longitude: Number(route.start.longitude),
+      },
       label: route.start.markerLabel || 'S',
       icon: route.start.markerIcon || '⌂',
     },
     ...(route.stops || []).map(stop => ({
       key: `stop-${stop.id}`,
       type: 'stop' as const,
-      point: stop,
+      point: {
+        ...stop,
+        latitude: Number(stop.latitude),
+        longitude: Number(stop.longitude),
+      },
       label: stop.markerLabel || String(stop.sequence),
       icon: stop.markerIcon || (stop.stopType === 'pickup' ? '↑' : '●'),
     })),
     {
       key: 'end',
       type: 'end' as const,
-      point: route.end,
+      point: {
+        ...route.end,
+        latitude: Number(route.end.latitude),
+        longitude: Number(route.end.longitude),
+      },
       label: route.end.markerLabel || 'E',
       icon: route.end.markerIcon || '⚑',
     },
@@ -317,18 +329,26 @@ export default function MapScreen({
 
   const routePoints = useMemo(() => {
     if (!confirmedRoute) return [];
-
-    return [
+    const points = [
       confirmedRoute.start,
       ...(confirmedRoute.stops || []),
       confirmedRoute.end,
     ];
+    return points.map(p => ({
+      ...p,
+      latitude: Number(p.latitude),
+      longitude: Number(p.longitude),
+    }));
   }, [confirmedRoute]);
 
   const routeCoordinates = useMemo(() => {
     if (!confirmedRoute) return [];
-    if (confirmedRoute.coordinates?.length) return confirmedRoute.coordinates;
-    return routePoints;
+    const coords = confirmedRoute.coordinates?.length ? confirmedRoute.coordinates : routePoints;
+    return coords.map(c => ({
+      ...c,
+      latitude: Number(c.latitude),
+      longitude: Number(c.longitude),
+    }));
   }, [confirmedRoute, routePoints]);
 
   const isOptimized = useMemo(() => {
