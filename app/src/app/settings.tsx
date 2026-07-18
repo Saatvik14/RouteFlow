@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { ReactNode, useState } from "react";
 import {
@@ -6,16 +7,14 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { openExternalUrl } from "./../hooks/open-external-url";
 import { LEGAL_URLS } from "../constants/legal";
-
-
+import { openExternalUrl } from "../hooks/open-external-url";
+import { useAuth } from "./_layout";
 
 type SettingRowProps = {
   title: string;
@@ -28,6 +27,13 @@ type SettingRowProps = {
 
 type SectionProps = {
   title?: string;
+  children: ReactNode;
+};
+
+type DocumentModalProps = {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
   children: ReactNode;
 };
 
@@ -52,6 +58,8 @@ function SettingRow({
     <Pressable
       onPress={onPress}
       disabled={!onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={title}
       style={({ pressed }) => [
         styles.row,
         pressed && onPress ? styles.rowPressed : null,
@@ -74,15 +82,78 @@ function SettingRow({
   );
 }
 
+function RowChevron() {
+  return <Text style={styles.rowChevron}>›</Text>;
+}
+
+function DocumentModal({
+  visible,
+  title,
+  onClose,
+  children,
+}: DocumentModalProps) {
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.documentModalContainer}>
+          <View style={styles.modalHeaderRow}>
+            <Text style={styles.modalHeaderTitle}>{title}</Text>
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Close ${title}`}
+            >
+              <Text style={styles.modalCloseText}>✕</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={styles.documentScroll}
+            contentContainerStyle={styles.documentScrollContent}
+            showsVerticalScrollIndicator
+          >
+            {children}
+          </ScrollView>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.modalButton,
+              pressed && styles.modalButtonPressed,
+            ]}
+            onPress={onClose}
+          >
+            <Text style={styles.modalButtonText}>Close</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [avoidTolls, setAvoidTolls] = useState(false);
+  const { logout } = useAuth();
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showLicensesModal, setShowLicensesModal] = useState(false);
 
-  const handleLogout = () => {
-    // Add your logout logic here, then navigate to login screen if required.
-    // Example: router.replace('/login' as never);
+  const configuredVersion = Constants.expoConfig?.version;
+  const versionLabel = configuredVersion
+    ? `RouteFloww v${configuredVersion}`
+    : "RouteFloww version unavailable";
+
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  const handleComparePlans = () => {
+    router.push("/subscription");
   };
 
   return (
@@ -95,6 +166,8 @@ export default function SettingsScreen() {
             pressed && styles.iconPressed,
           ]}
           onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <Text style={styles.backIcon}>‹</Text>
         </Pressable>
@@ -112,191 +185,166 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contentWrap}>
-          <Section title="Route Preferences">
-            <SettingRow
-              title="Navigation app"
-              value="RouteFlow Navigation"
-              onPress={() => {}}
-            />
-
-            <SettingRow
-              title="Stop side"
-              value="Any side of vehicle"
-              onPress={() => {}}
-            />
-
-            <SettingRow
-              title="Average time at stop"
-              value="1 min"
-              onPress={() => {}}
-            />
-
-            <SettingRow title="Vehicle type" value="Car" onPress={() => {}} />
-
-            <SettingRow
-              title="Avoid tolls"
-              description="Save costs by avoiding toll roads"
-              rightElement={
-                <Switch
-                  value={avoidTolls}
-                  onValueChange={setAvoidTolls}
-                  trackColor={{ false: "#D1D5DB", true: "#9CC3FF" }}
-                  thumbColor={avoidTolls ? "#2F74ED" : "#F3F4F6"}
-                />
-              }
-            />
-
-            <SettingRow
-              title="Stop ID"
-              value="Modern and By route order"
-              onPress={() => {}}
-            />
-          </Section>
-
-          <Section title="General Preferences">
-            <SettingRow title="Theme" value="Light" onPress={() => {}} />
-          </Section>
-
           <Section title="Subscription">
-            <SettingRow title="Compare plans" onPress={() => {}} />
+            <SettingRow
+              title="Compare plans"
+              description="Review Lite and Standard plan features"
+              onPress={handleComparePlans}
+              rightElement={<RowChevron />}
+            />
           </Section>
 
-          <Section>
-            <SettingRow title="Licenses" onPress={() => {}} />
+          <Section title="Legal and app information">
+            <SettingRow
+              title="Licenses"
+              description="Open-source software notices"
+              onPress={() => setShowLicensesModal(true)}
+              rightElement={<RowChevron />}
+            />
             <SettingRow
               title="Terms of Service"
               onPress={() => setShowTermsModal(true)}
+              rightElement={<RowChevron />}
             />
             <SettingRow
               title="Privacy policy"
               onPress={() => void openExternalUrl(LEGAL_URLS.PRIVACY_POLICY)}
+              rightElement={<RowChevron />}
             />
-            <SettingRow title="Version" value="Spoke-v3.65.1" />
+            <SettingRow title="Version" value={versionLabel} />
             <SettingRow title="Logout" danger onPress={handleLogout} />
           </Section>
         </View>
       </ScrollView>
 
-      <Modal
-        visible={showTermsModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowTermsModal(false)}
+      <DocumentModal
+        visible={showLicensesModal}
+        title="Open-source licenses"
+        onClose={() => setShowLicensesModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.documentModalContainer}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalHeaderTitle}>Terms of Service</Text>
-              <Pressable
-                onPress={() => setShowTermsModal(false)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Close Terms of Service"
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
+        <Text style={styles.documentBodyTitle}>RouteFloww acknowledgements</Text>
+        <Text style={styles.documentLastUpdated}>
+          Open-source notices for this application
+        </Text>
 
-            <ScrollView
-              style={styles.documentScroll}
-              contentContainerStyle={styles.documentScrollContent}
-              showsVerticalScrollIndicator
-            >
-              <Text style={styles.documentBodyTitle}>
-                RouteFloww Terms of Service
-              </Text>
-              <Text style={styles.documentLastUpdated}>
-                Last Updated: July 2026
-              </Text>
+        <Text style={styles.documentParagraph}>
+          RouteFloww is built with open-source software. Each project remains
+          the property of its respective copyright holder and is used under
+          the terms of its own license.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>Overview</Text>
-              <Text style={styles.documentParagraph}>
-                These Terms govern worldwide use of RouteFloww. By creating an
-                account or using the app, users agree to these Terms. The app is
-                jointly owned by Vaibhav Garg and Uttam Chand Rawat and is
-                governed by the laws of India.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Core technologies</Text>
+        <Text style={styles.documentParagraph}>• React — MIT License</Text>
+        <Text style={styles.documentParagraph}>
+          • React Native — MIT License
+        </Text>
+        <Text style={styles.documentParagraph}>
+          • Expo and Expo Router — MIT License
+        </Text>
+        <Text style={styles.documentParagraph}>
+          • React Native Safe Area Context — MIT License
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>Eligibility</Text>
-              <Text style={styles.documentParagraph}>
-                Users must be at least 18 years old or use the Service with
-                legally required parental or guardian consent.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Third-party notices</Text>
+        <Text style={styles.documentParagraph}>
+          Additional packages used by the installed RouteFloww release may
+          include their own copyright notices and license terms. Those terms
+          are available in each package&apos;s LICENSE file and package metadata.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>Accounts</Text>
-              <Text style={styles.documentParagraph}>
-                Users register using email OTP and provide name, email, phone
-                number and password. Users are responsible for maintaining
-                account security.
-              </Text>
+        <Text style={styles.documentSectionTitle}>MIT License summary</Text>
+        <Text style={styles.documentParagraph}>
+          MIT-licensed software may be used, copied, modified, merged,
+          published, distributed, sublicensed and sold, provided that the
+          applicable copyright and permission notices are retained. The
+          software is provided without warranty, subject to the full license
+          text supplied by each project.
+        </Text>
+      </DocumentModal>
 
-              <Text style={styles.documentSectionTitle}>Services</Text>
-              <Text style={styles.documentParagraph}>
-                Route creation, stop management, navigation, saved routes, route
-                history and future related services.
-              </Text>
+      <DocumentModal
+        visible={showTermsModal}
+        title="Terms of Service"
+        onClose={() => setShowTermsModal(false)}
+      >
+        <Text style={styles.documentBodyTitle}>
+          RouteFloww Terms of Service
+        </Text>
+        <Text style={styles.documentLastUpdated}>
+          Last Updated: July 2026
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>Subscriptions</Text>
-              <Text style={styles.documentParagraph}>
-                Lite and Standard plans are available with a 7-day free trial.
-                Charges renew unless cancelled according to the store policies.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Overview</Text>
+        <Text style={styles.documentParagraph}>
+          These Terms govern worldwide use of RouteFloww. By creating an
+          account or using the app, users agree to these Terms. The app is
+          jointly owned by Vaibhav Garg and Uttam Chand Rawat and is governed
+          by the laws of India.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>Refunds</Text>
-              <Text style={styles.documentParagraph}>
-                Refund requests are reviewed individually. Approved refunds may
-                be reduced by non-recoverable taxes or platform fees.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Eligibility</Text>
+        <Text style={styles.documentParagraph}>
+          Users must be at least 18 years old or use the Service with legally
+          required parental or guardian consent.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>User Content</Text>
-              <Text style={styles.documentParagraph}>
-                Users retain ownership of route information they create while
-                granting RouteFloww a limited licence to host, process and
-                display that content for providing the Service.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Accounts</Text>
+        <Text style={styles.documentParagraph}>
+          Users register using email OTP and provide name, email, phone number
+          and password. Users are responsible for maintaining account security.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>
-                Prohibited Conduct
-              </Text>
-              <Text style={styles.documentParagraph}>
-                No reverse engineering, scraping, bots, abuse, malware, illegal
-                use or infringement of intellectual property.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Services</Text>
+        <Text style={styles.documentParagraph}>
+          Route creation, stop management, navigation, saved routes, route
+          history and future related services.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>
-                Navigation Disclaimer
-              </Text>
-              <Text style={styles.documentParagraph}>
-                Navigation is provided for convenience only. Users remain
-                responsible for obeying traffic laws and exercising independent
-                judgment.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Subscriptions</Text>
+        <Text style={styles.documentParagraph}>
+          Lite and Standard plans are available with a 7-day free trial.
+          Charges renew unless cancelled according to the store policies.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>Liability</Text>
-              <Text style={styles.documentParagraph}>
-                The Service is provided as is. Liability is limited to the
-                maximum extent permitted by applicable law.
-              </Text>
+        <Text style={styles.documentSectionTitle}>Refunds</Text>
+        <Text style={styles.documentParagraph}>
+          Refund requests are reviewed individually. Approved refunds may be
+          reduced by non-recoverable taxes or platform fees.
+        </Text>
 
-              <Text style={styles.documentSectionTitle}>Disputes</Text>
-              <Text style={styles.documentParagraph}>
-                Governed by Indian law. Arbitration seat: Muzaffarnagar, Uttar
-                Pradesh, India.
-              </Text>
-            </ScrollView>
+        <Text style={styles.documentSectionTitle}>User Content</Text>
+        <Text style={styles.documentParagraph}>
+          Users retain ownership of route information they create while
+          granting RouteFloww a limited licence to host, process and display
+          that content for providing the Service.
+        </Text>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.modalButton,
-                pressed && styles.modalButtonPressed,
-              ]}
-              onPress={() => setShowTermsModal(false)}
-            >
-              <Text style={styles.modalButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+        <Text style={styles.documentSectionTitle}>Prohibited Conduct</Text>
+        <Text style={styles.documentParagraph}>
+          No reverse engineering, scraping, bots, abuse, malware, illegal use
+          or infringement of intellectual property.
+        </Text>
+
+        <Text style={styles.documentSectionTitle}>
+          Navigation Disclaimer
+        </Text>
+        <Text style={styles.documentParagraph}>
+          Navigation is provided for convenience only. Users remain responsible
+          for obeying traffic laws and exercising independent judgment.
+        </Text>
+
+        <Text style={styles.documentSectionTitle}>Liability</Text>
+        <Text style={styles.documentParagraph}>
+          The Service is provided as is. Liability is limited to the maximum
+          extent permitted by applicable law.
+        </Text>
+
+        <Text style={styles.documentSectionTitle}>Disputes</Text>
+        <Text style={styles.documentParagraph}>
+          Governed by Indian law. Arbitration seat: Muzaffarnagar, Uttar
+          Pradesh, India.
+        </Text>
+      </DocumentModal>
     </View>
   );
 }
@@ -424,9 +472,16 @@ const styles = StyleSheet.create({
   },
 
   rightElement: {
-    minWidth: 56,
+    minWidth: 32,
     alignItems: "flex-end",
     justifyContent: "center",
+  },
+
+  rowChevron: {
+    fontSize: 30,
+    lineHeight: 32,
+    fontWeight: "400",
+    color: "#94A3B8",
   },
 
   dangerText: {
