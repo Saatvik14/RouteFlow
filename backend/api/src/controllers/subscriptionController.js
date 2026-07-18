@@ -111,6 +111,20 @@ async function saveVerifiedSubscription({ userId, plan, verification }) {
     ],
   );
 
+  const newType = verification.active ? plan.code : 'trial';
+
+  await runQuery(
+    `
+      INSERT INTO config_model (user_id, subscription_type, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        subscription_type = EXCLUDED.subscription_type,
+        updated_at = NOW()
+    `,
+    [userId, newType]
+  );
+
   return result.rows[0];
 }
 
