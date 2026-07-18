@@ -895,9 +895,9 @@ export default function RoutePointsScreen() {
           };
         });
         const payloadData = {
-          stps: orderPayloads,
-          routeId: newRouteId,
-        }
+          stops: orderPayloads,
+          route_id: newRouteId,
+        };
         const stopsResponse = await addManifestStopsToBackend(payloadData);
         console.log('Copied stops saved successfully:', stopsResponse);
       }
@@ -910,8 +910,12 @@ export default function RoutePointsScreen() {
          id : String(newRouteId),
         },
       } as never);
-    } catch (error) {
+    } catch (error: any) {
       console.log('Create route error:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Unable to create route. Please try again.'
+      );
     } finally {
       setIsSubmitting(false);
     }
