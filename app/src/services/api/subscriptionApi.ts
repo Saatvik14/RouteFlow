@@ -1,10 +1,7 @@
-import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../../constants/api";
 
 const API_URL = API_BASE_URL;
-
-// Change this value if your app stores the login token under a different key.
-const ACCESS_TOKEN_KEY = "accessToken";
 
 export type VerifySubscriptionPayload = {
   platform: "android";
@@ -27,7 +24,7 @@ export type SubscriptionResponse = {
 };
 
 async function getAccessToken(): Promise<string> {
-  const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  const token = await AsyncStorage.getItem("authToken");
 
   if (!token) {
     throw new Error("You are not logged in. Please sign in and try again.");
