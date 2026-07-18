@@ -1,5 +1,6 @@
 const { runQuery } = require('../config/db');
 const { ROUTE_STATUS } = require('../constants/statusConstants');
+const { STOPS_PER_ROUTE_LIMIT } = require('../constants/limits');
 const { PORT } = require('../config/env');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
@@ -614,6 +615,29 @@ const createOrderFromInput = async body => {
 // @route   POST /order/add
 // @access  Private
 const addOrder = async (req, res) => {
+  const { route_id } = req.body;
+  if (!route_id) {
+    return res.status(400).json({ message: 'route_id is required' });
+  }
+
+  if (req.user?.subscription_type === 'lite') {
+    try {
+      const stopsCountRes = await runQuery(
+        `SELECT COUNT(*) FROM orders WHERE route_id = $1`,
+        [route_id]
+      );
+      const stopsCount = parseInt(stopsCountRes.rows[0].count, 10);
+      if (stopsCount >= STOPS_PER_ROUTE_LIMIT) {
+        return res.status(403).json({
+          message: `Lite subscription limit reached. You can only add up to ${STOPS_PER_ROUTE_LIMIT} stops per route.`
+        });
+      }
+    } catch (dbError) {
+      console.error('Error checking stops limit:', dbError);
+      return res.status(500).json({ message: 'Server error while checking route stop limits.' });
+    }
+  }
+
   try {
     const order = await createOrderFromInput(
       req.body
@@ -1158,6 +1182,24 @@ const addBulkOrders = async (req, res) => {
     return res.status(400).json({
       message: 'stops array is required',
     });
+  }
+
+  if (req.user?.subscription_type === 'lite') {
+    try {
+      const stopsCountRes = await runQuery(
+        `SELECT COUNT(*) FROM orders WHERE route_id = $1`,
+        [route_id]
+      );
+      const existingCount = parseInt(stopsCountRes.rows[0].count, 10);
+      if (existingCount + stops.length > STOPS_PER_ROUTE_LIMIT) {
+        return res.status(403).json({
+          message: `Lite subscription limit reached. You can only have up to ${STOPS_PER_ROUTE_LIMIT} stops per route (current stops: ${existingCount}, attempted to upload: ${stops.length}).`
+        });
+      }
+    } catch (dbError) {
+      console.error('Error checking bulk stops limit:', dbError);
+      return res.status(500).json({ message: 'Server error while checking route stop limits.' });
+    }
   }
 
   const created = [];

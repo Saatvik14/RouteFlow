@@ -1,5 +1,6 @@
 const { runQuery } = require('../config/db');
 const { ROUTE_STATUS } = require('../constants/statusConstants');
+const { ROUTE_LIMIT } = require('../constants/limits');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -77,6 +78,24 @@ const createRoute = async (req, res) => {
   const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
   if (!user_id) {
     return res.status(401).json({ message: 'User not authenticated.' });
+  }
+
+  if (req.user?.subscription_type === 'lite') {
+    try {
+      const todayRoutesRes = await runQuery(
+        `SELECT COUNT(*) FROM routes WHERE user_id = $1 AND created_at >= CURRENT_DATE`,
+        [user_id]
+      );
+      const todayRoutesCount = parseInt(todayRoutesRes.rows[0].count, 10);
+      if (todayRoutesCount >= ROUTE_LIMIT) {
+        return res.status(403).json({
+          message: `Lite subscription limit reached. You can only create up to ${ROUTE_LIMIT} routes per day.`
+        });
+      }
+    } catch (dbError) {
+      console.error('Error checking route limit:', dbError);
+      return res.status(500).json({ message: 'Server error while checking route limits.' });
+    }
   }
   if (
     !name || 
