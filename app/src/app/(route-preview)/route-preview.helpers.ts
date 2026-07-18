@@ -180,13 +180,14 @@ export function formatTimeFromDateTime(value: unknown, fallback = '') {
 }
 
 export function formatDistance(meters: number) {
-  if (!meters || meters <= 0) return '0 km';
+  if (!meters || meters <= 0) return '0 mi';
+  const miles = meters * 0.000621371;
+  return `${miles.toFixed(1)} mi`;
+}
 
-  const km = meters / 1000;
-
-  if (km < 1) return `${Math.round(meters)} m`;
-
-  return `${km.toFixed(1)} km`;
+export function formatMiles(miles: number) {
+  if (!miles || miles <= 0) return '0 mi';
+  return `${miles.toFixed(1)} mi`;
 }
 
 export function formatDuration(seconds: number) {
@@ -628,7 +629,7 @@ export async function buildRouteFromBackendResponse(
       rawRoute.start_datetime || rawRoute.startDateTime || rawRoute.start?.dateTime,
     ),
     routeMeta: {
-      distanceLabel: formatDistance(distance),
+      distanceLabel: formatMiles(distance),
       durationLabel: formatDuration(duration),
     },
     panelMode: getPanelModeFromStatus(routeStatus, stops.length),
@@ -753,8 +754,8 @@ export async function persistRouteSnapshot({
   };
 
   if (status) payload.status = status;
-  if (Number.isFinite(distanceMeters)) {
-    payload.distance = distanceMeters;
+  if (distanceMeters !== undefined && Number.isFinite(distanceMeters)) {
+    payload.distance = distanceMeters * 0.000621371;
   }
   if (Number.isFinite(durationSeconds)) {
     payload.duration = durationSeconds;

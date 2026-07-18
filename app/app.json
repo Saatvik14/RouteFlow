@@ -48,7 +48,7 @@
           }
         }
       ],
-      "@maplibre/maplibre-react-native",
+      "./node_modules/@maplibre/maplibre-react-native/app.plugin.js",
       [
         "expo-location",
         {

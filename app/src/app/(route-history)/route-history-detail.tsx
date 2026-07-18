@@ -35,13 +35,13 @@ const TABS: { key: DetailTab; label: string }[] = [
 
 const normalizeDistanceValue = (value?: number) => {
   if (!Number.isFinite(value) || !value || value <= 0) return 0;
-  return value > 10000 ? value / 1000 : value;
+  return value > 10000 ? value * 0.000621371 : value;
 };
 
 const formatDistance = (value?: number) => {
   const distance = normalizeDistanceValue(value);
   if (!distance) return "--";
-  return `${distance.toFixed(distance >= 100 ? 1 : 1)} km`;
+  return `${distance.toFixed(1)} mi`;
 };
 
 const formatSeconds = (seconds: number) => {

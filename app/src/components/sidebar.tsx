@@ -91,7 +91,7 @@ type RouteHistoryItem = {
   statusLabel: string;
   statusTone: RouteStatusTone;
   stopCount: number;
-  distanceKm: number;
+  distanceMiles: number;
   distanceLabel: string;
   durationMinutes: number;
   durationLabel: string;
@@ -220,15 +220,15 @@ const formatTimeRange = (route: BackendRoute) => {
   return "Time not set";
 };
 
-const getRouteDistanceKm = (route: BackendRoute) => {
+const getRouteDistanceMiles = (route: BackendRoute) => {
   const distanceMeters = toNumber(route.distance_meters);
-  if (distanceMeters > 0) return distanceMeters / 1000;
+  if (distanceMeters > 0) return distanceMeters * 0.000621371;
 
   const rawDistance = toNumber(route.total_distance || route.distance);
   if (rawDistance <= 0) return 0;
 
-  // Your backend may send distance either in meters or km. Large values are treated as meters.
-  return rawDistance > 1000 ? rawDistance / 1000 : rawDistance;
+  // If the backend returns miles, but there is any legacy data > 1000 (which was meters):
+  return rawDistance > 1000 ? rawDistance * 0.000621371 : rawDistance;
 };
 
 const getRouteDurationMinutes = (route: BackendRoute) => {
@@ -244,9 +244,9 @@ const getRouteDurationMinutes = (route: BackendRoute) => {
     : Math.round(rawDuration);
 };
 
-const formatDistance = (distanceKm: number) => {
-  if (!distanceKm) return "0 km";
-  return `${distanceKm.toFixed(distanceKm >= 10 ? 1 : 2)} km`;
+const formatDistance = (distanceMiles: number) => {
+  if (!distanceMiles) return "0 mi";
+  return `${distanceMiles.toFixed(distanceMiles >= 10 ? 1 : 2)} mi`;
 };
 
 const formatDuration = (minutes: number) => {
@@ -308,7 +308,7 @@ const normalizeRoutes = (response: any, allOrders: any[] = []): RouteHistoryItem
       const statusMeta = getRouteStatusMeta(status);
       const date = getRouteDate(route);
       const dateTile = formatDateTile(date);
-      const distanceKm = getRouteDistanceKm(route);
+      const distanceMiles = getRouteDistanceMiles(route);
       const durationMinutes = getRouteDurationMinutes(route);
 
       return {
@@ -321,8 +321,8 @@ const normalizeRoutes = (response: any, allOrders: any[] = []): RouteHistoryItem
         statusLabel: statusMeta.label,
         statusTone: statusMeta.tone,
         stopCount: getStopCount(route, allOrders),
-        distanceKm,
-        distanceLabel: formatDistance(distanceKm),
+        distanceMiles,
+        distanceLabel: formatDistance(distanceMiles),
         durationMinutes,
         durationLabel: formatDuration(durationMinutes),
         sortDate: date?.getTime() || 0,
@@ -412,7 +412,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const sidebarStats = useMemo(() => {
     const totalDistance = completedRoutes.reduce(
-      (sum, route) => sum + route.distanceKm,
+      (sum, route) => sum + route.distanceMiles,
       0,
     );
     const totalDuration = completedRoutes.reduce(
@@ -423,8 +423,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     return {
       completedCount: completedRoutes.length,
       totalDistanceLabel: totalDistance
-        ? `${Math.round(totalDistance)} km`
-        : "0 km",
+        ? `${Math.round(totalDistance)} mi`
+        : "0 mi",
       totalDurationLabel: formatDuration(totalDuration),
     };
   }, [completedRoutes]);

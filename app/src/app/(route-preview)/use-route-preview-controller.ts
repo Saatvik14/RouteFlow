@@ -36,6 +36,7 @@ import {
   fetchPlaceSuggestions,
   fetchRoutePath,
   formatDistance,
+  formatMiles,
   formatDuration,
   getActiveStop,
   getInitialCoordinates,
@@ -371,7 +372,7 @@ export function useRoutePreviewController(
   const [routeTitle, setRouteTitle] = useState('Route');
   const [previewStartTime, setPreviewStartTime] = useState('');
   const [routeMeta, setRouteMeta] = useState<RouteMeta>({
-    distanceLabel: '0 km',
+    distanceLabel: '0 mi',
     durationLabel: '0 min',
   });
   const [panelMode, setPanelMode] = useState<PanelMode>('empty');
@@ -1464,11 +1465,15 @@ const handleRemoveEditedStop = useCallback(async () => {
       };
 
       const path = await fetchRoutePath(getRoutePoints(optimizedRoute));
-      const distanceMeters = Number(
-        routeData?.distance ||
-          getOptimizePayload(response)?.summary?.distance ||
-          path.distanceMeters,
-      );
+      const isFromBackend = routeData?.distance !== undefined || getOptimizePayload(response)?.summary?.distance !== undefined;
+      const distanceMiles = isFromBackend
+        ? Number(routeData?.distance || getOptimizePayload(response)?.summary?.distance || 0)
+        : Number(path.distanceMeters) * 0.000621371;
+
+      const distanceMeters = isFromBackend
+        ? distanceMiles / 0.000621371
+        : Number(path.distanceMeters);
+
       const durationSeconds = Number(
         routeData?.duration ||
           getOptimizePayload(response)?.summary?.duration ||
@@ -1489,7 +1494,7 @@ const handleRemoveEditedStop = useCallback(async () => {
 
       setRoute(nextRoute);
       setRouteMeta({
-        distanceLabel: formatDistance(distanceMeters),
+        distanceLabel: formatMiles(distanceMiles),
         durationLabel: formatDuration(durationSeconds),
       });
       setRouteStatus(ROUTE_STATUS_OPTIMIZED);

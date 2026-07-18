@@ -38,7 +38,7 @@ const FILTERS: { key: RouteHistoryStatus; label: string }[] = [
 
 const normalizeDistance = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return 0;
-  return value > 10000 ? value / 1000 : value;
+  return value > 10000 ? value * 0.000621371 : value;
 };
 
 function OverviewMetric({
@@ -229,7 +229,7 @@ export default function RouteHistoryScreen() {
     if (!selectedRoute) return;
 
     await Share.share({
-      message: `${selectedRoute.title}\n${selectedRoute.fullDateLabel}\nStops: ${selectedRoute.stopsCount}\nDistance: ${normalizeDistance(selectedRoute.distanceKm).toFixed(1)} km\nDuration: ${selectedRoute.durationText}`,
+      message: `${selectedRoute.title}\n${selectedRoute.fullDateLabel}\nStops: ${selectedRoute.stopsCount}\nDistance: ${normalizeDistance(selectedRoute.distanceKm).toFixed(1)} mi\nDuration: ${selectedRoute.durationText}`,
     });
   };
 
@@ -286,7 +286,7 @@ export default function RouteHistoryScreen() {
           <OverviewMetric
             icon="navigation"
             label="Distance"
-            value={`${overview.totalDistance.toFixed(1)} km`}
+            value={`${overview.totalDistance.toFixed(1)} mi`}
             hint="Across loaded routes"
             accent="slate"
           />

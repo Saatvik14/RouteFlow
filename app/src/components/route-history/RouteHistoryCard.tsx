@@ -13,8 +13,8 @@ type RouteHistoryCardProps = {
 
 const normalizeDistance = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return "--";
-  const km = value > 10000 ? value / 1000 : value;
-  return km >= 100 ? `${km.toFixed(1)} km` : `${km.toFixed(1)} km`;
+  const miles = value > 10000 ? value * 0.000621371 : value;
+  return `${miles.toFixed(1)} mi`;
 };
 
 const getToneStyles = (tone: RouteHistoryTone) => {

@@ -1187,7 +1187,7 @@ const optimizeRoute = async (req, res) => {
           order_preference: order.order_preference,
           duration: optimizerStep.duration,
           arrival: optimizerStep.arrival,
-          distance: optimizerStep.distance,
+          distance: Number.isFinite(Number(optimizerStep.distance)) ? Number(optimizerStep.distance) * 0.000621371 : 0,
           ...(optimizerStep.location
             ? { location: optimizerStep.location }
             : { location: order.coordinates }),
@@ -1209,7 +1209,7 @@ const optimizeRoute = async (req, res) => {
           cost: totalCost,
           steps: finalSteps,
           summary: {
-            distance: totalDistance,
+            distance: totalDistance * 0.000621371,
             duration: totalDuration,
           },
         },

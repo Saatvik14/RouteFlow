@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,10 +76,11 @@ export default function InAppNavigationOverlay({
   }).replace(' AM', ' am').replace(' PM', ' pm');
 
   // Format distance display
+  const distanceMiles = distanceMeters * 0.000621371;
   const distanceText =
-    distanceMeters >= 1000
-      ? `${(distanceMeters / 1000).toFixed(2)} km`
-      : `${Math.round(distanceMeters)} m`;
+    distanceMiles >= 0.1
+      ? `${distanceMiles.toFixed(1)} mi`
+      : `${Math.round(distanceMeters * 3.28084)} ft`;
 
   const timeText =
     timeRemainingMins === 1 ? '1 min' : `${timeRemainingMins} mins`;
@@ -88,22 +90,22 @@ export default function InAppNavigationOverlay({
   let bannerDistance = distanceText;
   let iconName = 'arrow-up';
 
-  if (distanceMeters > 2000) {
+  if (distanceMeters > 1609.34 * 2) {
     instruction = 'Continue straight on main route';
     iconName = 'arrow-up';
     bannerDistance = 'Continue';
-  } else if (distanceMeters <= 2000 && distanceMeters > 1000) {
-    instruction = 'In 1 km, prepare to turn left';
+  } else if (distanceMeters <= 1609.34 * 2 && distanceMeters > 1609.34) {
+    instruction = 'In 1 mile, prepare to turn left';
     iconName = 'arrow-left-top';
-    bannerDistance = '1.0 km';
-  } else if (distanceMeters <= 1000 && distanceMeters > 400) {
-    instruction = 'In 500 meters, merge onto Amphitheatre Pkwy';
+    bannerDistance = '1.0 mi';
+  } else if (distanceMeters <= 1609.34 && distanceMeters > 400) {
+    instruction = 'In 1500 feet, merge onto Amphitheatre Pkwy';
     iconName = 'arrow-right-top';
-    bannerDistance = '500 m';
+    bannerDistance = '1500 ft';
   } else if (distanceMeters <= 400 && distanceMeters > 100) {
-    instruction = 'In 200 meters, destination is on your right';
+    instruction = 'In 500 feet, destination is on your right';
     iconName = 'arrow-right-top';
-    bannerDistance = '200 m';
+    bannerDistance = '500 ft';
   } else if (distanceMeters <= 100 && distanceMeters > 20) {
     instruction = `Arriving shortly at: ${targetStop?.title || targetStop?.address || 'Stop'}`;
     iconName = 'arrow-up';
