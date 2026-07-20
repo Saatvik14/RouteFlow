@@ -10,12 +10,14 @@ import { AppState, Platform, useColorScheme, Modal, Text, Pressable, View, Style
 import { AnimatedSplashOverlay } from './../components/animated-icon';
 import { SecurityLockScreen } from './../components/security-lock-screen';
 import { fetchAndStoreConfig, restoreAuthToken, setAuthToken, userService } from './../services/api';
+import { getMySubscription } from './../services/api/subscriptionApi';
 
 // Simple Auth Context for demonstration
 const AuthContext = createContext({
   isLoggedIn: false,
   login: () => { },
   logout: () => { },
+  refreshSubscription: async () => { },
   isLoading: true,
 });
 
@@ -61,6 +63,64 @@ export default function RootLayout() {
     setIsAppLocked(false);
   }, []);
 
+  const checkTrial = useCallback(async () => {
+    if (!isLoggedIn) {
+      setIsTrialExpired(false);
+      return;
+    }
+
+    try {
+      const subRes = await getMySubscription().catch(() => null);
+      if (subRes?.active && subRes?.subscription) {
+        setIsTrialExpired(false);
+        return;
+      }
+
+      const profileRes = await userService.getProfile().catch(() => null);
+      const profile = profileRes?.success ? (profileRes.data ?? profileRes) as any : (profileRes || null);
+      const userObj = profile?.user || profile;
+
+      if (!userObj) {
+        console.log("No user profile object resolved for trial check.");
+        return;
+      }
+
+      const subscriptionType = String(userObj.subscription_type || userObj.subscriptionType || 'trial').toLowerCase();
+
+      if (subscriptionType !== 'trial') {
+        setIsTrialExpired(false);
+        return;
+      }
+
+      if (userObj.created_at || userObj.createdAt) {
+        const createdAt = new Date(userObj.created_at || userObj.createdAt);
+        const diffTime = Math.abs(Date.now() - createdAt.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > 7) {
+          setIsTrialExpired(true);
+          return;
+        }
+      }
+
+      setIsTrialExpired(false);
+    } catch (err) {
+      console.log('Error checking user trial status:', err);
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        checkTrial();
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [checkTrial]);
+
   const authContext = useMemo(() => ({
     isLoggedIn,
     isLoading,
@@ -69,53 +129,25 @@ export default function RootLayout() {
       // Don't lock on fresh login — user just authenticated
       setIsAppLocked(false);
       fetchAndStoreConfig();
+      checkTrial();
     },
-      logout: async () => {
+    logout: async () => {
       await setAuthToken(null);
       setIsLoggedIn(false);
     },
-  }), [isLoggedIn, isLoading]);
+    refreshSubscription: checkTrial,
+  }), [isLoggedIn, isLoading, checkTrial]);
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      setIsTrialExpired(false);
-      return;
+    if (isLoggedIn) {
+      checkTrial();
     }
-
-    const checkTrial = async () => {
-      try {
-        const profileRes = await userService.getProfile();
-        const profile = profileRes?.success ? (profileRes.data ?? profileRes) as any : (profileRes || null);
-        const userObj = profile?.user || profile;
-
-        if (!userObj) {
-          console.log("No user profile object resolved for trial check.");
-          return;
-        }
-
-        const subscriptionType = String(userObj.subscription_type || userObj.subscriptionType || 'trial').toLowerCase();
-
-        if (subscriptionType === 'trial' && (userObj.created_at || userObj.createdAt)) {
-          const createdAt = new Date(userObj.created_at || userObj.createdAt);
-          const diffTime = Math.abs(Date.now() - createdAt.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          if (diffDays > 7) {
-            setIsTrialExpired(true);
-          }
-        }
-      } catch (err) {
-        console.log('Error checking user trial status:', err);
-      }
-    };
-
-    checkTrial();
-  }, [isLoggedIn]);
+  }, [isLoggedIn, segments, checkTrial]);
 
   useEffect(() => {
     // Check if the current route is an auth screen
     const currentRoute = (segments as any)[1] ?? '';
     const inAuthGroup = PUBLIC_ROUTES.includes(currentRoute);
-    // console.log('Current route:', segments[1], 'In auth group:', inAuthGroup);
 
     if (!isLoading && !isLoggedIn && !inAuthGroup) {
       // If not logged in and not on an auth screen, redirect to login

@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 
+import { useAuth } from "../_layout";
 import {
   ErrorCode,
   deepLinkToSubscriptions,
@@ -266,6 +267,7 @@ function PlanCard({
 
 export default function SubscriptionScreen() {
   const router = useRouter();
+  const { refreshSubscription } = useAuth();
   const processedPurchaseTokens = useRef(new Set<string>());
 
   const [customAlert, setCustomAlert] = useState<CustomAlertState>({
@@ -475,13 +477,22 @@ export default function SubscriptionScreen() {
         setSelectedPlan(null);
         setPurchaseToProcess(null);
 
+        if (refreshSubscription) {
+          await refreshSubscription();
+        }
+
         showAlert(
           ALERT_COPY.subscriptionActivatedTitle,
           `Your ${activatedPlanName} plan is now active.`,
           [
             {
               text: ALERT_COPY.continue,
-              onPress: () => router.replace("/"),
+              onPress: async () => {
+                if (refreshSubscription) {
+                  await refreshSubscription();
+                }
+                router.replace("/");
+              },
             },
           ],
         );
@@ -623,7 +634,10 @@ export default function SubscriptionScreen() {
     }
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
+    if (refreshSubscription) {
+      await refreshSubscription();
+    }
     if (router.canGoBack()) {
       router.back();
       return;
