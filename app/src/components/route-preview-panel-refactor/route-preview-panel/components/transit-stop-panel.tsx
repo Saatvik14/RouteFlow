@@ -148,7 +148,7 @@ const buildAddressFromObject = (address: any) => {
     address.country,
   ].filter(Boolean);
 
-  return [...new Set(parts.map(String))].join(', ');
+  return Array.from(new Set(parts.map(String))).join(', ');
 };
 
 const getStopAddress = (stop: any) => {
