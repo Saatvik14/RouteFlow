@@ -148,7 +148,7 @@ const buildAddressFromObject = (address: any) => {
     address.country,
   ].filter(Boolean);
 
-  return Array.from(new Set(parts.map(String))).join(', ');
+  return [...new Set(parts.map(String))].join(', ');
 };
 
 const getStopAddress = (stop: any) => {
@@ -358,25 +358,25 @@ const getStopArrivalTime = (
   // Fallback to direct labels if numeric duration is unavailable
   const directArrival = formatArrivalTime(
     stop?.eta ||
-      stop?.etaLabel ||
-      stop?.eta_label ||
-      stop?.etaTime ||
-      stop?.eta_time ||
-      stop?.time ||
-      stop?.arrivalTime ||
-      stop?.arrival_time ||
-      stop?.arrivalDatetime ||
-      stop?.arrival_datetime ||
-      stop?.estimatedArrival ||
-      stop?.estimated_arrival ||
-      stop?.estimatedArrivalTime ||
-      stop?.estimated_arrival_time ||
-      stop?.plannedArrival ||
-      stop?.planned_arrival ||
-      stop?.expectedArrival ||
-      stop?.expected_arrival ||
-      stop?.scheduledTime ||
-      stop?.scheduled_time,
+    stop?.etaLabel ||
+    stop?.eta_label ||
+    stop?.etaTime ||
+    stop?.eta_time ||
+    stop?.time ||
+    stop?.arrivalTime ||
+    stop?.arrival_time ||
+    stop?.arrivalDatetime ||
+    stop?.arrival_datetime ||
+    stop?.estimatedArrival ||
+    stop?.estimated_arrival ||
+    stop?.estimatedArrivalTime ||
+    stop?.estimated_arrival_time ||
+    stop?.plannedArrival ||
+    stop?.planned_arrival ||
+    stop?.expectedArrival ||
+    stop?.expected_arrival ||
+    stop?.scheduledTime ||
+    stop?.scheduled_time,
     { includeDay },
   );
 
