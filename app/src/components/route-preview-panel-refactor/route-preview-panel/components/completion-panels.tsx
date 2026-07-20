@@ -305,6 +305,7 @@ export function RouteCompletionPromptPanel({
   distanceLabel,
   isCompletingRoute,
   onMarkRouteCompleted,
+  onOpenSearch,
 }: Pick<
   RoutePreviewPanelProps,
   | "routeName"
@@ -316,6 +317,7 @@ export function RouteCompletionPromptPanel({
   | "distanceLabel"
   | "isCompletingRoute"
   | "onMarkRouteCompleted"
+  | "onOpenSearch"
 > & { isWide: boolean }) {
   const insets = useSafeAreaInsets();
   const [showConfirmation, setShowConfirmation] = useState(false);
