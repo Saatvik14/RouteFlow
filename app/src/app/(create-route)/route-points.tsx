@@ -450,48 +450,9 @@ export default function RoutePointsScreen() {
     (state) => state.config?.defaultStartAddress
   );
 
-      const defaultEndAddress = useConfigStore(
+  const defaultEndAddress = useConfigStore(
     (state) => state.config?.defaultEndAddress
   );
-
-  useEffect(() => {
-    if (defaultStartAddress) {
-      setStartLocation({
-        mode: 'manual_address',
-        address: defaultStartAddress.fullAddress || defaultStartAddress.name || '',
-        latitude: defaultStartAddress.latitude || null,
-        longitude: defaultStartAddress.longitude || null,
-        selectedFromSuggestion: true,
-        details: {
-          ...emptyAddressDetails(),
-          placeId: String(defaultStartAddress.locationId),
-          addressLine1: defaultStartAddress.name || '',
-          latitude: defaultStartAddress.latitude || null,
-          longitude: defaultStartAddress.longitude || null,
-        },
-      });
-    }
-  }, [defaultStartAddress]);
-
-  useEffect(() => {
-    if (defaultEndAddress) {
-      setEndMode('other_address');
-      setEndLocation({
-        mode: 'manual_address',
-        address: defaultEndAddress.fullAddress || defaultEndAddress.name || '',
-        latitude: defaultEndAddress.latitude || null,
-        longitude: defaultEndAddress.longitude || null,
-        selectedFromSuggestion: true,
-        details: {
-          ...emptyAddressDetails(),
-          placeId: String(defaultEndAddress.locationId),
-          addressLine1: defaultEndAddress.name || '',
-          latitude: defaultEndAddress.latitude || null,
-          longitude: defaultEndAddress.longitude || null,
-        },
-      });
-    }
-  }, [defaultEndAddress]);
 
   const initialDate = useMemo(() => buildDateFromISO(routeDate), [routeDate]);
 
@@ -526,6 +487,37 @@ export default function RoutePointsScreen() {
   const [dateTimePickerTarget, setDateTimePickerTarget] =
     useState<PickerTarget | null>(null);
 
+  useEffect(() => {
+    if (defaultStartAddress) {
+      const initStart: LocationValue = {
+        mode: 'manual_address',
+        address: defaultStartAddress.fullAddress || defaultStartAddress.name || '',
+        latitude: null,
+        longitude: null,
+        selectedFromSuggestion: false,
+        details: null,
+      };
+      setStartLocation(initStart);
+      if (endMode === 'round_trip') {
+        setEndLocation(initStart);
+      }
+    }
+  }, [defaultStartAddress, endMode]);
+
+  useEffect(() => {
+    if (defaultEndAddress) {
+      setEndMode('other_address');
+      setEndLocation({
+        mode: 'manual_address',
+        address: defaultEndAddress.fullAddress || defaultEndAddress.name || '',
+        latitude: null,
+        longitude: null,
+        selectedFromSuggestion: false,
+        details: null,
+      });
+    }
+  }, [defaultEndAddress]);
+
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
@@ -536,17 +528,37 @@ export default function RoutePointsScreen() {
 
   const isStartValid =
     startLocation.mode === 'current_location'
-      ? startLocation.latitude !== null && startLocation.longitude !== null
-      : Boolean(startLocation.address.trim());
+      ? startLocation.latitude !== null && startLocation.longitude !== null && Boolean(startLocation.selectedFromSuggestion)
+      : Boolean(startLocation.address.trim()) &&
+        Boolean(startLocation.selectedFromSuggestion) &&
+        startLocation.latitude !== null &&
+        startLocation.longitude !== null;
 
   const isEndValid =
     endMode === 'no_end'
       ? true
       : endMode === 'round_trip'
         ? isStartValid
-        : Boolean(endLocation.address.trim());
+        : Boolean(endLocation.address.trim()) &&
+          Boolean(endLocation.selectedFromSuggestion) &&
+          endLocation.latitude !== null &&
+          endLocation.longitude !== null;
 
   const canSubmit = isStartValid && isEndValid && !isSubmitting && !isFetchingSuggestions;
+
+  console.log('[DEBUG canSubmit]', {
+    canSubmit,
+    isStartValid,
+    isEndValid,
+    startMode: startLocation.mode,
+    startLat: startLocation.latitude,
+    startLng: startLocation.longitude,
+    startSelectedFromSuggestion: startLocation.selectedFromSuggestion,
+    startAddress: startLocation.address,
+    endMode,
+    isSubmitting,
+    isFetchingSuggestions,
+  });
 
   const endTitle = useMemo(() => {
     if (endMode === 'round_trip') return 'Round trip';
@@ -719,14 +731,18 @@ export default function RoutePointsScreen() {
         return;
       }
 
-      setStartLocation({
+      const nextStart: LocationValue = {
         mode: 'current_location',
         address: addressString || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
         selectedFromSuggestion: true,
         details: details,
-      });
+      };
+      setStartLocation(nextStart);
+      if (endMode === 'round_trip') {
+        setEndLocation(nextStart);
+      }
     } catch (err: any) {
       console.error('Error fetching current location:', err);
       setErrorMessage(
@@ -741,14 +757,18 @@ export default function RoutePointsScreen() {
 
   const handleManualStartAddress = (value: string) => {
     setErrorMessage(null);
-    setStartLocation({
+    const newStart: LocationValue = {
       mode: 'manual_address',
       address: value,
       latitude: null,
       longitude: null,
       selectedFromSuggestion: false,
       details: null,
-    });
+    };
+    setStartLocation(newStart);
+    if (endMode === 'round_trip') {
+      setEndLocation(newStart);
+    }
     setActiveSearch('start');
   };
 
@@ -791,14 +811,18 @@ export default function RoutePointsScreen() {
   const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
     setErrorMessage(null);
     if (activeSearch === 'start') {
-      setStartLocation({
+      const selectedStart: LocationValue = {
         mode: 'manual_address',
         address: suggestion.fullAddress,
         latitude: suggestion.latitude,
         longitude: suggestion.longitude,
         selectedFromSuggestion: true,
         details: suggestion.details,
-      });
+      };
+      setStartLocation(selectedStart);
+      if (endMode === 'round_trip') {
+        setEndLocation(selectedStart);
+      }
     } else if (activeSearch === 'end') {
       setEndLocation({
         mode: 'manual_address',
