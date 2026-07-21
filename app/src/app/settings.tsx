@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -92,6 +93,10 @@ function DocumentModal({
   onClose,
   children,
 }: DocumentModalProps) {
+  const { height } = useWindowDimensions();
+  const documentModalHeight = Math.min(Math.max(height - 40, 260), 720);
+  const documentScrollHeight = Math.max(documentModalHeight - 156, 104);
+
   return (
     <Modal
       visible={visible}
@@ -100,7 +105,12 @@ function DocumentModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.documentModalContainer}>
+        <View
+          style={[
+            styles.documentModalContainer,
+            { height: documentModalHeight },
+          ]}
+        >
           <View style={styles.modalHeaderRow}>
             <Text style={styles.modalHeaderTitle}>{title}</Text>
             <Pressable
@@ -114,9 +124,14 @@ function DocumentModal({
           </View>
 
           <ScrollView
-            style={styles.documentScroll}
+            style={[
+              styles.documentScroll,
+              { height: documentScrollHeight },
+            ]}
             contentContainerStyle={styles.documentScrollContent}
             showsVerticalScrollIndicator
+            nestedScrollEnabled
+            removeClippedSubviews={false}
           >
             {children}
           </ScrollView>
@@ -500,7 +515,6 @@ const styles = StyleSheet.create({
   documentModalContainer: {
     width: "100%",
     maxWidth: 540,
-    maxHeight: "80%",
     padding: 20,
     borderRadius: 16,
     backgroundColor: "#FFFFFF",
@@ -535,7 +549,9 @@ const styles = StyleSheet.create({
   },
 
   documentScroll: {
-    flex: 1,
+    width: "100%",
+    flexGrow: 0,
+    flexShrink: 0,
     marginBottom: 16,
   },
 

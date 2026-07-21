@@ -200,7 +200,7 @@ export default function RootLayout() {
                   </View>
                   <Text style={layoutStyles.modalTitle}>Trial Expired</Text>
                   <Text style={layoutStyles.modalMessage}>
-                    Your 7-day free trial has expired. Subscribe to RouteFlow to continue organizing, scanning, and optimizing routes.
+                    Your 7-day free trial has expired. Subscribe to RouteFloww to continue organizing, scanning, and optimizing routes.
                   </Text>
                   <Pressable
                     style={layoutStyles.upgradeButton}

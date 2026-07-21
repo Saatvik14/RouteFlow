@@ -10,9 +10,9 @@
     "ios": {
       "icon": "./assets/images/logo7.png",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "RouteFlow uses Face ID to secure your account and protect your delivery data.",
-        "NSSpeechRecognitionUsageDescription": "Allow RouteFlow to use speech recognition.",
-        "NSMicrophoneUsageDescription": "Allow RouteFlow to use the microphone."
+        "NSFaceIDUsageDescription": "RouteFloww uses Face ID to secure your account and protect your delivery data.",
+        "NSSpeechRecognitionUsageDescription": "Allow RouteFloww to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow RouteFloww to use the microphone."
       }
     },
     "android": {
@@ -52,14 +52,14 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow RouteFlow to use your location."
+          "locationWhenInUsePermission": "Allow RouteFloww to use your location."
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Allow RouteFlow to use the microphone.",
-          "speechRecognitionPermission": "Allow RouteFlow to use speech recognition.",
+          "microphonePermission": "Allow RouteFloww to use the microphone.",
+          "speechRecognitionPermission": "Allow RouteFloww to use speech recognition.",
           "androidSpeechServicePackages": [
             "com.google.android.googlequicksearchbox"
           ]
@@ -68,7 +68,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "RouteFlow uses Face ID to secure your account."
+          "faceIDPermission": "RouteFloww uses Face ID to secure your account."
         }
       ],
       [

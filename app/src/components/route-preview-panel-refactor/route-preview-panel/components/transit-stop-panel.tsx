@@ -67,69 +67,16 @@ const formatArrivalTime = (value: unknown, options?: { includeDay?: boolean }) =
   return text;
 };
 
-const formatStopDistance = (meters: unknown) => {
-  const num = Number(meters);
+
+
+const convertKilometersToMiles = (kilometers: unknown) => {
+  const num = Number(kilometers);
   if (!Number.isFinite(num) || num <= 0) return '';
-  const miles = num * 0.000621371;
+  const miles = num * 0.621371;
+  console.log(miles, 'miles');
   return `${miles.toFixed(1)} mi`;
 };
 
-const getDistributedStopDistance = (index: number, stopsCount: number, distanceLabel?: string) => {
-  if (stopsCount <= 0 || !distanceLabel) return null;
-  const match = distanceLabel.match(/(\d+(?:\.\d+)?)/);
-  if (!match) return null;
-  const totalVal = parseFloat(match[1]);
-  if (Number.isNaN(totalVal)) return null;
-
-  const unit = distanceLabel.toLowerCase().includes('km') ? 'km' : 'mi';
-  const distributedVal = totalVal * ((index + 1) / (stopsCount + 1));
-  return `${distributedVal.toFixed(1)} ${unit}`;
-};
-
-const getStopDisplayDistance = (
-  stop: any,
-  index: number,
-  stopsCount: number,
-  distanceLabel?: string,
-) => {
-  const directLabel = getText(
-    stop?.distance_label,
-    stop?.distanceLabel,
-    stop?.distance_text,
-    stop?.distanceText,
-    typeof stop?.distance === 'string' && /[a-zA-Z]/.test(stop.distance)
-      ? stop.distance
-      : '',
-  );
-
-  if (directLabel) return directLabel;
-
-  const directMeters = getNumericValue(
-    stop?.distance_meters,
-    stop?.distanceMeters,
-    stop?.distance,
-  );
-  if (directMeters !== null) {
-    const formatted = formatStopDistance(directMeters);
-    if (formatted) return formatted;
-  }
-
-  return getDistributedStopDistance(index, stopsCount, distanceLabel) || '';
-};
-
-const getOrdinal = (value: number) => {
-  const number = value + 1;
-  const suffix =
-    number % 10 === 1 && number % 100 !== 11
-      ? 'st'
-      : number % 10 === 2 && number % 100 !== 12
-        ? 'nd'
-        : number % 10 === 3 && number % 100 !== 13
-          ? 'rd'
-          : 'th';
-
-  return `${number}${suffix}`;
-};
 
 const buildAddressFromObject = (address: any) => {
   if (!address || typeof address !== 'object') return '';
@@ -184,18 +131,7 @@ const getPointAddress = (point: any) => {
   );
 };
 
-const getPointTitle = (point: any, fallback: string) => {
-  const address = getPointAddress(point);
 
-  return getText(
-    point?.title,
-    point?.name,
-    point?.locationName,
-    point?.location_name,
-    address.split(',')[0],
-    fallback,
-  );
-};
 
 const getStopTitle = (stop: any, index: number) => {
   const stopAddress = getStopAddress(stop);
@@ -212,17 +148,23 @@ const getStopTitle = (stop: any, index: number) => {
   );
 };
 
-const getStopOrderId = (stop: any, index: number) => {
-  return getText(
-    stop?.orderId,
-    stop?.order_id,
-    stop?.backendOrderId,
-    stop?.backend_order_id,
-    stop?.orderNumber,
-    stop?.order_number,
-    stop?.id,
-    `A${index + 1}`,
-  );
+const formatDistanceInMiles = (
+  distance?: number | string | null
+): string => {
+  if (distance === null || distance === undefined || distance === '') {
+    return '--';
+  }
+
+  const numericDistance =
+    typeof distance === 'number'
+      ? distance
+      : Number.parseFloat(distance);
+
+  if (!Number.isFinite(numericDistance)) {
+    return '--';
+  }
+
+  return `${numericDistance.toFixed(1)} mi`;
 };
 
 const getStopNotes = (stop: any) => {
@@ -287,23 +229,6 @@ const parseDurationLabelToSeconds = (label?: string) => {
   return seconds > 0 ? seconds : null;
 };
 
-const getStopOffsetSeconds = (stop: any, fallbackOffsetSeconds?: number | null) => {
-  const directOffset = getNumericValue(
-    stop?.arrivalOffsetSeconds,
-    stop?.arrival_offset_seconds,
-    stop?.etaSeconds,
-    stop?.eta_seconds,
-    stop?.cumulativeDurationSeconds,
-    stop?.cumulative_duration_seconds,
-    stop?.durationSeconds,
-    stop?.duration_seconds,
-    stop?.arrival,
-    stop?.duration,
-  );
-
-  if (directOffset !== null) return directOffset;
-  return Number.isFinite(Number(fallbackOffsetSeconds)) ? Number(fallbackOffsetSeconds) : null;
-};
 
 const getDistributedOffsetSeconds = (index: number, stopsCount: number, durationLabel?: string) => {
   const totalSeconds = parseDurationLabelToSeconds(durationLabel);
@@ -314,16 +239,6 @@ const getDistributedOffsetSeconds = (index: number, stopsCount: number, duration
   return Math.round(totalSeconds * ((index + 1) / (stopsCount + 1)));
 };
 
-const formatArrivalFromOffset = (startTime: unknown, offsetSeconds: number | null, includeDay: boolean) => {
-  const startText = getText(startTime);
-  if (!startText || offsetSeconds === null) return '';
-
-  const parsedStart = new Date(startText);
-  if (Number.isNaN(parsedStart.getTime())) return '';
-
-  const arrival = new Date(parsedStart.getTime() + offsetSeconds * 1000);
-  return formatArrivalTime(arrival.toISOString(), { includeDay });
-};
 
 const getStopArrivalTime = (
   stop: any,
@@ -541,17 +456,6 @@ const getStopPackageCount = (stop: any) => {
   return '';
 };
 
-const getStopIssueText = (stop: any) => {
-  return getText(
-    stop?.failureReason,
-    stop?.failure_reason,
-    stop?.issue,
-    stop?.issueText,
-    stop?.issue_text,
-    stop?.cancelReason,
-    stop?.cancel_reason,
-  );
-};
 
 const getNavigationUrl = (stop: any) => {
   const latitude = Number(stop?.latitude ?? stop?.lat ?? stop?.location?.latitude ?? stop?.location?.lat);
@@ -940,8 +844,10 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const notes = getStopNotes(stop);
     const packages = getStopPackageCount(stop);
     const stopType = getStopType(stop);
-    const stopDistance = getStopDisplayDistance(stop, currentIndex, totalStops, distanceLabel);
-
+    // const stopDistance = getStopDisplayDistance(stop, currentIndex, totalStops, distanceLabel);
+    const stopDistance = formatDistanceInMiles(stop.eta_distance)
+    console.log(stopDistance, 'stopDistance');
+    console.log(convertKilometersToMiles(stopDistance), 'convertKilometersToMiles(distanceLabel)');
     return (
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -1042,7 +948,8 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     const failedCount = allStops.filter((item: any) => isStopFailed(item)).length;
     const pendingCount = allStops.filter((item: any) => !isStopDone(item)).length;
     const activeTitle = stop ? getStopTitle(stop, activeIndexInAllStops >= 0 ? activeIndexInAllStops : activeStopIndex) : '';
-    const stopDistance = getStopDisplayDistance(stop, progressIndex - 1, totalStops, distanceLabel);
+    // const stopDistance = getStopDisplayDistance(stop, progressIndex - 1, totalStops, distanceLabel);
+    const stopDistance = formatDistanceInMiles(stop.eta_distance)
 
     return (
       <ScrollView
@@ -1115,7 +1022,8 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             const failed = isStopFailed(item);
             const statusMeta = getStopStatusMeta(item, isActive);
             const timeInfo = getStopTimelineTimeInfo(item, index, allStops.length, startTime, durationLabel);
-            const itemDistance = getStopDisplayDistance(item, index, allStops.length, distanceLabel);
+            // const itemDistance = getStopDisplayDistance(item, index, allStops.length, distanceLabel);
+            const itemDistance = formatDistanceInMiles(item.eta_distance)
 
             return (
               <Pressable
@@ -1232,7 +1140,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     );
     const phone = getStopPhone(detailStop);
     const canUpdateThisStop = isSameStop(detailStop, stop) && !isStopDone(detailStop);
-    const detailStopDistance = getStopDisplayDistance(detailStop, detailIndex, (stops || []).length, distanceLabel);
+    const detailStopDistance = formatDistanceInMiles(detailStop.eta_distance)
 
     return (
       <ScrollView
@@ -1281,26 +1189,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           </View>
         </View>
 
-        {/* <View style={localStyles.detailQuickActions}>
-          <Pressable
-            style={[localStyles.quickActionCircle, !phone && localStyles.actionDisabled]}
-            onPress={() => handleCallStop(detailStop)}
-            disabled={!phone}
-          >
-            <Feather name="phone" size={20} color="#2563EB" />
-            <Text style={localStyles.quickActionText}>Call</Text>
-          </Pressable>
-
-          <Pressable style={localStyles.quickActionCircle} onPress={() => handleNavigateStop(detailStop)}>
-            <MaterialCommunityIcons name="navigation-variant" size={22} color="#2563EB" />
-            <Text style={localStyles.quickActionText}>Navigate</Text>
-          </Pressable>
-
-          <Pressable style={localStyles.quickActionCircle}>
-            <Feather name="more-horizontal" size={22} color="#0F172A" />
-            <Text style={localStyles.quickActionText}>More</Text>
-          </Pressable>
-        </View> */}
+      
 
         <StopInformationCard
           packages={detailPackages}
@@ -1311,11 +1200,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
         />
 
         <View style={localStyles.optionsCard}>
-          {/* <DetailRow
-            icon={<Feather name="plus-square" size={18} color="#2563EB" />}
-            label="Add note"
-            value=""
-          /> */}
           <View style={localStyles.detailDivider} />
           <DetailRow
             icon={<Feather name="flag" size={18} color="#EF4444" />}
@@ -1406,7 +1290,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
             >
               <MaterialCommunityIcons name="compass-outline" size={24} color="#FFFFFF" />
               <View style={localStyles.btnTextContainer}>
-                <Text style={localStyles.btnTitleLight}>RouteFlow Navigation</Text>
+                <Text style={localStyles.btnTitleLight}>RouteFloww Navigation</Text>
                 <Text style={localStyles.btnDescLight}>Stay in app with live GPS follow</Text>
               </View>
             </Pressable>

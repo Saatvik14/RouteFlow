@@ -99,7 +99,7 @@ export function SecurityLockScreen({ onUnlocked }: SecurityLockScreenProps) {
         </View>
 
         {/* Title */}
-        <Text style={styles.title}>RouteFlow is Locked</Text>
+        <Text style={styles.title}>RouteFloww is Locked</Text>
         <Text style={styles.subtitle}>
           Authenticate using {authMethod} to continue
         </Text>

@@ -91,7 +91,7 @@ export const API_ENDPOINTS = {
     UPDATE_PREFERENCES: '/users/preferences',
   },
 
-  // Maps/Routes endpoints (for your RouteFlow app)
+  // Maps/Routes endpoints (for your RouteFloww app)
   ROUTES: {
     CREATE_ROUTE: '/route/create',
     GET_ROUTES: '/route/fetch/all',

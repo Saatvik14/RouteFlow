@@ -72,6 +72,8 @@ export default function SignupScreen() {
   const isWeb = Platform.OS === 'web';
   const isWide = width >= 768;
   const isMobile = width < 480;
+  const documentModalHeight = Math.min(Math.max(height - 40, 260), 720);
+  const documentScrollHeight = Math.max(documentModalHeight - 156, 104);
 
   const handleSignup = async () => {
     const trimmedName = name.trim();
@@ -503,14 +505,28 @@ export default function SignupScreen() {
         onRequestClose={() => setShowTermsModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.documentModalContainer}>
+          <View
+            style={[
+              styles.documentModalContainer,
+              { height: documentModalHeight },
+            ]}
+          >
             <View style={styles.modalHeaderRow}>
               <Text style={styles.modalHeaderTitle}>Terms of Service</Text>
               <Pressable onPress={() => setShowTermsModal(false)} hitSlop={10}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </Pressable>
             </View>
-            <ScrollView style={styles.documentScroll} showsVerticalScrollIndicator={true}>
+            <ScrollView
+              style={[
+                styles.documentScroll,
+                { height: documentScrollHeight },
+              ]}
+              contentContainerStyle={styles.documentScrollContent}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled
+              removeClippedSubviews={false}
+            >
               <Text style={styles.documentBodyTitle}>RouteFloww Terms of Service</Text>
               <Text style={styles.documentLastUpdated}>Last Updated: July 2026</Text>
 
@@ -1257,7 +1273,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
-    maxHeight: '80%',
     shadowColor: '#000000',
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -1285,8 +1300,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   documentScroll: {
-    flex: 1,
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 0,
     marginBottom: 16,
+  },
+  documentScrollContent: {
+    paddingBottom: 12,
   },
   documentBodyTitle: {
     fontSize: 16,
