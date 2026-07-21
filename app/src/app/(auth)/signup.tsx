@@ -1258,6 +1258,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     maxHeight: '80%',
+    flexShrink: 1,
     shadowColor: '#000000',
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -1285,7 +1286,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   documentScroll: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     marginBottom: 16,
   },
   documentBodyTitle: {
