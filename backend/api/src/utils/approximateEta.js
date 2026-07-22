@@ -7,6 +7,19 @@ const COMPLETED_STOP_STATUSES = new Set([
   'completed',
 ]);
 
+const { DateTime } = require('luxon');
+
+const DEFAULT_TIMEZONE = 'Europe/London';
+
+const getTimezone = () =>
+  process.env.ROUTE_TIMEZONE?.trim() || DEFAULT_TIMEZONE;
+
+const toConfiguredTimezone = (date) => {
+  return DateTime.fromJSDate(date, { zone: 'utc' })
+    .setZone(getTimezone())
+    .toISO();
+};
+
 const getValidDate = (value) => {
   if (!value) return null;
   const date = new Date(value);
@@ -143,14 +156,12 @@ const addApproximateEtaFields = (
     );
 
     const actualStopTime = getActualStopTime(stop);
-    console.log(actualStopTime, stop.id);
 
     // Stop has no optimized/cumulative distance.
     if (currentDistanceMiles === null) {
       calculatedFields.set(originalIndex, {
         approx_travel_time_seconds: null,
-        approx_eta_time:
-          actualStopTime?.toISOString() || null,
+         approx_eta_time: toConfiguredTimezone(etaTime),
       });
 
       // A completed stop can still anchor the next ETA.
@@ -184,7 +195,7 @@ const addApproximateEtaFields = (
 
     calculatedFields.set(originalIndex, {
       approx_travel_time_seconds: travelTimeSeconds,
-      approx_eta_time: etaTime.toISOString(),
+      approx_eta_time: toConfiguredTimezone(etaTime),
     });
 
     previousDistanceMiles = currentDistanceMiles;
