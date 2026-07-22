@@ -862,8 +862,6 @@ const handleSaveEditedStop = useCallback(
             : currentStop.priority,
       };
 
-      console.log('Edit order payload:', payload);
-
       const response = await ordersService.editOrder(payload);
 
       if (!isSuccessResponse(response)) {
@@ -1915,7 +1913,6 @@ const handleRemoveEditedStop = useCallback(async () => {
 
 
   const handleCancelRoute = async () => {
-      console.log(1)
   if (!effectiveRouteId || isCancellingRoute) return;
 
   setIsCancellingRoute(true);

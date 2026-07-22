@@ -9,7 +9,6 @@ const COMPLETED_STOP_STATUSES = new Set([
 
 const getValidDate = (value) => {
   if (!value) return null;
-
   const date = new Date(value);
 
   return Number.isNaN(date.getTime()) ? null : date;
@@ -40,6 +39,7 @@ const isStopDone = (stop) => {
 };
 
 const getActualStopTime = (stop) => {
+
   if (!isStopDone(stop)) {
     return null;
   }
@@ -48,15 +48,20 @@ const getActualStopTime = (stop) => {
     .trim()
     .toLowerCase();
 
+  let val;
   if (status === 'failed') {
-    return getValidDate(stop?.failed_at);
-  }
+    val = getValidDate(stop?.failed_at || stop?.status_updated_at);
+    console.log(val)
+    return val;
+}
 
-  return getValidDate(
+
+  val= getValidDate(
     stop?.arrive_at ||
-    stop?.delivered_at ||
-    stop?.completed_at
+    stop?.updated_at ||
+    stop?.status_updated_at
   );
+  return val;
 };
 
 /**
@@ -138,6 +143,7 @@ const addApproximateEtaFields = (
     );
 
     const actualStopTime = getActualStopTime(stop);
+    console.log(actualStopTime, stop.id);
 
     // Stop has no optimized/cumulative distance.
     if (currentDistanceMiles === null) {
