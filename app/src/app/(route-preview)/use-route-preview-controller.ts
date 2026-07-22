@@ -175,6 +175,7 @@ type UseRoutePreviewControllerResult = {
   handleConfirmCopyStops: () => Promise<void>;
   handleToggleMockingLocation: (active: boolean) => void;
   handleSaveStopPriority: (stopId: string, priority: number | null) => Promise<void>;
+  routeStartDatetime: string;
 };
 
 function getLatestRouteId(response: any) {
@@ -2681,6 +2682,7 @@ const handleSaveStopOrder = useCallback(
     handleSwitchPastRoute,
     handleConfirmCopyStops,
     handleToggleMockingLocation,
-    handleSaveStopPriority
+    handleSaveStopPriority,
+    routeStartDatetime
   };
 }

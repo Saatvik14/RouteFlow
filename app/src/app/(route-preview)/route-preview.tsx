@@ -139,11 +139,13 @@ export default function RoutePreviewScreen() {
     handleConfirmCopyStops,
     handleToggleMockingLocation,
     handleSaveStopPriority,
+    routeStartDatetime
   } = useRoutePreviewController(routeId);
 
   const handleScanAddress = () => {
     setIsScannerVisible(true);
   };
+
 
   // Auto-open copy stops modal when navigated with carryPastStops=true
   useEffect(() => {
@@ -418,7 +420,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
         <RouteCompletionPromptPanel
           isWide={isWide}
           routeName={routeTitle}
-          startTime={previewStartTime}
+          startTime={routeStartDatetime}
           start={route.start}
           end={route.end}
           stops={route.stops}
@@ -432,7 +434,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           isWide={isWide}
           mode={activePanelMode}
           routeName={routeTitle}
-          startTime={previewStartTime}
+         startTime={routeStartDatetime}
           start={route.start}
           end={route.end}
           stops={route.stops}
@@ -501,7 +503,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           mode={activePanelMode}
           subscriptionType={subscriptionType}
           routeName={routeTitle}
-          startTime={previewStartTime}
+          startTime={routeStartDatetime}
           start={route.start}
           end={route.end}
           stops={route.stops}
