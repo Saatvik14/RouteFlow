@@ -8,7 +8,7 @@ import './../global.css'
 import { Platform } from 'react-native';
 
 export const IMAGES = {
-  LOGO: require('./../../assets/images/logo7.png'),
+  LOGO: require('./../../assets/images/logo9.png'),
 };
 
 export const Colors = {

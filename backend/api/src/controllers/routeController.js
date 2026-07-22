@@ -1,6 +1,9 @@
 const { runQuery } = require('../config/db');
 const { ROUTE_STATUS } = require('../constants/statusConstants');
 const { ROUTE_LIMIT } = require('../constants/limits');
+const {
+  addApproximateEtaFields,
+} = require('../utils/approximateEta');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -66,10 +69,10 @@ const getGeocodingData = async (address) => {
 // @route   POST /route/create
 // @access  Private
 const createRoute = async (req, res) => {
-  const { 
+  const {
     name, // New: route name
-    start_location, 
-    end_location, 
+    start_location,
+    end_location,
     start_datetime, // New: route start datetime
     end_datetime,   // New: route end datetime
     status, // New: route status (optional)
@@ -98,13 +101,13 @@ const createRoute = async (req, res) => {
     }
   }
   if (
-    !name || 
+    !name ||
     !start_location?.full_address || start_location.latitude === undefined || start_location.longitude === undefined ||
     !end_location?.full_address || end_location.latitude === undefined || end_location.longitude === undefined ||
     !start_datetime || !end_datetime
   ) {
-    return res.status(400).json({ 
-      message: 'Missing required fields. name, start_location (with full_address, latitude, longitude), end_location (with full_address, latitude, longitude), start_datetime, and end_datetime are required.' 
+    return res.status(400).json({
+      message: 'Missing required fields. name, start_location (with full_address, latitude, longitude), end_location (with full_address, latitude, longitude), start_datetime, and end_datetime are required.'
     });
   }
 
@@ -214,7 +217,7 @@ const fetchRouteById = async (req, res) => {
   try {
     // 1. Fetch the route main data
     const routeResult = await runQuery('SELECT * FROM routes WHERE route_id = $1 AND user_id = $2', [id, user_id]);
-    
+
     if (routeResult.rows.length === 0) {
       return res.status(404).json({ message: 'Route not found or unauthorized' });
     }
@@ -293,11 +296,14 @@ const fetchRouteById = async (req, res) => {
         }
       },
 
-      stops: stopsRes.rows.map(stop => ({
-        ...stop,
-        latitude: parseFloat(stop.latitude),
-        longitude: parseFloat(stop.longitude)
-      })),
+      stops: addApproximateEtaFields(
+        stopsRes.rows.map((stop) => ({
+          ...stop,
+          latitude: parseFloat(stop.latitude),
+          longitude: parseFloat(stop.longitude),
+        })),
+        route.start_datetime
+      ),
 
       coordinates: [
         {
@@ -322,13 +328,13 @@ const fetchRouteById = async (req, res) => {
 // @route   PUT /route/edit
 // @access  Private
 const editRoute = async (req, res) => {
-  const { 
-    route_id, 
-    name, 
-    start_location, 
-    end_location, 
-    start_datetime, 
-    end_datetime, 
+  const {
+    route_id,
+    name,
+    start_location,
+    end_location,
+    start_datetime,
+    end_datetime,
     status,
     distance,
     duration,
@@ -409,7 +415,7 @@ const editRoute = async (req, res) => {
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
     updateValues.push(route_id, user_id);
-    
+
     const query = `
       UPDATE routes 
       SET ${updateFields.join(', ')}
@@ -935,7 +941,7 @@ const optimizeRoute = async (req, res) => {
        */
       const lastOptimizedStep =
         groupResult.jobSteps[
-          groupResult.jobSteps.length - 1
+        groupResult.jobSteps.length - 1
         ];
 
       if (lastOptimizedStep) {

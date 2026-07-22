@@ -41,10 +41,12 @@ export type RouteStop = RoutePoint & {
   sequenceNo?: number;
   planned_arrival_time?: string | null;
   timeAtStopMinutes?: number | null;
+  approx_eta_time?: string | null;
+
 };
 
 export type AppRoute = Omit<ConfirmedRoute, 'stops'> & {
-  stops: RouteStop[];
+  stops: any[];
 };
 
 export type RouteMeta = {

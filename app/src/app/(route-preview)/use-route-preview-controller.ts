@@ -205,7 +205,7 @@ function getNumericStepValue(...values: unknown[]) {
   return undefined;
 }
 
-function buildStopWithOptimizeTiming(stop: RouteStop, step: any): RouteStop {
+function buildStopWithOptimizeTiming(stop: any, step: any): RouteStop {
   const arrivalOffsetSeconds = getNumericStepValue(
     step?.arrival_seconds,
     step?.arrivalSeconds,
@@ -241,6 +241,7 @@ function buildStopWithOptimizeTiming(stop: RouteStop, step: any): RouteStop {
     distance_meters: distanceMeters,
     etaDistance: distanceMiles,
     eta_distance: distanceMiles,
+    approx_eta_time: step?.approx_eta_time
   } as RouteStop;
 }
 
@@ -262,21 +263,10 @@ function getUpdatedOrderPayload(response: any) {
 
 function getStatusTimestamp(updatedOrder: any, fallbackTimestamp: string) {
   return (
-    updatedOrder?.actualArrivalTime ||
-    updatedOrder?.actual_arrival_time ||
-    updatedOrder?.deliveredAt ||
-    updatedOrder?.delivered_at ||
-    updatedOrder?.failedAt ||
     updatedOrder?.failed_at ||
-    updatedOrder?.completedAt ||
-    updatedOrder?.completed_at ||
-    updatedOrder?.statusUpdatedAt ||
     updatedOrder?.status_updated_at ||
-    updatedOrder?.markedAt ||
-    updatedOrder?.marked_at ||
-    updatedOrder?.updatedAt ||
     updatedOrder?.updated_at ||
-    fallbackTimestamp
+    updatedOrder?.arrive_at 
   );
 }
 
@@ -294,14 +284,10 @@ function buildStopWithStatusUpdate(stop: RouteStop, nextStatus: string, updatedO
     order_status: nextStatus,
     statusUpdatedAt: statusTimestamp,
     status_updated_at: statusTimestamp,
-    actualArrivalTime: updatedOrder?.actualArrivalTime || updatedOrder?.actual_arrival_time || statusTimestamp,
     actual_arrival_time: updatedOrder?.actual_arrival_time || updatedOrder?.actualArrivalTime || statusTimestamp,
-    completedAt: updatedOrder?.completedAt || updatedOrder?.completed_at || statusTimestamp,
-    completed_at: updatedOrder?.completed_at || updatedOrder?.completedAt || statusTimestamp,
-    deliveredAt: isDelivered ? statusTimestamp : (updatedOrder?.deliveredAt || updatedOrder?.delivered_at || (stop as any)?.deliveredAt),
-    delivered_at: isDelivered ? statusTimestamp : (updatedOrder?.delivered_at || updatedOrder?.deliveredAt || (stop as any)?.delivered_at),
-    failedAt: isFailed ? statusTimestamp : (updatedOrder?.failedAt || updatedOrder?.failed_at || (stop as any)?.failedAt),
-    failed_at: isFailed ? statusTimestamp : (updatedOrder?.failed_at || updatedOrder?.failedAt || (stop as any)?.failed_at),
+    arrive_at: isDelivered ? statusTimestamp : (updatedOrder?.arrive_at),
+    failed_at: isFailed ? statusTimestamp : (updatedOrder?.failed_at),
+    approx_eta_time: updatedOrder?.approx_eta_time || (stop as any)?.approx_eta_time
   } as RouteStop;
 }
 

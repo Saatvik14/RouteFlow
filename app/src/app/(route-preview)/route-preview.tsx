@@ -200,7 +200,6 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
     const stopIds = categoryStops.map(s => s.id);
     togglePastStopsBatch(stopIds, !allSelected);
   };
-
   const renderCategorySection = (
     title: string,
     stops: any[],

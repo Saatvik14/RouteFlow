@@ -344,6 +344,7 @@ function unwrapApiList(response: any): any[] {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.orders)) return payload.orders;
+  if (Array.isArray(payload?.stops)) return payload.stops;
   if (Array.isArray(payload?.data?.orders)) return payload.data.orders;
   if (Array.isArray(payload?.items)) return payload.items;
   if (Array.isArray(payload?.data?.items)) return payload.data.items;
@@ -494,28 +495,15 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
         arrivedAt: item?.arrivedAt || item?.arrived_at || null,
         arrived_at: item?.arrived_at || item?.arrivedAt || null,
         deliveredAt: item?.deliveredAt || item?.delivered_at || null,
-        delivered_at: item?.delivered_at || item?.deliveredAt || null,
-        failedAt: item?.failedAt || item?.failed_at || item?.attemptedAt || item?.attempted_at || null,
-        failed_at: item?.failed_at || item?.failedAt || item?.attempted_at || item?.attemptedAt || null,
-        completedAt: item?.completedAt || item?.completed_at || null,
-        completed_at: item?.completed_at || item?.completedAt || null,
-        statusUpdatedAt:
-          item?.statusUpdatedAt ||
-          item?.status_updated_at ||
-          item?.updatedAt ||
-          item?.updated_at ||
-          null,
-        status_updated_at:
-          item?.status_updated_at ||
-          item?.statusUpdatedAt ||
-          item?.updated_at ||
-          item?.updatedAt ||
-          null,
+        arrive_at: item?.arrive_at,
+        failed_at: item?.failed_at,
+        status_updated_at: item?.updated_at,
         priority: item?.priority !== undefined && item?.priority !== null ? Number(item.priority) : null,
         etaDuration: item?.eta_duration != null ? Number(item.eta_duration) : (item?.etaDuration != null ? Number(item.etaDuration) : null),
         eta_duration: item?.eta_duration != null ? Number(item.eta_duration) : (item?.etaDuration != null ? Number(item.etaDuration) : null),
         etaDistance: item?.eta_distance != null ? Number(item.eta_distance) : (item?.etaDistance != null ? Number(item.etaDistance) : null),
         eta_distance: item?.eta_distance != null ? Number(item.eta_distance) : (item?.etaDistance != null ? Number(item.etaDistance) : null),
+        approx_eta_time: item?.approx_eta_time || item?.approxEtaTime || null,
       } as RouteStop;
     })
     .filter(Boolean) as RouteStop[];
@@ -527,11 +515,10 @@ async function fetchRouteOrderStops(routeId: string): Promise<RouteStop[]> {
   if (!routeId) return [];
 
   try {
-    const response = await ordersService.fetchOrdersByRoute(routeId);
+    const response = await routesService.getRoute(routeId);
     const routeOrders = unwrapApiList(response).filter((order) =>
       isOrderForRoute(order, routeId),
     );
-
     return buildStopsFromBackend(routeOrders);
   } catch {
     return [];

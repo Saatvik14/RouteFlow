@@ -2,6 +2,10 @@ const { runQuery } = require('../config/db');
 const { ROUTE_STATUS } = require('../constants/statusConstants');
 const { STOPS_PER_ROUTE_LIMIT } = require('../constants/limits');
 const { PORT } = require('../config/env');
+const {
+  addApproximateEtaFields,
+  addApproximateEtaFieldsByRoute,
+} = require('../utils/approximateEta');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) =>
@@ -686,7 +690,7 @@ const buildOrderUpdate = (
       .trim()
       .toLowerCase();
 
-    if (normalizedStatus === 'arrived') {
+    if (normalizedStatus === 'delivered') {
       fields.push(
         'arrive_at = CURRENT_TIMESTAMP'
       );
@@ -987,6 +991,62 @@ const fetchOrders = async (req, res) => {
 // @desc    Fetch orders for a particular route
 // @route   GET /order/fetch/route?routeId=...
 // @access  Private
+// const fetchOrdersByRoute = async (req, res) => {
+//   try {
+//     const { routeId } = req.query;
+
+//     if (!routeId) {
+//       return res.status(400).json({
+//         message: 'routeId is required',
+//       });
+//     }
+
+//     const query = `
+//       SELECT
+//         o.*,
+
+//         l.name AS location_name,
+//         l.housenumber,
+//         l.street,
+//         l.city,
+//         l.postcode,
+//         l.country,
+//         l.latitude,
+//         l.longitude,
+//         l.full_address,
+
+//         op.longitudinal,
+//         op.side,
+//         op.vertical
+
+//       FROM orders o
+
+//       JOIN locations l
+//         ON o.location_id = l.location_id
+
+//       LEFT JOIN order_placements op
+//         ON o.order_id = op.order_id
+
+//       WHERE o.route_id = $1
+
+//       ORDER BY
+//         o.sequence_no ASC NULLS LAST,
+//         o.created_at ASC
+//     `;
+
+//     const result = await runQuery(query, [routeId]);
+
+//     return res.status(200).json(result.rows);
+//   } catch (error) {
+//     console.error('Error fetching route orders:', error);
+
+//     return res.status(500).json({
+//       message:
+//         'Server error while fetching orders for route',
+//     });
+//   }
+// };
+
 const fetchOrdersByRoute = async (req, res) => {
   try {
     const { routeId } = req.query;
@@ -997,10 +1057,9 @@ const fetchOrdersByRoute = async (req, res) => {
       });
     }
 
-    const query = `
+    const ordersQuery = `
       SELECT
         o.*,
-
         l.name AS location_name,
         l.housenumber,
         l.street,
@@ -1010,31 +1069,48 @@ const fetchOrdersByRoute = async (req, res) => {
         l.latitude,
         l.longitude,
         l.full_address,
-
         op.longitudinal,
         op.side,
         op.vertical
-
       FROM orders o
-
       JOIN locations l
         ON o.location_id = l.location_id
-
       LEFT JOIN order_placements op
         ON o.order_id = op.order_id
-
       WHERE o.route_id = $1
-
       ORDER BY
         o.sequence_no ASC NULLS LAST,
         o.created_at ASC
     `;
 
-    const result = await runQuery(query, [routeId]);
+    const routeQuery = `
+      SELECT start_datetime
+      FROM routes
+      WHERE route_id = $1
+      LIMIT 1
+    `;
 
-    return res.status(200).json(result.rows);
+    const [ordersResult, routeResult] =
+      await Promise.all([
+        runQuery(ordersQuery, [routeId]),
+        runQuery(routeQuery, [routeId]),
+      ]);
+
+    const stopsWithApproximateEta =
+      addApproximateEtaFields(
+        ordersResult.rows,
+        routeResult.rows[0]?.start_datetime
+      );
+    
+      console.log(stopsWithApproximateEta)
+    return res
+      .status(200)
+      .json(stopsWithApproximateEta);
   } catch (error) {
-    console.error('Error fetching route orders:', error);
+    console.error(
+      'Error fetching route orders:',
+      error
+    );
 
     return res.status(500).json({
       message:
