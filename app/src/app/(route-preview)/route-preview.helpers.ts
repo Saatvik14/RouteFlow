@@ -472,36 +472,11 @@ async function buildStopsFromBackend(rawStops: any[]): Promise<RouteStop[]> {
         stopType: item?.stopType || item?.stop_type || item?.type || 'delivery',
         notes: item?.notes || item?.note || '',
         status: item?.status || ROUTE_STATUS_PENDING,
-        actualArrivalTime:
-          item?.actualArrivalTime ||
-          item?.actual_arrival_time ||
-          item?.arrivedAt ||
-          item?.arrived_at ||
-          item?.deliveredAt ||
-          item?.delivered_at ||
-          item?.completedAt ||
-          item?.completed_at ||
-          null,
-        actual_arrival_time:
-          item?.actual_arrival_time ||
-          item?.actualArrivalTime ||
-          item?.arrived_at ||
-          item?.arrivedAt ||
-          item?.delivered_at ||
-          item?.deliveredAt ||
-          item?.completed_at ||
-          item?.completedAt ||
-          null,
-        arrivedAt: item?.arrivedAt || item?.arrived_at || null,
-        arrived_at: item?.arrived_at || item?.arrivedAt || null,
-        deliveredAt: item?.deliveredAt || item?.delivered_at || null,
         arrive_at: item?.arrive_at,
         failed_at: item?.failed_at,
         status_updated_at: item?.updated_at,
         priority: item?.priority !== undefined && item?.priority !== null ? Number(item.priority) : null,
-        etaDuration: item?.eta_duration != null ? Number(item.eta_duration) : (item?.etaDuration != null ? Number(item.etaDuration) : null),
         eta_duration: item?.eta_duration != null ? Number(item.eta_duration) : (item?.etaDuration != null ? Number(item.etaDuration) : null),
-        etaDistance: item?.eta_distance != null ? Number(item.eta_distance) : (item?.etaDistance != null ? Number(item.etaDistance) : null),
         eta_distance: item?.eta_distance != null ? Number(item.eta_distance) : (item?.etaDistance != null ? Number(item.etaDistance) : null),
         approx_eta_time: item?.approx_eta_time || item?.approxEtaTime || null,
       } as RouteStop;

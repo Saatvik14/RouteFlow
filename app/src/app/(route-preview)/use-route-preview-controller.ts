@@ -235,11 +235,9 @@ function buildStopWithOptimizeTiming(stop: any, step: any): RouteStop {
     arrival_offset_seconds: arrivalOffsetSeconds,
     cumulativeDurationSeconds: arrivalOffsetSeconds,
     cumulative_duration_seconds: arrivalOffsetSeconds,
-    etaDuration: arrivalOffsetSeconds,
     eta_duration: arrivalOffsetSeconds,
     distanceMeters,
     distance_meters: distanceMeters,
-    etaDistance: distanceMiles,
     eta_distance: distanceMiles,
     approx_eta_time: step?.approx_eta_time
   } as RouteStop;
