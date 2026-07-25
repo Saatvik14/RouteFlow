@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, Text, useWindowDimensions, View, Platform, FlatList, ScrollView } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -302,10 +302,27 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
   };
 
  
+  const [reroutedCoordinates, setReroutedCoordinates] = useState<any[] | null>(null);
+
+  const activeMapRoute = useMemo(() => {
+    if (reroutedCoordinates && reroutedCoordinates.length > 0 && mapRoute) {
+      return {
+        ...mapRoute,
+        coordinates: reroutedCoordinates,
+      };
+    }
+    return mapRoute;
+  }, [mapRoute, reroutedCoordinates]);
+
+  const handleExitNavigationWithReset = useCallback(() => {
+    setReroutedCoordinates(null);
+    handleExitNavigation();
+  }, [handleExitNavigation]);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <MapScreen
-        confirmedRoute={mapRoute}
+        confirmedRoute={activeMapRoute}
         mapType={mapType}
         centerSignal={centerSignal}
         isNavigating={isNavigating}
@@ -316,9 +333,11 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
         <InAppNavigationOverlay
           targetStop={navigationTargetStop}
           userLocation={userLocation}
-          onExit={handleExitNavigation}
+          routeCoordinates={activeMapRoute?.coordinates || []}
+          onExit={handleExitNavigationWithReset}
           onSimulateLocationUpdate={setUserLocation}
           onToggleSimulationMode={handleToggleMockingLocation}
+          onReRoute={(newCoords) => setReroutedCoordinates(newCoords)}
         />
       ) : (
         <>
@@ -450,16 +469,16 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           searchText={searchText}
           suggestions={suggestions}
           selectedSuggestion={selectedSuggestion}
-          stopDetails={stopDetails}
+          stopDetails={stopDetails as any}
           isAddingStop={isAddingStop}
           isStartingRoute={isStartingRoute}
           onSearchTextChange={setSearchText}
           onOpenSearch={handleOpenSearch}
           onCloseSearch={handleCloseSearch}
           onSelectSuggestion={handleSelectSuggestion}
-          onOpenStopDetails={handleOpenStopDetails}
-          onStopDetailsChange={handleStopDetailsChange}
-          onConfirmStopDetails={handleConfirmStopDetails}
+          onOpenStopDetails={(stop: any) => { handleOpenStopDetails(stop); }}
+          onStopDetailsChange={(details: any) => { handleStopDetailsChange(details); }}
+          onConfirmStopDetails={() => { handleConfirmStopDetails(); }}
           onOptimizeRoute={handleOptimizeRoute}
           onRefine={handleRefineRoute}
           onConfirm={handleConfirmRoute}
@@ -489,7 +508,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           onSaveRouteLocation={handleSaveRouteLocation}
           onSaveRouteTime={handleSaveRouteTime}
           onOpenEditStop={handleOpenEditStop}
-          onSaveEditedStop={handleSaveEditedStop}
+          onSaveEditedStop={(details: any) => { handleSaveEditedStop(details); }}
           onOpenEditStopAddress={handleOpenEditStopAddress}
           onSaveStopAddress={handleSaveStopAddress}
           onRemoveEditedStop={handleRemoveEditedStop}
@@ -517,18 +536,18 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           searchText={searchText}
           suggestions={suggestions}
           selectedSuggestion={selectedSuggestion}
-          stopDetails={stopDetails}
+          stopDetails={stopDetails as any}
           isAddingStop={isAddingStop}
           isStartingRoute={isStartingRoute}
           onSearchTextChange={setSearchText}
           onOpenSearch={handleOpenSearch}
           onCloseSearch={handleCloseSearch}
           onSelectSuggestion={handleSelectSuggestion}
-          onSelectStop={handleOpenStopDetails}
-          onOpenStopDetails={handleOpenStopDetails}
-          onStopPress={handleOpenStopDetails}
-          onStopDetailsChange={handleStopDetailsChange}
-          onConfirmStopDetails={handleConfirmStopDetails}
+          onSelectStop={(stop: any) => { handleOpenStopDetails(stop); }}
+          onOpenStopDetails={(stop: any) => { handleOpenStopDetails(stop); }}
+          onStopPress={(stop: any) => { handleOpenStopDetails(stop); }}
+          onStopDetailsChange={(details: any) => { handleStopDetailsChange(details); }}
+          onConfirmStopDetails={() => { handleConfirmStopDetails(); }}
           onOptimizeRoute={handleOptimizeRoute}
           onRefine={handleRefineRoute}
           onConfirm={handleConfirmRoute}
@@ -550,7 +569,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           isSavingStopOrder={isSavingStopOrder}
           onOpenReorderStops={handleOpenReorderStops}
           onCancelReorderStops={handleCancelReorderStops}
-          onSaveStopOrder={handleSaveStopOrder}
+          onSaveStopOrder={(stops: any[]) => { handleSaveStopOrder(stops); }}
           isOptimizing={isOptimizing}
           onOpenEditRoute={handleOpenEditRoute}
           onCancelEditRoute={handleCancelEditRoute}

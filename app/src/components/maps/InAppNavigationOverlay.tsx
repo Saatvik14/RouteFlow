@@ -11,9 +11,11 @@ type NavigationOverlayProps = {
     longitude: number;
     heading: number | null;
   } | null;
+  routeCoordinates?: { latitude: number; longitude: number }[];
   onExit: () => void;
   onSimulateLocationUpdate?: (location: { latitude: number; longitude: number; heading: number | null }) => void;
   onToggleSimulationMode?: (active: boolean) => void;
+  onReRoute?: (newCoordinates: { latitude: number; longitude: number }[]) => void;
 };
 
 // Haversine formula to compute distance between two coords in meters
@@ -29,6 +31,51 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+// Calculate distance from point P to line segment AB in meters
+function pointToSegmentDistanceMeters(
+  pLat: number, pLng: number,
+  aLat: number, aLng: number,
+  bLat: number, bLng: number
+): number {
+  const dx = bLng - aLng;
+  const dy = bLat - aLat;
+  if (dx === 0 && dy === 0) {
+    return getDistanceMeters(pLat, pLng, aLat, aLng);
+  }
+
+  const t = Math.max(0, Math.min(1, ((pLng - aLng) * dx + (pLat - aLat) * dy) / (dx * dx + dy * dy)));
+  const projLat = aLat + t * dy;
+  const projLng = aLng + t * dx;
+  return getDistanceMeters(pLat, pLng, projLat, projLng);
+}
+
+// Calculate minimum distance from userLocation to polyline coordinates
+function minDistanceToPolyline(
+  userLat: number,
+  userLng: number,
+  coordinates: { latitude: number; longitude: number }[]
+): number {
+  if (!coordinates || coordinates.length === 0) return Infinity;
+  if (coordinates.length === 1) {
+    return getDistanceMeters(userLat, userLng, coordinates[0].latitude, coordinates[0].longitude);
+  }
+
+  let minDist = Infinity;
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const a = coordinates[i];
+    const b = coordinates[i + 1];
+    const dist = pointToSegmentDistanceMeters(
+      userLat, userLng,
+      Number(a.latitude), Number(a.longitude),
+      Number(b.latitude), Number(b.longitude)
+    );
+    if (dist < minDist) {
+      minDist = dist;
+    }
+  }
+  return minDist;
 }
 
 // Format distance helper for steps (always in miles)
@@ -65,15 +112,19 @@ function getManeuverAction(type?: string, modifier?: string): { actionText: stri
 export default function InAppNavigationOverlay({
   targetStop,
   userLocation,
+  routeCoordinates,
   onExit,
   onSimulateLocationUpdate,
   onToggleSimulationMode,
+  onReRoute,
 }: NavigationOverlayProps) {
   const insets = useSafeAreaInsets();
   const [isSimulating, setIsSimulating] = useState(false);
   const [simInterval, setSimInterval] = useState<any>(null);
   const [liveSteps, setLiveSteps] = useState<any[]>([]);
   const [lastFetchedCoords, setLastFetchedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isRerouting, setIsRerouting] = useState(false);
+  const [lastRerouteTime, setLastRerouteTime] = useState<number>(0);
 
   const destLat = Number(
     targetStop?.latitude ?? targetStop?.lat ?? targetStop?.location?.latitude ?? targetStop?.location?.lat
@@ -81,6 +132,56 @@ export default function InAppNavigationOverlay({
   const destLng = Number(
     targetStop?.longitude ?? targetStop?.lng ?? targetStop?.location?.longitude ?? targetStop?.location?.lng
   );
+
+  // Automatic Re-Routing when driver deviates/goes off-route (>50 meters away)
+  useEffect(() => {
+    if (!userLocation || !Number.isFinite(destLat) || !Number.isFinite(destLng)) return;
+
+    const userLat = userLocation.latitude;
+    const userLng = userLocation.longitude;
+    const now = Date.now();
+
+    let offRoute = false;
+    if (routeCoordinates && routeCoordinates.length >= 2) {
+      const distToPolyline = minDistanceToPolyline(userLat, userLng, routeCoordinates);
+      if (distToPolyline > 50) {
+        offRoute = true;
+      }
+    }
+
+    if (offRoute && now - lastRerouteTime > 4000) {
+      setIsRerouting(true);
+      setLastRerouteTime(now);
+
+      const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${destLng},${destLat}?steps=true&overview=full&geometries=geojson`;
+
+      fetch(url)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.code === 'Ok' && data.routes?.[0]) {
+            const routeData = data.routes[0];
+            const steps = routeData.legs?.[0]?.steps || [];
+            setLiveSteps(steps);
+
+            const rawCoords = routeData.geometry?.coordinates || [];
+            const newRouteCoords = rawCoords.map((c: [number, number]) => ({
+              latitude: c[1],
+              longitude: c[0],
+            }));
+
+            if (newRouteCoords.length >= 2 && onReRoute) {
+              onReRoute(newRouteCoords);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('Auto re-routing fetch error:', err);
+        })
+        .finally(() => {
+          setTimeout(() => setIsRerouting(false), 1500);
+        });
+    }
+  }, [userLocation?.latitude, userLocation?.longitude, destLat, destLng, routeCoordinates, lastRerouteTime, onReRoute]);
 
   // Fetch live OSRM turn-by-turn route steps as driver moves
   useEffect(() => {
@@ -161,7 +262,11 @@ export default function InAppNavigationOverlay({
   let bannerDistance = distanceText;
   let iconName = 'arrow-up';
 
-  if (distanceMeters <= 20) {
+  if (isRerouting) {
+    instruction = `Rerouting route to ${targetName}...`;
+    iconName = 'arrow-up';
+    bannerDistance = 'Rerouting';
+  } else if (distanceMeters <= 20) {
     instruction = `You have arrived at ${targetName}`;
     iconName = 'check-circle';
     bannerDistance = 'Arrived';
@@ -304,20 +409,13 @@ export default function InAppNavigationOverlay({
           </View>
         </View>
 
-        {isFarAway && !isSimulating && (
-          <View style={styles.debugAlert}>
-            <Text style={styles.debugText}>
-              📍 UK Route detected from India (Distance: {distanceText}). Use "Simulate Drive" to test.
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* Live GPS Lock Indicator */}
-      <View style={[styles.gpsLockBadge, { top: insets.top + (isFarAway && !isSimulating ? 134 : 106) }]}>
-        <View style={[styles.gpsDot, (hasGPS || isSimulating) && styles.gpsDotLive]} />
+      <View style={[styles.gpsLockBadge, { top: insets.top + 106 }]}>
+        <View style={[styles.gpsDot, hasGPS && styles.gpsDotLive]} />
         <Text style={styles.gpsLockText}>
-          {isSimulating ? 'Simulating Drive...' : hasGPS ? 'Live GPS Active' : 'Waiting for GPS Lock...'}
+          {hasGPS ? 'Live GPS Active' : 'Waiting for GPS Lock...'}
         </Text>
       </View>
 
@@ -341,22 +439,6 @@ export default function InAppNavigationOverlay({
         </View>
 
         <View style={styles.controlRow}>
-          {isSimulating ? (
-            <Pressable
-              style={[styles.simulateButton, { backgroundColor: '#E2E8F0' }]}
-              onPress={stopSimulation}
-            >
-              <Text style={[styles.simulateButtonText, { color: '#475569' }]}>Stop Sim</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={styles.simulateButton}
-              onPress={startSimulation}
-            >
-              <Text style={styles.simulateButtonText}>Simulate Drive</Text>
-            </Pressable>
-          )}
-
           <Pressable style={styles.exitButton} onPress={onExit}>
             <Text style={styles.exitButtonText}>Exit Navigation</Text>
           </Pressable>

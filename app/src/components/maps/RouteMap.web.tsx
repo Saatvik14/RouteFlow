@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { getActiveRouteCoordinates } from '../../utils/routePolyline';
 
 let MapContainer: any;
 let TileLayer: any;
@@ -362,7 +363,11 @@ export default function MapScreen({
     return buildDisplayMarkers(confirmedRoute);
   }, [confirmedRoute]);
 
-  const leafletRouteCoordinates = routeCoordinates.map(point => [
+  const activeRouteCoordinates = useMemo(() => {
+    return getActiveRouteCoordinates(routeCoordinates, userLocation, isNavigating);
+  }, [routeCoordinates, userLocation, isNavigating]);
+
+  const leafletRouteCoordinates = activeRouteCoordinates.map(point => [
     point.latitude,
     point.longitude,
   ]);

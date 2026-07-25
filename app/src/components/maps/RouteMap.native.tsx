@@ -6,6 +6,7 @@ import { Map, Camera, CameraRef, Marker, UserLocation, GeoJSONSource, Layer } fr
 import { useAuth } from '../../app/_layout';
 import { restoreAuthToken } from '../../services/api';
 import { isTokenValid } from '../../services/auth/jwtUtils';
+import { getActiveRouteCoordinates } from '../../utils/routePolyline';
 
 export type RouteMapType = 'standard' | 'satellite' | 'hybrid';
 
@@ -352,17 +353,21 @@ export default function MapScreen({
     }
   }, [centerSignal, confirmedRoute, fitRouteOnMap, moveToCurrentLocation, isNavigating, userLocation]);
 
+  const activeRouteCoordinates = useMemo(() => {
+    return getActiveRouteCoordinates(routeCoordinates, userLocation, isNavigating);
+  }, [routeCoordinates, userLocation, isNavigating]);
+
   const polylineGeoJSON = useMemo(() => {
-    if (routeCoordinates.length < 2) return null;
+    if (activeRouteCoordinates.length < 2) return null;
     return {
       type: 'Feature' as const,
       properties: {},
       geometry: {
         type: 'LineString' as const,
-        coordinates: routeCoordinates.map(c => [c.longitude, c.latitude]),
+        coordinates: activeRouteCoordinates.map(c => [c.longitude, c.latitude]),
       },
     };
-  }, [routeCoordinates]);
+  }, [activeRouteCoordinates]);
 
   if (!isTokenChecked) {
     return <View style={styles.container} />;

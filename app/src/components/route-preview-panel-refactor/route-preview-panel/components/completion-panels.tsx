@@ -306,18 +306,20 @@ export function RouteCompletionPromptPanel({
   isCompletingRoute,
   onMarkRouteCompleted,
   onOpenSearch,
-}: Pick<
-  RoutePreviewPanelProps,
-  | "routeName"
-  | "start"
-  | "end"
-  | "stops"
-  | "startTime"
-  | "durationLabel"
-  | "distanceLabel"
-  | "isCompletingRoute"
-  | "onMarkRouteCompleted"
-  | "onOpenSearch"
+}: Partial<
+  Pick<
+    RoutePreviewPanelProps,
+    | "routeName"
+    | "start"
+    | "end"
+    | "stops"
+    | "startTime"
+    | "durationLabel"
+    | "distanceLabel"
+    | "isCompletingRoute"
+    | "onMarkRouteCompleted"
+    | "onOpenSearch"
+  >
 > & { isWide: boolean }) {
   const insets = useSafeAreaInsets();
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -462,8 +464,8 @@ export function RouteCompletionPromptPanel({
               time={formatTimelineTime(startTime, "Start")}
               title="Start location"
               subtitle={
-                start.description ||
-                start.title ||
+                start?.description ||
+                start?.title ||
                 "GPS position used when the route started"
               }
               marker="S"
@@ -510,8 +512,8 @@ export function RouteCompletionPromptPanel({
 
             <CompletionTimelineItem
               time={durationLabel || "End"}
-              title={end.title || "End location"}
-              subtitle={end.description || "Final destination for this route"}
+              title={end?.title || "End location"}
+              subtitle={end?.description || "Final destination for this route"}
               marker="E"
               status="end"
               isLast
@@ -600,8 +602,13 @@ function CompletedMetric({
   );
 }
 
-type RouteCompletedPanelProps = RoutePreviewPanelProps & {
+type RouteCompletedPanelProps = Partial<RoutePreviewPanelProps> & {
   isWide: boolean;
+  routeName?: string;
+  stops?: any[];
+  durationLabel?: string;
+  distanceLabel?: string;
+  isRetryingFailedStops?: boolean;
   onCreateNewRoute?: () => void;
   onRetryFailedStops?: (failedStops: any[]) => void;
 };
@@ -612,6 +619,7 @@ export function RouteCompletedPanel({
   stops,
   distanceLabel,
   durationLabel,
+  isRetryingFailedStops = false,
   onCreateNewRoute,
   onRetryFailedStops,
 }: RouteCompletedPanelProps) {
