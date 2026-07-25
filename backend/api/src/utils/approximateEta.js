@@ -15,6 +15,7 @@ const getTimezone = () =>
   process.env.ROUTE_TIMEZONE?.trim() || DEFAULT_TIMEZONE;
 
 const toConfiguredTimezone = (date) => {
+  if(date==null) return date
   return DateTime.fromJSDate(date, { zone: 'utc' })
     .setZone(getTimezone())
     .toISO();
@@ -161,7 +162,7 @@ const addApproximateEtaFields = (
     if (currentDistanceMiles === null) {
       calculatedFields.set(originalIndex, {
         approx_travel_time_seconds: null,
-         approx_eta_time: toConfiguredTimezone(etaTime),
+         approx_eta_time: toConfiguredTimezone(actualStopTime),
       });
 
       // A completed stop can still anchor the next ETA.
