@@ -31,6 +31,37 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
+// Format distance helper for steps (always in miles)
+function formatStepDistance(meters: number): string {
+  const mi = meters * 0.000621371;
+  if (mi < 0.1) {
+    return `${mi.toFixed(2)} mi`;
+  }
+  return `${mi.toFixed(1)} mi`;
+}
+
+// Convert maneuver type & modifier into display action text and icon
+function getManeuverAction(type?: string, modifier?: string): { actionText: string; iconName: string } {
+  const mod = (modifier || '').toLowerCase();
+  const typ = (type || '').toLowerCase();
+
+  if (typ === 'arrive') {
+    return { actionText: 'arrive at destination', iconName: 'check-circle' };
+  }
+
+  if (mod.includes('left')) {
+    return { actionText: mod.includes('slight') ? 'bear left' : 'turn left', iconName: 'arrow-left-top' };
+  }
+  if (mod.includes('right')) {
+    return { actionText: mod.includes('slight') ? 'bear right' : 'turn right', iconName: 'arrow-right-top' };
+  }
+  if (mod.includes('uturn') || mod.includes('u-turn')) {
+    return { actionText: 'make a U-turn', iconName: 'u-turn' };
+  }
+
+  return { actionText: 'continue straight', iconName: 'arrow-up' };
+}
+
 export default function InAppNavigationOverlay({
   targetStop,
   userLocation,
@@ -41,6 +72,8 @@ export default function InAppNavigationOverlay({
   const insets = useSafeAreaInsets();
   const [isSimulating, setIsSimulating] = useState(false);
   const [simInterval, setSimInterval] = useState<any>(null);
+  const [liveSteps, setLiveSteps] = useState<any[]>([]);
+  const [lastFetchedCoords, setLastFetchedCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   const destLat = Number(
     targetStop?.latitude ?? targetStop?.lat ?? targetStop?.location?.latitude ?? targetStop?.location?.lat
@@ -48,6 +81,38 @@ export default function InAppNavigationOverlay({
   const destLng = Number(
     targetStop?.longitude ?? targetStop?.lng ?? targetStop?.location?.longitude ?? targetStop?.location?.lng
   );
+
+  // Fetch live OSRM turn-by-turn route steps as driver moves
+  useEffect(() => {
+    if (!userLocation || !Number.isFinite(destLat) || !Number.isFinite(destLng)) return;
+
+    const userLat = userLocation.latitude;
+    const userLng = userLocation.longitude;
+
+    if (lastFetchedCoords) {
+      const distFromLast = getDistanceMeters(userLat, userLng, lastFetchedCoords.lat, lastFetchedCoords.lng);
+      if (distFromLast < 40) return;
+    }
+
+    let isMounted = true;
+    const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${destLng},${destLat}?steps=true&overview=false`;
+
+    fetch(url)
+      .then((res) => res.json())
+      .then((data) => {
+        if (isMounted && data.code === 'Ok' && data.routes?.[0]?.legs?.[0]?.steps) {
+          setLiveSteps(data.routes[0].legs[0].steps);
+          setLastFetchedCoords({ lat: userLat, lng: userLng });
+        }
+      })
+      .catch((err) => {
+        console.warn('OSRM live steps fetch error:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userLocation?.latitude, userLocation?.longitude, destLat, destLng]);
 
   // Default initial/mock states
   let distanceMeters = 2250;
@@ -75,45 +140,80 @@ export default function InAppNavigationOverlay({
     hour12: true,
   }).replace(' AM', ' am').replace(' PM', ' pm');
 
-  // Format distance display
+  // Format distance display (always in miles)
   const distanceMiles = distanceMeters * 0.000621371;
   const distanceText =
-    distanceMiles >= 0.1
-      ? `${distanceMiles.toFixed(1)} mi`
-      : `${Math.round(distanceMeters * 3.28084)} ft`;
+    distanceMiles < 0.1
+      ? `${distanceMiles.toFixed(2)} mi`
+      : `${distanceMiles.toFixed(1)} mi`;
 
   const timeText =
     timeRemainingMins === 1 ? '1 min' : `${timeRemainingMins} mins`;
 
-  // Dynamic instruction logic based on remaining distance
-  let instruction = 'Follow route to destination';
+  // Dynamic live instruction calculation
+  const targetName =
+    targetStop?.title ||
+    targetStop?.name ||
+    targetStop?.address?.split(',')[0] ||
+    'destination';
+
+  let instruction = `Follow route to ${targetName}`;
   let bannerDistance = distanceText;
   let iconName = 'arrow-up';
 
-  if (distanceMeters > 1609.34 * 2) {
-    instruction = 'Continue straight on main route';
-    iconName = 'arrow-up';
-    bannerDistance = 'Continue';
-  } else if (distanceMeters <= 1609.34 * 2 && distanceMeters > 1609.34) {
-    instruction = 'In 1 mile, prepare to turn left';
-    iconName = 'arrow-left-top';
-    bannerDistance = '1.0 mi';
-  } else if (distanceMeters <= 1609.34 && distanceMeters > 400) {
-    instruction = 'In 1500 feet, merge onto Amphitheatre Pkwy';
-    iconName = 'arrow-right-top';
-    bannerDistance = '1500 ft';
-  } else if (distanceMeters <= 400 && distanceMeters > 100) {
-    instruction = 'In 500 feet, destination is on your right';
-    iconName = 'arrow-right-top';
-    bannerDistance = '500 ft';
-  } else if (distanceMeters <= 100 && distanceMeters > 20) {
-    instruction = `Arriving shortly at: ${targetStop?.title || targetStop?.address || 'Stop'}`;
-    iconName = 'arrow-up';
-    bannerDistance = 'Arriving';
-  } else {
-    instruction = 'You have arrived!';
+  if (distanceMeters <= 20) {
+    instruction = `You have arrived at ${targetName}`;
     iconName = 'check-circle';
     bannerDistance = 'Arrived';
+  } else if (distanceMeters <= 80) {
+    instruction = `Arriving shortly at ${targetName}`;
+    iconName = 'arrow-up';
+    bannerDistance = 'Arriving';
+  } else if (liveSteps && liveSteps.length > 0) {
+    // Pick upcoming step
+    const upcomingStep =
+      liveSteps.find((step, idx) => {
+        if (idx === 0 && step.maneuver?.type === 'depart') return false;
+        return true;
+      }) || liveSteps[0];
+
+    if (upcomingStep) {
+      const stepDistMeters = upcomingStep.distance || distanceMeters;
+      const stepDistText = formatStepDistance(stepDistMeters);
+      const { actionText, iconName: stepIcon } = getManeuverAction(
+        upcomingStep.maneuver?.type,
+        upcomingStep.maneuver?.modifier
+      );
+      const streetName = upcomingStep.name ? upcomingStep.name.trim() : '';
+
+      iconName = stepIcon;
+      bannerDistance = stepDistText;
+
+      if (upcomingStep.maneuver?.type === 'arrive') {
+        instruction = `Arriving shortly at ${targetName}`;
+        bannerDistance = 'Arriving';
+        iconName = 'check-circle';
+      } else if (streetName) {
+        instruction = `In ${stepDistText}, ${actionText} onto ${streetName}`;
+      } else {
+        instruction = `In ${stepDistText}, ${actionText} towards ${targetName}`;
+      }
+    }
+  } else {
+    // Dynamic live instructions fallback based on actual distance & target stop name
+    if (distanceMeters > 1600) {
+      instruction = `Continue straight towards ${targetName}`;
+      iconName = 'arrow-up';
+      bannerDistance = distanceText;
+    } else if (distanceMeters > 400) {
+      instruction = `In ${distanceText}, proceed towards ${targetName}`;
+      iconName = 'arrow-up';
+      bannerDistance = distanceText;
+    } else {
+      instruction = `In ${distanceText}, destination ${targetName} is ahead`;
+      iconName = 'arrow-up';
+      bannerDistance = distanceText;
+    }
   }
 
   // Simulation mode triggers
