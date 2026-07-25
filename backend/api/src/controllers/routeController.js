@@ -8,6 +8,7 @@ const {
   isAllowedAddress,
   getCountryCodeFilter,
   isIndiaAllowedUser,
+  isIndiaAddress,
 } = require('../utils/locationPermissions');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
@@ -720,6 +721,85 @@ const optimizeRoute = async (req, res) => {
         order,
       ])
     );
+
+    const isIndiaCoordinates = (coords) => {
+      if (!coords || !Array.isArray(coords) || coords.length < 2) return false;
+      const lon = coords[0];
+      const lat = coords[1];
+      return lat >= 6.0 && lat <= 38.0 && lon >= 68.0 && lon <= 98.0;
+    };
+
+    const isIndiaRoute =
+      isIndiaAddress({ full_address: route.start_full_address }) ||
+      isIndiaAddress({ full_address: route.end_full_address }) ||
+      isIndiaCoordinates(startCoordinates) ||
+      isIndiaCoordinates(endCoordinates) ||
+      allOrders.some((o) => isIndiaCoordinates(o.coordinates));
+
+    if (isIndiaRoute) {
+      // Do not call PharmDel API for India routes; shuffle stops in random order
+      const shuffledOrders = [...allOrders];
+      for (let i = shuffledOrders.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledOrders[i], shuffledOrders[j]] = [shuffledOrders[j], shuffledOrders[i]];
+      }
+
+      const orderIds = shuffledOrders.map((o) => Number(o.order_id));
+      const sequenceNumbers = shuffledOrders.map((_, index) => index + 1);
+
+      await runQuery(
+        `
+          UPDATE orders AS o
+          SET sequence_no = updated.sequence_no,
+              eta_duration = NULL,
+              eta_distance = NULL
+          FROM unnest(
+            $1::bigint[],
+            $2::integer[]
+          ) AS updated(order_id, sequence_no)
+          WHERE o.order_id = updated.order_id
+            AND o.route_id = $3
+        `,
+        [orderIds, sequenceNumbers, route_id]
+      );
+
+      const finalSteps = [
+        {
+          type: 'start',
+          location: startCoordinates,
+        },
+        ...shuffledOrders.map((order, index) => ({
+          type: 'job',
+          id: order.order_id,
+          sequence_no: index + 1,
+          order_preference: order.order_preference,
+          duration: 0,
+          arrival: 0,
+          distance: 0,
+          location: order.coordinates,
+        })),
+        {
+          type: 'end',
+          location: endCoordinates,
+        },
+      ];
+
+      return res.status(200).json({
+        code: 0,
+        routes: [
+          {
+            vehicle: 0,
+            cost: 0,
+            steps: finalSteps,
+            summary: {
+              distance: 0,
+              duration: 0,
+            },
+          },
+        ],
+        unassigned: [],
+      });
+    }
 
     /*
      * 4. Divide orders into preference groups.
