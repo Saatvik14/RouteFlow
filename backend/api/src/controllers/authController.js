@@ -26,7 +26,6 @@ const generateRefreshToken = (id) => {
 // @access  Public
 const signup = async (req, res) => {
   const { name, phone_no, email, password, role } = req.body;
-  console.log('Signup request body:', req.body); // Debug log
   // Basic validation 
   if (!name || !phone_no || !password) {
     return res.status(400).json({ message: 'Please enter all required fields: name, phone_no, password' });
@@ -572,12 +571,6 @@ RouteFloww Team`,
           </body>
         </html>
       `,
-    });
-
-    console.log('OTP email sent through Gmail API:', {
-      recipient: email,
-      gmailMessageId: emailResult.id,
-      threadId: emailResult.threadId,
     });
 
     return res.status(200).json({

@@ -825,9 +825,6 @@ const editOrder = async (req, res) => {
         locationUpdated
       );
 
-    // console,log(fields)
-    // console.log(values)
-
     if (fields.length > 0) {
       fields.push(
         'updated_at = CURRENT_TIMESTAMP'
@@ -1102,7 +1099,6 @@ const fetchOrdersByRoute = async (req, res) => {
         routeResult.rows[0]?.start_datetime
       );
     
-      console.log(stopsWithApproximateEta)
     return res
       .status(200)
       .json(stopsWithApproximateEta);

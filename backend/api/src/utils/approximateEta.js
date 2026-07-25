@@ -65,7 +65,6 @@ const getActualStopTime = (stop) => {
   let val;
   if (status === 'failed') {
     val = getValidDate(stop?.failed_at || stop?.status_updated_at);
-    console.log(val)
     return val;
 }
 

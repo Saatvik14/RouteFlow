@@ -194,14 +194,216 @@ const createRoute = async (req, res) => {
 // @desc    Fetch all routes for current user
 // @route   GET /route/fetch/all
 // @access  Private
+// @desc    Fetch all active routes for logged-in user
+// @route   GET /route/fetch-all
+// @access  Private
 const fetchAllRoutes = async (req, res) => {
   const user_id = req.user?.user_id;
 
+  if (!user_id) {
+    return res.status(401).json({ message: 'Unauthorized user' });
+  }
+
   try {
-    const result = await runQuery('SELECT * FROM routes WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC', [user_id]);
-    res.status(200).json(result.rows);
+    // 1. Fetch all active routes
+    const routesResult = await runQuery(
+      `
+        SELECT *
+        FROM routes
+        WHERE user_id = $1
+          AND is_active = true
+        ORDER BY created_at DESC
+      `,
+      [user_id]
+    );
+
+    const routes = routesResult.rows;
+
+    if (routes.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // 2. Fetch the latest matching start/end locations
+    const routeAddresses = [
+      ...new Set(
+        routes
+          .flatMap((route) => [
+            route.start_full_address,
+            route.end_full_address,
+          ])
+          .filter(Boolean)
+      ),
+    ];
+
+    const locationsResult = await runQuery(
+      `
+        SELECT DISTINCT ON (full_address) *
+        FROM locations
+        WHERE full_address = ANY($1::text[])
+        ORDER BY full_address, created_at DESC
+      `,
+      [routeAddresses]
+    );
+
+    const locationsByAddress = new Map(
+      locationsResult.rows.map((location) => [
+        location.full_address,
+        location,
+      ])
+    );
+
+    // 3. Fetch all stops belonging to this user's active routes
+    const stopsResult = await runQuery(
+      `
+        SELECT
+          o.*,
+          l.name,
+          l.housenumber,
+          l.street,
+          l.city,
+          l.postcode,
+          l.country,
+          l.latitude,
+          l.longitude,
+          l.full_address
+        FROM orders o
+        JOIN locations l
+          ON o.location_id = l.location_id
+        JOIN routes r
+          ON o.route_id = r.route_id
+        WHERE r.user_id = $1
+          AND r.is_active = true
+        ORDER BY
+          o.route_id,
+          o.sequence_no ASC NULLS LAST,
+          o.created_at ASC
+      `,
+      [user_id]
+    );
+
+    // 4. Group stops by route_id
+    const stopsByRouteId = new Map();
+
+    stopsResult.rows.forEach((stop) => {
+      const routeId = String(stop.route_id);
+
+      if (!stopsByRouteId.has(routeId)) {
+        stopsByRouteId.set(routeId, []);
+      }
+
+      stopsByRouteId.get(routeId).push({
+        ...stop,
+        latitude:
+          stop.latitude !== null ? parseFloat(stop.latitude) : null,
+        longitude:
+          stop.longitude !== null ? parseFloat(stop.longitude) : null,
+      });
+    });
+
+    const createLocationPayload = (location, fallbackAddress, placeId) => {
+      const latitude = parseFloat(location.latitude || 0);
+      const longitude = parseFloat(location.longitude || 0);
+
+      return {
+        mode: 'manual_address',
+        full_address: location.full_address || fallbackAddress,
+        latitude,
+        longitude,
+        title:
+          location.name ||
+          location.full_address ||
+          fallbackAddress,
+        details: {
+          place_id: placeId,
+          address_line1: location.street
+            ? `${location.housenumber || ''} ${location.street}`.trim()
+            : location.name || '',
+          address_line2: '',
+          city: location.city || '',
+          district: '',
+          state: '',
+          country: location.country || '',
+          country_code: '',
+          postal_code: location.postcode || '',
+          latitude,
+          longitude,
+        },
+      };
+    };
+
+    // 5. Construct response for every route
+    const response = routes.map((route) => {
+      const startLoc =
+        locationsByAddress.get(route.start_full_address) || {};
+
+      const endLoc =
+        locationsByAddress.get(route.end_full_address) || {};
+
+      const routeStops =
+        stopsByRouteId.get(String(route.route_id)) || [];
+
+      const startLocation = createLocationPayload(
+        startLoc,
+        route.start_full_address,
+        'geoapify-place-id-start'
+      );
+
+      const endLocation = createLocationPayload(
+        endLoc,
+        route.end_full_address,
+        'geoapify-place-id-end'
+      );
+
+      return {
+        route_id: route.route_id,
+        name: route.name,
+        start_datetime: route.start_datetime,
+        end_datetime: route.end_datetime,
+        status: route.status,
+        user_id: route.user_id,
+        end_mode: route.end_mode || 'round_trip',
+        distance: parseFloat(route.distance || 0),
+        duration:  route.start_datetime && route.end_datetime
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(route.end_datetime).getTime() -
+            new Date(route.start_datetime).getTime()) /
+            (1000 * 60)
+        )
+      )
+    : 0,
+        created_at: route.created_at,
+        updated_at: route.updated_at,
+
+        start_location: startLocation,
+        end_location: endLocation,
+
+        stops: addApproximateEtaFields(
+          routeStops,
+          route.start_datetime
+        ),
+
+        coordinates: [
+          {
+            latitude: startLocation.latitude,
+            longitude: startLocation.longitude,
+          },
+          {
+            latitude: endLocation.latitude,
+            longitude: endLocation.longitude,
+          },
+        ],
+      };
+    });
+
+    return res.status(200).json(response);
   } catch (error) {
-    res.status(500).json({ message: 'Server error while fetching routes' });
+    console.error('Fetch All Routes Error:', error);
+
+    return res.status(500).json({
+      message: 'Server error while fetching routes',
+    });
   }
 };
 
