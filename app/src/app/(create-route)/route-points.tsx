@@ -668,61 +668,60 @@ export default function RoutePointsScreen() {
       let details: AddressDetails | null = null;
       let addressString = '';
 
+      // 1. Try Native Device Reverse Geocoding first for exact local GPS address (Google/Apple Maps on device)
       try {
-        const response = await routesService.reverseGeocode(
-          currentLocation.coords.latitude,
-          currentLocation.coords.longitude
-        );
-        if (response.success && response.data?.results?.length > 0) {
-          const result = response.data.results[0];
+        const reverseAddress = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lon,
+        });
+        if (reverseAddress && reverseAddress.length > 0) {
+          const item = reverseAddress[0];
+          addressString = getReadableAddress(item);
           details = {
-            housenumber: String(result.housenumber || ''),
-            street: String(result.street || ''),
-            placeId: String(result.place_id || ''),
-            addressLine1: String(result.address_line1 || result.name || ''),
-            addressLine2: String(result.address_line2 || result.formatted || ''),
-            city: String(result.city || ''),
-            district: String(result.county || result.district || ''),
-            state: String(result.state || ''),
-            country: String(result.country || ''),
-            countryCode: String(result.country_code || ''),
-            postalCode: String(result.postcode || ''),
-            latitude: Number(result.lat),
-            longitude: Number(result.lon),
+            ...emptyAddressDetails(),
+            street: String(item.street || item.name || ''),
+            addressLine1: String(item.name || item.street || addressString),
+            city: String(item.city || item.subregion || ''),
+            district: String(item.district || item.subregion || ''),
+            state: String(item.region || ''),
+            country: String(item.country || ''),
+            countryCode: String(item.isoCountryCode || ''),
+            postalCode: String(item.postalCode || ''),
+            latitude: lat,
+            longitude: lon,
           };
-          addressString = (result.formatted || details.addressLine1 || '')
-            .replace(/[\s\-,]+$/, '')
-            .trim();
         }
-      } catch (error) {
-        console.error('Geoapify reverse geocoding failed, falling back to Expo Location:', error);
+      } catch (err) {
+        console.warn('Native device reverse geocode failed, falling back to Geoapify:', err);
       }
 
+      // 2. Fallback to Geoapify if native reverse geocoding did not return an address
       if (!addressString) {
         try {
-          const reverseAddress = await Location.reverseGeocodeAsync({
-            latitude: currentLocation.coords.latitude,
-            longitude: currentLocation.coords.longitude,
-          });
-          if (reverseAddress && reverseAddress.length > 0) {
-            addressString = getReadableAddress(reverseAddress[0]);
-            if (!details) {
-              const item = reverseAddress[0];
-              details = {
-                ...emptyAddressDetails(),
-                country: String(item.country || ''),
-                countryCode: String(item.isoCountryCode || ''),
-                city: String(item.city || ''),
-                district: String(item.district || ''),
-                state: String(item.region || ''),
-                postalCode: String(item.postalCode || ''),
-                latitude: lat,
-                longitude: lon,
-              };
-            }
+          const response = await routesService.reverseGeocode(lat, lon);
+          if (response.success && response.data?.results?.length > 0) {
+            const result = response.data.results[0];
+            details = {
+              housenumber: String(result.housenumber || ''),
+              street: String(result.street || ''),
+              placeId: String(result.place_id || ''),
+              addressLine1: String(result.address_line1 || result.name || ''),
+              addressLine2: String(result.address_line2 || result.formatted || ''),
+              city: String(result.city || ''),
+              district: String(result.county || result.district || ''),
+              state: String(result.state || ''),
+              country: String(result.country || ''),
+              countryCode: String(result.country_code || ''),
+              postalCode: String(result.postcode || ''),
+              latitude: lat,
+              longitude: lon,
+            };
+            addressString = (result.formatted || details.addressLine1 || '')
+              .replace(/[\s\-,]+$/, '')
+              .trim();
           }
-        } catch (err) {
-          console.error('Expo reverse geocode failed:', err);
+        } catch (error) {
+          console.error('Geoapify reverse geocoding failed:', error);
         }
       }
 
