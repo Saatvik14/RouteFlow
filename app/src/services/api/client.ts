@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
 import { API_BASE_URL, API_CONFIG, ERROR_MESSAGES, HTTP_STATUS } from '../../constants/api';
 
 /**
@@ -45,13 +46,33 @@ export class APIError extends Error {
  * Storage for auth token (persisted with AsyncStorage)
  */
 let authToken: string | null = null;
+let cachedEmailFromToken: string | null = null;
 
 const TOKEN_STORAGE_KEY = 'authToken';
 
+export const getUserEmailFromToken = (): string | null => {
+  if (cachedEmailFromToken) return cachedEmailFromToken;
+  if (authToken) {
+    try {
+      const decoded: any = jwtDecode(authToken);
+      const userObj = decoded.user || decoded;
+      if (userObj && userObj.email) {
+        cachedEmailFromToken = String(userObj.email).toLowerCase().trim();
+        return cachedEmailFromToken;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+};
+
 export const setAuthToken = async (token: string | null) => {
   authToken = token;
+  cachedEmailFromToken = null;
   if (token) {
     await AsyncStorage.setItem(TOKEN_STORAGE_KEY, token);
+    getUserEmailFromToken();
   } else {
     await AsyncStorage.removeItem(TOKEN_STORAGE_KEY);
   }
@@ -66,6 +87,7 @@ export const restoreAuthToken = async (): Promise<string | null> => {
     const token = await AsyncStorage.getItem(TOKEN_STORAGE_KEY);
     if (token) {
       authToken = token;
+      getUserEmailFromToken();
       return token;
     }
   } catch (error) {

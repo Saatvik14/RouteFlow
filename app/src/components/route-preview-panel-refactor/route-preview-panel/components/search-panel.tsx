@@ -19,32 +19,14 @@ import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
 import { useVoiceAddress } from '../../../../hooks/useVoiceAddress';
 import { SUBSCRIPTION_TYPES } from '@/src/constants/api';
+import {
+  isLocationAllowedForUser,
+  isIndiaAllowedForEmail,
+  getCurrentUserEmailSync,
+} from '@/src/utils/locationPermissions';
 
 const isUkLocation = (item: any) => {
-  const lat = Number(item?.latitude);
-  const lon = Number(item?.longitude);
-  if (Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0) {
-    if (lat >= 49.0 && lat <= 61.0 && lon >= -10.0 && lon <= 2.5) {
-      return true;
-    }
-  }
-
-  const address = (item?.address || item?.full_address || item?.fullAddress || '').toLowerCase();
-  const title = (item?.title || '').toLowerCase();
-  const country = (item?.country || '').toLowerCase();
-  const countryCode = (item?.country_code || item?.countryCode || '').toLowerCase();
-
-  return (
-    address.includes('united kingdom') ||
-    address.includes(', uk') ||
-    address.includes(', gb') ||
-    country.includes('united kingdom') ||
-    country === 'uk' ||
-    country === 'gb' ||
-    countryCode === 'gb' ||
-    countryCode === 'uk' ||
-    title.includes('united kingdom')
-  );
+  return isLocationAllowedForUser(item);
 };
 
 type SearchPanelExtraProps = {
@@ -240,7 +222,8 @@ export function SearchPanel({
   };
 
   const handleConfirmReview = async () => {
-    const hasOutsideUk = reviewStops.some((item) => !isUkLocation(item));
+    const userEmail = getCurrentUserEmailSync();
+    const hasOutsideUk = reviewStops.some((item) => !isLocationAllowedForUser(item, userEmail));
     if (hasOutsideUk) {
       setUkErrorVisible(true);
       return;
@@ -571,7 +554,8 @@ export function SearchPanel({
 
               <ScrollView style={localStyles.reviewList} showsVerticalScrollIndicator={true}>
                 {reviewStops.map((item, idx) => {
-                  const isItemUk = isUkLocation(item);
+                  const userEmail = getCurrentUserEmailSync();
+                  const isItemUk = isLocationAllowedForUser(item, userEmail);
                   return (
                     <View key={idx} style={[localStyles.reviewRow, !isItemUk && { borderColor: '#FECACA', borderWidth: 1, backgroundColor: '#FFF5F5' }]}>
                       <View style={localStyles.reviewRowContent}>
@@ -584,7 +568,7 @@ export function SearchPanel({
                         <View style={localStyles.reviewRowBadgeRow}>
                           {!isItemUk && (
                             <Text style={[localStyles.reviewRowBadge, { backgroundColor: '#FEE2E2', color: '#EF4444', fontWeight: 'bold' }]}>
-                              ⚠️ Outside UK
+                              ⚠️ Outside Region
                             </Text>
                           )}
                           {item.packages > 0 && (
@@ -641,7 +625,9 @@ export function SearchPanel({
             <View style={localStyles.alertContainer}>
               <Text style={localStyles.alertTitle}>Invalid Locations Detected</Text>
               <Text style={localStyles.alertMessage}>
-                Please give only locations that are from United Kingdom only.
+                {isIndiaAllowedForEmail(getCurrentUserEmailSync())
+                  ? 'Please give only locations that are from United Kingdom or India only.'
+                  : 'Please give only locations that are from United Kingdom only.'}
               </Text>
               <Pressable
                 style={localStyles.alertButton}

@@ -6,6 +6,10 @@ const {
   addApproximateEtaFields,
   addApproximateEtaFieldsByRoute,
 } = require('../utils/approximateEta');
+const {
+  isAllowedAddress,
+  isIndiaAllowedUser,
+} = require('../utils/locationPermissions');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) =>
@@ -396,24 +400,26 @@ const buildLocationData = (
   };
 };
 
-const validateUkLocation = location => {
-  if (
-    !isUkAddress({
-      countryCode: location.countryCode,
-      country: location.country,
-      full_address: location.full_address,
-    })
-  ) {
+const validateLocation = (location, userEmail) => {
+  const locObj = {
+    countryCode: location.countryCode,
+    country: location.country,
+    full_address: location.full_address,
+  };
+  if (!isAllowedAddress(locObj, userEmail)) {
+    const isIndiaAllowed = isIndiaAllowedUser(userEmail);
     throw badRequest(
-      'Only stops within the United Kingdom are supported.'
+      isIndiaAllowed
+        ? 'Only stops within the United Kingdom and India are supported.'
+        : 'Only stops within the United Kingdom are supported.'
     );
   }
 };
 
-const insertLocation = async body => {
+const insertLocation = async (body, userEmail) => {
   const location = buildLocationData(body);
 
-  validateUkLocation(location);
+  validateLocation(location, userEmail);
 
   const result = await runQuery(
     `
@@ -455,7 +461,8 @@ const insertLocation = async body => {
 
 const updateLocationIfRequired = async (
   body,
-  currentLocation
+  currentLocation,
+  userEmail
 ) => {
   if (!hasLocationPatch(body)) {
     return false;
@@ -466,7 +473,7 @@ const updateLocationIfRequired = async (
     currentLocation
   );
 
-  validateUkLocation(location);
+  validateLocation(location, userEmail);
 
   await runQuery(
     `
@@ -528,7 +535,7 @@ const getOrderWithLocation = async orderId => {
 };
 
 
-const createOrderFromInput = async body => {
+const createOrderFromInput = async (body, userEmail) => {
   const {
     route_id,
     status,
@@ -562,7 +569,7 @@ const createOrderFromInput = async body => {
   }
 
   const { locationId, location } =
-    await insertLocation(body);
+    await insertLocation(body, userEmail);
 
   const packageValue = normalizePositiveInteger(packages, 'packages', 1)
   const stop_type_value = normalizeStopType(stop_type)
@@ -644,7 +651,8 @@ const addOrder = async (req, res) => {
 
   try {
     const order = await createOrderFromInput(
-      req.body
+      req.body,
+      req.user?.email
     );
 
     return res.status(201).json(order);
@@ -816,7 +824,8 @@ const editOrder = async (req, res) => {
     const locationUpdated =
       await updateLocationIfRequired(
         req.body,
-        existingOrder
+        existingOrder,
+        req.user?.email
       );
 
     const { fields, values } =

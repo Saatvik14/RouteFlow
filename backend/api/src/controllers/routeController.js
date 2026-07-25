@@ -4,6 +4,11 @@ const { ROUTE_LIMIT } = require('../constants/limits');
 const {
   addApproximateEtaFields,
 } = require('../utils/approximateEta');
+const {
+  isAllowedAddress,
+  getCountryCodeFilter,
+  isIndiaAllowedUser,
+} = require('../utils/locationPermissions');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -12,7 +17,7 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
  * Shared helper to fetch geocoding data from Geoapify.
  * Used by both Route and Order controllers.
  */
-const getGeocodingData = async (address) => {
+const getGeocodingData = async (address, userEmail) => {
   const { name, street, housenumber, postcode, city, country } = address;
   const apiKey = process.env.GEOAPIFY_API_KEY;
 
@@ -46,7 +51,7 @@ const getGeocodingData = async (address) => {
   url.searchParams.append('city', city || '');
   url.searchParams.append('country', country || '');
   url.searchParams.append('format', 'json');
-  url.searchParams.append('filter', 'countrycode:gb');
+  url.searchParams.append('filter', getCountryCodeFilter(userEmail));
   url.searchParams.append('apiKey', apiKey);
 
   try {
@@ -111,16 +116,14 @@ const createRoute = async (req, res) => {
     });
   }
 
-  const isUkAddress = (loc) => {
-    if (!loc) return true;
-    const cc = (loc.countryCode || loc.country_code || '').toLowerCase();
-    const name = (loc.country || '').toLowerCase();
-    const addr = (loc.full_address || loc.address || '').toLowerCase();
-    return cc === 'gb' || name.includes('united kingdom') || name === 'uk' || addr.includes('united kingdom') || addr.includes(', uk');
-  };
-
-  if (!isUkAddress(start_location) || (end_location && !isUkAddress(end_location))) {
-    return res.status(400).json({ message: 'Only locations within the United Kingdom are supported.' });
+  const userEmail = req.user?.email;
+  if (!isAllowedAddress(start_location, userEmail) || (end_location && !isAllowedAddress(end_location, userEmail))) {
+    const isIndiaAllowed = isIndiaAllowedUser(userEmail);
+    return res.status(400).json({
+      message: isIndiaAllowed
+        ? 'Only locations within the United Kingdom and India are supported.'
+        : 'Only locations within the United Kingdom are supported.',
+    });
   }
 
   try {
@@ -444,7 +447,7 @@ const geocodeAddress = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields: street, housenumber, postcode, city, and country are required.' });
     }
 
-    const bestMatch = await getGeocodingData(req.body);
+    const bestMatch = await getGeocodingData(req.body, req.user?.email);
     if (!bestMatch) {
       return res.status(404).json({ message: 'No geocoding results found' });
     }
@@ -471,12 +474,13 @@ const autocompleteAddress = async (req, res) => {
   }
 
   try {
+    const countryFilter = getCountryCodeFilter(req.user?.email);
     const autocompleteUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
     autocompleteUrl.searchParams.append('text', text);
     autocompleteUrl.searchParams.append('limit', limit || '3');
     autocompleteUrl.searchParams.append('lang', lang || 'en');
     autocompleteUrl.searchParams.append('format', 'json');
-    autocompleteUrl.searchParams.append('filter', 'countrycode:gb');
+    autocompleteUrl.searchParams.append('filter', countryFilter);
     autocompleteUrl.searchParams.append('apiKey', apiKey);
 
     const autocompleteResponse = await fetch(autocompleteUrl.toString());
@@ -489,7 +493,7 @@ const autocompleteAddress = async (req, res) => {
       geocodeUrl.searchParams.append('limit', limit || '3');
       geocodeUrl.searchParams.append('lang', lang || 'en');
       geocodeUrl.searchParams.append('format', 'json');
-      geocodeUrl.searchParams.append('filter', 'countrycode:gb');
+      geocodeUrl.searchParams.append('filter', countryFilter);
       geocodeUrl.searchParams.append('apiKey', apiKey);
 
       const geocodeResponse = await fetch(geocodeUrl.toString());
