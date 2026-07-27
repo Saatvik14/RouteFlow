@@ -314,6 +314,12 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
     return mapRoute;
   }, [mapRoute, reroutedCoordinates]);
 
+  useEffect(() => {
+    if (isNavigating && navigationTargetStop) {
+      setReroutedCoordinates(null);
+    }
+  }, [isNavigating, navigationTargetStop?.id]);
+
   const handleExitNavigationWithReset = useCallback(() => {
     setReroutedCoordinates(null);
     handleExitNavigation();
@@ -447,6 +453,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           distanceLabel={routeMeta.distanceLabel}
           isCompletingRoute={isCompletingRoute}
           onMarkRouteCompleted={handleMarkRouteCompleted}
+          onNavigateActiveStop={handleNavigateActiveStop}
         />
       ) : !isInitialLoading && route && activePanelMode === 'transit' ? (
         <TransitStopPanel

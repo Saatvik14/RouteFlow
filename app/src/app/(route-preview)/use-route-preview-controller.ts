@@ -1761,6 +1761,11 @@ const handleRemoveEditedStop = useCallback(async () => {
 
       setRoute(nextRoute);
 
+      const nextPendingStop = getActiveStop(nextStops).stop || nextRoute.end;
+      if (isNavigating && nextPendingStop) {
+        setNavigationTargetStop(nextPendingStop);
+      }
+
       // Keep the route in transit after the last stop is resolved.
       // The user must explicitly confirm completion from the completion panel.
       setRouteStatus(normalizeRouteStatus(ROUTE_STATUS_IN_TRANSIT));

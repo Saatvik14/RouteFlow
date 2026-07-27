@@ -30,35 +30,7 @@ export function getActiveRouteCoordinates<T extends { latitude: number; longitud
     return routeCoordinates;
   }
 
-  const uLat = Number(userLocation.latitude);
-  const uLng = Number(userLocation.longitude);
-
-  if (!Number.isFinite(uLat) || !Number.isFinite(uLng)) {
-    return routeCoordinates;
-  }
-
-  // Find nearest coordinate index on the route to user's position
-  let closestIndex = 0;
-  let minDistance = Infinity;
-
-  for (let i = 0; i < routeCoordinates.length; i++) {
-    const pt = routeCoordinates[i];
-    const dist = haversineDistanceMeters(uLat, uLng, Number(pt.latitude), Number(pt.longitude));
-    if (dist < minDistance) {
-      minDistance = dist;
-      closestIndex = i;
-    }
-  }
-
-  // Create current user point as start of polyline
-  const userPoint = {
-    ...routeCoordinates[closestIndex],
-    latitude: uLat,
-    longitude: uLng,
-  } as T;
-
-  // Remaining route from closest point to end
-  const remainingCoords = routeCoordinates.slice(closestIndex + 1);
-
-  return [userPoint, ...remainingCoords];
+  // During active navigation, routeCoordinates is the live OSRM road geometry from the driver's location to the target stop.
+  // Return routeCoordinates directly to prevent drawing sharp off-road straight line artifacts.
+  return routeCoordinates;
 }

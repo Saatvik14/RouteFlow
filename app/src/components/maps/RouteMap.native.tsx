@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -313,9 +314,18 @@ export default function MapScreen({
     }
   }, []);
 
+  const effectiveHeading = useMemo(() => {
+    if (!userLocation) return 0;
+    return calculateRouteBearing(
+      userLocation.latitude,
+      userLocation.longitude,
+      userLocation.heading,
+      routeCoordinates
+    );
+  }, [userLocation, routeCoordinates]);
+
   useEffect(() => {
     if (!isTokenChecked) return;
-
     if (confirmedRoute) {
       fitRouteOnMap();
     } else {
@@ -327,23 +337,25 @@ export default function MapScreen({
     if (isNavigating && userLocation) {
       cameraRef.current?.setStop({
         center: [userLocation.longitude, userLocation.latitude],
-        pitch: 45,
-        bearing: userLocation.heading ?? 0,
-        zoom: 17.5,
-        duration: 800,
+        pitch: 58,
+        bearing: effectiveHeading,
+        zoom: 17.8,
+        padding: { paddingBottom: 220, paddingTop: 100, paddingLeft: 0, paddingRight: 0 },
+        duration: 900,
       });
     }
-  }, [isNavigating, userLocation]);
+  }, [isNavigating, userLocation, effectiveHeading]);
 
   useEffect(() => {
     if (centerSignal > 0) {
       if (isNavigating && userLocation) {
         cameraRef.current?.setStop({
           center: [userLocation.longitude, userLocation.latitude],
-          pitch: 45,
-          bearing: userLocation.heading ?? 0,
-          zoom: 17.5,
-          duration: 800,
+          pitch: 58,
+          bearing: effectiveHeading,
+          zoom: 17.8,
+          padding: { paddingBottom: 220, paddingTop: 100, paddingLeft: 0, paddingRight: 0 },
+          duration: 900,
         });
       } else if (confirmedRoute) {
         fitRouteOnMap();
@@ -351,7 +363,7 @@ export default function MapScreen({
         moveToCurrentLocation();
       }
     }
-  }, [centerSignal, confirmedRoute, fitRouteOnMap, moveToCurrentLocation, isNavigating, userLocation]);
+  }, [centerSignal, confirmedRoute, fitRouteOnMap, moveToCurrentLocation, isNavigating, userLocation, effectiveHeading]);
 
   const activeRouteCoordinates = useMemo(() => {
     return getActiveRouteCoordinates(routeCoordinates, userLocation, isNavigating);
@@ -390,9 +402,27 @@ export default function MapScreen({
           maxZoom={18}
         />
 
-        {hasLocationPermission && (
+        {userLocation ? (
+          <Marker
+            key="user-nav-puck-marker"
+            id="user-nav-puck-marker"
+            lngLat={[userLocation.longitude, userLocation.latitude]}
+          >
+            <View style={styles.navPuckContainer}>
+              <View style={styles.navPuckHalo} />
+              <View
+                style={[
+                  styles.navPuckCircle,
+                  { transform: [{ rotate: `${effectiveHeading}deg` }] },
+                ]}
+              >
+                <MaterialCommunityIcons name="navigation" size={20} color="#FFFFFF" />
+              </View>
+            </View>
+          </Marker>
+        ) : hasLocationPermission ? (
           <UserLocation />
-        )}
+        ) : null}
 
         {confirmedRoute && isOptimized && polylineGeoJSON && (
           <GeoJSONSource id="routePath" data={polylineGeoJSON}>
@@ -554,5 +584,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  navPuckContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 48,
+    height: 48,
+  },
+  navPuckHalo: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(37, 99, 235, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+  },
+  navPuckCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
   },
 });
