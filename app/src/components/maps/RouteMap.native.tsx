@@ -16,6 +16,8 @@ export type RoutePoint = {
   longitude: number;
   title?: string;
   description?: string;
+  address?: string;
+  fullAddress?: string;
   markerType?: 'start' | 'stop' | 'end';
   markerLabel?: string;
   markerIcon?: string;
@@ -206,6 +208,56 @@ function renderMarker(marker: DisplayMarker, isOptimized: boolean) {
   );
 }
 
+function calculateBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+
+  const phi1 = toRad(lat1);
+  const phi2 = toRad(lat2);
+  const deltaLambda = toRad(lon2 - lon1);
+
+  const y = Math.sin(deltaLambda) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+
+  const theta = Math.atan2(y, x);
+  return (toDeg(theta) + 360) % 360;
+}
+
+function calculateRouteBearing(
+  userLat: number,
+  userLng: number,
+  userHeading: number | null | undefined,
+  coordinates?: { latitude: number; longitude: number }[]
+): number {
+  if (typeof userHeading === 'number' && Number.isFinite(userHeading) && userHeading > 0) {
+    return userHeading;
+  }
+
+  if (!coordinates || coordinates.length < 2) return userHeading || 0;
+
+  let minDist = Infinity;
+  let targetIndex = 0;
+
+  for (let i = 0; i < coordinates.length; i++) {
+    const pt = coordinates[i];
+    if (!pt) continue;
+    const dist = (pt.latitude - userLat) ** 2 + (pt.longitude - userLng) ** 2;
+    if (dist < minDist) {
+      minDist = dist;
+      targetIndex = i;
+    }
+  }
+
+  const lookAheadIndex = Math.min(targetIndex + 2, coordinates.length - 1);
+  const nextTarget = coordinates[lookAheadIndex];
+
+  if (!nextTarget || (nextTarget.latitude === userLat && nextTarget.longitude === userLng)) {
+    return userHeading || 0;
+  }
+
+  return calculateBearing(userLat, userLng, Number(nextTarget.latitude), Number(nextTarget.longitude));
+}
+
 export default function MapScreen({
   mapType = 'standard',
   centerSignal = 0,
@@ -340,7 +392,7 @@ export default function MapScreen({
         pitch: 58,
         bearing: effectiveHeading,
         zoom: 17.8,
-        padding: { paddingBottom: 220, paddingTop: 100, paddingLeft: 0, paddingRight: 0 },
+        padding: { bottom: 220, top: 100, left: 0, right: 0 },
         duration: 900,
       });
     }
@@ -354,7 +406,7 @@ export default function MapScreen({
           pitch: 58,
           bearing: effectiveHeading,
           zoom: 17.8,
-          padding: { paddingBottom: 220, paddingTop: 100, paddingLeft: 0, paddingRight: 0 },
+          padding: { bottom: 220, top: 100, left: 0, right: 0 },
           duration: 900,
         });
       } else if (confirmedRoute) {

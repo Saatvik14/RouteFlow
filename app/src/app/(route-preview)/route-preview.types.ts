@@ -13,6 +13,7 @@ export type PlaceSuggestion = {
   fullAddress: string;
   latitude: number;
   longitude: number;
+  details?: any;
 };
 
 export type StopDetails = {

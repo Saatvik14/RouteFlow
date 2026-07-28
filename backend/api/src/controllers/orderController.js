@@ -1244,8 +1244,8 @@ const setVehiclePlacement = async (req, res) => {
 /**
  * Internal helper for adding an order during bulk import.
  */
-const insertOrderStop = async stop =>
-  createOrderFromInput(stop);
+const insertOrderStop = async (stop, userEmail) =>
+  createOrderFromInput(stop, userEmail);
 
 // @desc    Add many orders/stops at once
 // @route   POST /order/add/bulk
@@ -1253,6 +1253,8 @@ const insertOrderStop = async stop =>
 const addBulkOrders = async (req, res) => {
   const { route_id, orders } = req.body;
   const stops = req.body.stops || orders;
+  const userEmail = req.user?.email;
+
   if (!route_id) {
     return res.status(400).json({
       message: 'route_id is required',
@@ -1288,11 +1290,14 @@ const addBulkOrders = async (req, res) => {
 
   for (let index = 0; index < stops.length; index += 1) {
     try {
-      const createdOrder = await insertOrderStop({
-        ...stops[index],
-        route_id,
-        sequence: stops[index].sequence ?? null,
-      });
+      const createdOrder = await insertOrderStop(
+        {
+          ...stops[index],
+          route_id,
+          sequence: stops[index].sequence ?? null,
+        },
+        userEmail
+      );
 
       created.push(createdOrder);
     } catch (error) {

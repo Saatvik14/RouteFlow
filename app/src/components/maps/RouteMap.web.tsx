@@ -29,6 +29,8 @@ export type RoutePoint = {
   longitude: number;
   title?: string;
   description?: string;
+  address?: string;
+  fullAddress?: string;
   markerType?: 'start' | 'stop' | 'end';
   markerLabel?: string;
   markerIcon?: string;

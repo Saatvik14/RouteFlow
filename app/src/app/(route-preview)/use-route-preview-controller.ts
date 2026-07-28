@@ -1655,15 +1655,19 @@ const handleRemoveEditedStop = useCallback(async () => {
       if (status !== 'granted') {
         setErrorMessage('Location permission was denied. Unable to navigate live.');
       } else {
-        const initialLoc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High
-        });
-        if (initialLoc) {
-          setUserLocation({
-            latitude: initialLoc.coords.latitude,
-            longitude: initialLoc.coords.longitude,
-            heading: initialLoc.coords.heading,
+        try {
+          const initialLoc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High
           });
+          if (initialLoc?.coords) {
+            setUserLocation({
+              latitude: initialLoc.coords.latitude,
+              longitude: initialLoc.coords.longitude,
+              heading: initialLoc.coords.heading ?? null,
+            });
+          }
+        } catch (posErr) {
+          console.warn('getCurrentPositionAsync warning:', posErr);
         }
 
         if (locationSubscriptionRef.current) {
@@ -1675,22 +1679,26 @@ const handleRemoveEditedStop = useCallback(async () => {
           locationSubscriptionRef.current = null;
         }
 
-        locationSubscriptionRef.current = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 1000,
-            distanceInterval: 1,
-          },
-          (location) => {
-            if (!isMockingLocationRef.current) {
-              setUserLocation({
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                heading: location.coords.heading,
-              });
+        try {
+          locationSubscriptionRef.current = await Location.watchPositionAsync(
+            {
+              accuracy: Location.Accuracy.BestForNavigation,
+              timeInterval: 1000,
+              distanceInterval: 1,
+            },
+            (location) => {
+              if (!isMockingLocationRef.current && location?.coords) {
+                setUserLocation({
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                  heading: location.coords.heading ?? null,
+                });
+              }
             }
-          }
-        );
+          );
+        } catch (watchErr) {
+          console.warn('watchPositionAsync warning:', watchErr);
+        }
       }
     } catch (e) {
       console.log('Error watching position:', e);
