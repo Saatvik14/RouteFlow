@@ -4,11 +4,11 @@
     "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo9.png",
+    "icon": "./assets/images/image.png",
     "scheme": "app",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/logo9.png",
+      "icon": "./assets/images/image.png",
       "infoPlist": {
         "NSFaceIDUsageDescription": "RouteFloww uses Face ID to secure your account and protect your delivery data.",
         "NSSpeechRecognitionUsageDescription": "Allow RouteFloww to use speech recognition.",
@@ -18,9 +18,9 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./assets/images/logo9.png",
-        "backgroundImage": "./assets/images/logo9.png",
-        "monochromeImage": "./assets/images/logo9.png"
+        "foregroundImage": "./assets/images/image.png",
+        "backgroundImage": "./assets/images/image.png",
+        "monochromeImage": "./assets/images/image.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -34,7 +34,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/logo9.png"
+      "favicon": "./assets/images/image.png"
     },
     "plugins": [
       "expo-router",
@@ -43,7 +43,7 @@
         {
           "backgroundColor": "#FFFFFF",
           "android": {
-            "image": "./assets/images/logo9.png",
+            "image": "./assets/images/image.png",
             "imageWidth": 104
           }
         }
