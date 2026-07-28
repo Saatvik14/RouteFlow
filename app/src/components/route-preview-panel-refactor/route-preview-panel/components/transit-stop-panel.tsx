@@ -660,6 +660,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
         isCompletingRoute={isCompletingRoute}
         onOpenSearch={onOpenSearch}
         onMarkRouteCompleted={onMarkRouteCompleted}
+        onNavigateActiveStop={onNavigateActiveStop}
       />
     );
   }

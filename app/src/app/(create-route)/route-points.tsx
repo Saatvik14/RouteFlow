@@ -9,6 +9,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { useConfigStore } from './../../store/useConfigStore';
 import {
+  isLocationAllowedForUser,
+  isIndiaAllowedForEmail,
+  getCurrentUserEmailSync,
+} from './../../utils/locationPermissions';
+import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
@@ -105,7 +110,9 @@ function getReadableAddress(address: Location.LocationGeocodedAddress | undefine
     address.postalCode,
   ]
     .filter(Boolean)
-    .join(', ');
+    .join(', ')
+    .replace(/[\s\-,]+$/, '')
+    .trim();
 }
 
 function emptyAddressDetails(): AddressDetails {
@@ -652,82 +659,89 @@ export default function RoutePointsScreen() {
         throw new Error('Unable to retrieve location');
       }
 
-      // Fast-fail bounds check for UK coordinates (Latitude [49.0, 61.0], Longitude [-10.0, 2.5])
+      const userEmail = getCurrentUserEmailSync();
+      const isIndiaAllowed = isIndiaAllowedForEmail(userEmail);
+
       const lat = currentLocation.coords.latitude;
       const lon = currentLocation.coords.longitude;
-      const isWithinUkBounds = lat >= 49.0 && lat <= 61.0 && lon >= -10.0 && lon <= 2.5;
-
-      if (!isWithinUkBounds) {
-        setErrorMessage('Only locations within the United Kingdom are supported. Your current location is outside the UK.');
-        return;
-      }
 
       let details: AddressDetails | null = null;
       let addressString = '';
 
+      // 1. Try Native Device Reverse Geocoding first for exact local GPS address (Google/Apple Maps on device)
       try {
-        const response = await routesService.reverseGeocode(
-          currentLocation.coords.latitude,
-          currentLocation.coords.longitude
-        );
-        if (response.success && response.data?.results?.length > 0) {
-          const result = response.data.results[0];
+        const reverseAddress = await Location.reverseGeocodeAsync({
+          latitude: lat,
+          longitude: lon,
+        });
+        if (reverseAddress && reverseAddress.length > 0) {
+          const item = reverseAddress[0];
+          addressString = getReadableAddress(item);
           details = {
-            housenumber: String(result.housenumber || ''),
-            street: String(result.street || ''),
-            placeId: String(result.place_id || ''),
-            addressLine1: String(result.address_line1 || result.name || ''),
-            addressLine2: String(result.address_line2 || result.formatted || ''),
-            city: String(result.city || ''),
-            district: String(result.county || result.district || ''),
-            state: String(result.state || ''),
-            country: String(result.country || ''),
-            countryCode: String(result.country_code || ''),
-            postalCode: String(result.postcode || ''),
-            latitude: Number(result.lat),
-            longitude: Number(result.lon),
+            ...emptyAddressDetails(),
+            street: String(item.street || item.name || ''),
+            addressLine1: String(item.name || item.street || addressString),
+            city: String(item.city || item.subregion || ''),
+            district: String(item.district || item.subregion || ''),
+            state: String(item.region || ''),
+            country: String(item.country || ''),
+            countryCode: String(item.isoCountryCode || ''),
+            postalCode: String(item.postalCode || ''),
+            latitude: lat,
+            longitude: lon,
           };
-          addressString = result.formatted || details.addressLine1;
         }
-      } catch (error) {
-        console.error('Geoapify reverse geocoding failed, falling back to Expo Location:', error);
+      } catch (err) {
+        console.warn('Native device reverse geocode failed, falling back to Geoapify:', err);
       }
 
-      let isUk: boolean = isWithinUkBounds;
-      if (details && !isUk) {
-        const cc = String(details.countryCode || '').toLowerCase();
-        const cname = String(details.country || '').toLowerCase();
-        isUk = cc === 'gb' || cname.includes('united kingdom') || cname === 'uk';
-      }
-
-      let reverseAddress: Location.LocationGeocodedAddress[] = [];
+      // 2. Fallback to Geoapify if native reverse geocoding did not return an address
       if (!addressString) {
         try {
-          reverseAddress = await Location.reverseGeocodeAsync({
-            latitude: currentLocation.coords.latitude,
-            longitude: currentLocation.coords.longitude,
-          });
-          if (reverseAddress && reverseAddress.length > 0) {
-            addressString = getReadableAddress(reverseAddress[0]);
-            const item = reverseAddress[0];
-            const cc = String(item.isoCountryCode || '').toLowerCase();
-            const cname = String(item.country || '').toLowerCase();
-            if (!isUk) {
-              isUk = cc === 'gb' || cname.includes('united kingdom') || cname === 'uk';
-            }
+          const response = await routesService.reverseGeocode(lat, lon);
+          if (response.success && response.data?.results?.length > 0) {
+            const result = response.data.results[0];
+            details = {
+              housenumber: String(result.housenumber || ''),
+              street: String(result.street || ''),
+              placeId: String(result.place_id || ''),
+              addressLine1: String(result.address_line1 || result.name || ''),
+              addressLine2: String(result.address_line2 || result.formatted || ''),
+              city: String(result.city || ''),
+              district: String(result.county || result.district || ''),
+              state: String(result.state || ''),
+              country: String(result.country || ''),
+              countryCode: String(result.country_code || ''),
+              postalCode: String(result.postcode || ''),
+              latitude: lat,
+              longitude: lon,
+            };
+            addressString = (result.formatted || details.addressLine1 || '')
+              .replace(/[\s\-,]+$/, '')
+              .trim();
           }
-        } catch (err) {
-          console.error('Expo reverse geocode failed:', err);
+        } catch (error) {
+          console.error('Geoapify reverse geocoding failed:', error);
         }
       }
 
-      if (!isUk && addressString) {
-        const addrLower = addressString.toLowerCase();
-        isUk = addrLower.includes('united kingdom') || addrLower.includes(', uk') || addrLower.includes(', gb');
-      }
+      const isAllowed = isLocationAllowedForUser(
+        {
+          latitude: lat,
+          longitude: lon,
+          address: addressString,
+          country: details?.country,
+          countryCode: details?.countryCode,
+        },
+        userEmail
+      );
 
-      if (!isUk) {
-        setErrorMessage('Only locations within the United Kingdom are supported. Your current location is outside the UK.');
+      if (!isAllowed) {
+        setErrorMessage(
+          isIndiaAllowed
+            ? 'Only locations within the United Kingdom and India are supported. Your current location is outside supported regions.'
+            : 'Only locations within the United Kingdom are supported. Your current location is outside the UK.'
+        );
         return;
       }
 
@@ -866,24 +880,37 @@ export default function RoutePointsScreen() {
   const handleDone = async () => {
     if (!canSubmit) return;
 
-    const isLocationInUk = (location: LocationValue) => {
+    const userEmail = getCurrentUserEmailSync();
+    const isIndiaAllowed = isIndiaAllowedForEmail(userEmail);
+
+    const isLocationValid = (location: LocationValue) => {
       if (!location.address) return true;
       if (location.mode === 'current_location' && !location.details) {
         return true;
       }
-      const cc = String(location.details?.countryCode || '').toLowerCase();
-      const country = String(location.details?.country || '').toLowerCase();
-      const addr = location.address.toLowerCase();
-      return cc === 'gb' || country.includes('united kingdom') || country === 'uk' || addr.includes('united kingdom') || addr.includes(', uk') || addr.includes(', gb');
+      return isLocationAllowedForUser(
+        {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          address: location.address,
+          country: location.details?.country,
+          countryCode: location.details?.countryCode,
+        },
+        userEmail
+      );
     };
 
-    if (!isLocationInUk(startLocation)) {
-      setErrorMessage('Start Location must be within the United Kingdom.');
+    if (!isLocationValid(startLocation)) {
+      setErrorMessage(
+        `Start Location must be within ${isIndiaAllowed ? 'the United Kingdom or India' : 'the United Kingdom'}.`
+      );
       return;
     }
 
-    if (endMode === 'other_address' && !isLocationInUk(endLocation)) {
-      setErrorMessage('End Location must be within the United Kingdom.');
+    if (endMode === 'other_address' && !isLocationValid(endLocation)) {
+      setErrorMessage(
+        `End Location must be within ${isIndiaAllowed ? 'the United Kingdom or India' : 'the United Kingdom'}.`
+      );
       return;
     }
 

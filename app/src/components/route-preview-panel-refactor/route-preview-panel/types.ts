@@ -25,7 +25,7 @@ export type StopDetails = {
 export type RoutePreviewPanelProps = {
   mode: PanelMode;
   subscriptionType?: string;
-  errorMessage?: string;
+  errorMessage?: string | null;
   routeName: string;
   startTime: string;
   start: RoutePoint;
@@ -51,7 +51,7 @@ export type RoutePreviewPanelProps = {
   onOpenSearch: () => void;
   onCloseSearch: () => void;
   onSelectSuggestion: (suggestion: PlaceSuggestion) => void;
-  onStopDetailsChange: (details: StopDetails) => void;
+  onStopDetailsChange: (details: any) => void | Promise<void>;
   onConfirmStopDetails: () => void | Promise<void>;
   onOptimizeRoute: () => void;
   onRefine: () => void;
@@ -77,7 +77,7 @@ export type RoutePreviewPanelProps = {
   onSaveRouteLocation?: (target: 'start' | 'end', suggestion: PlaceSuggestion) => void;
   onSaveRouteTime?: (target: 'start' | 'end', isoDateTime: string) => void;
   onOpenEditStop?: (stop: RouteStop) => void;
-  onSaveEditedStop?: (details: StopDetails) => void;
+  onSaveEditedStop?: (details: any) => void | Promise<void>;
   onOpenEditStopAddress?: (stop?: RouteStop) => void;
   onSaveStopAddress?: (suggestion: PlaceSuggestion) => void;
   onRemoveEditedStop?: () => void;
@@ -86,6 +86,8 @@ export type RoutePreviewPanelProps = {
   onConfirmManifestStops?: (stops: any[]) => Promise<void>;
   onCancelManifestStops?: () => void;
   onOpenStopDetails?: (stop: any) => void;
+  onSelectStop?: (stop: any) => void;
+  onStopPress?: (stop: any) => void;
   onScanAddress?: () => void;
   onVoiceAddress?: () => void;
   onScanRouteManifest?: () => void;
@@ -94,6 +96,10 @@ export type RoutePreviewPanelProps = {
   onSkipOptimization?: () => void;
   onRemoveStops?: () => void;
   onAddAnotherStop?: () => void;
+  onOpenReorderStops?: () => void;
+  onCancelReorderStops?: () => void;
+  onSaveStopOrder?: (orderedStops: any[]) => void | Promise<void>;
+  isSavingStopOrder?: boolean;
   isOptimizing?: boolean;
   isCancellingRoute?: boolean;
   onCancelRoute?: () => void | Promise<void>;

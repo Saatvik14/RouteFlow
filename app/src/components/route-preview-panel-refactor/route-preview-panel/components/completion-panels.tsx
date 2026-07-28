@@ -1,6 +1,8 @@
 import { useState, type ComponentProps } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -12,6 +14,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import type { RoutePreviewPanelProps } from "../types";
+
+function getNavigationUrl(stop: any): string {
+  const lat = stop?.latitude ?? stop?.lat;
+  const lng = stop?.longitude ?? stop?.lng;
+  const address = stop?.address || stop?.fullAddress || stop?.title || '';
+  if (lat && lng) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  }
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
+}
 import {
   countStopsByStatus,
   getStopSubtitle,
@@ -306,21 +318,28 @@ export function RouteCompletionPromptPanel({
   isCompletingRoute,
   onMarkRouteCompleted,
   onOpenSearch,
-}: Pick<
-  RoutePreviewPanelProps,
-  | "routeName"
-  | "start"
-  | "end"
-  | "stops"
-  | "startTime"
-  | "durationLabel"
-  | "distanceLabel"
-  | "isCompletingRoute"
-  | "onMarkRouteCompleted"
-  | "onOpenSearch"
-> & { isWide: boolean }) {
+  onNavigateActiveStop,
+}: Partial<
+  Pick<
+    RoutePreviewPanelProps,
+    | "routeName"
+    | "start"
+    | "end"
+    | "stops"
+    | "startTime"
+    | "durationLabel"
+    | "distanceLabel"
+    | "isCompletingRoute"
+    | "onMarkRouteCompleted"
+    | "onOpenSearch"
+  >
+> & {
+  isWide: boolean;
+  onNavigateActiveStop?: (stop?: any) => Promise<void> | void;
+}) {
   const insets = useSafeAreaInsets();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [navModalVisible, setNavModalVisible] = useState(false);
 
   const routeStops = Array.isArray(stops) ? stops : [];
   const stats = countStopsByStatus(routeStops);
@@ -340,7 +359,11 @@ export function RouteCompletionPromptPanel({
 
   return (
     <>
-      <DraggableRouteSheet isWide={isWide} initialSnap="top">
+      <DraggableRouteSheet
+        isWide={isWide}
+        initialSnap="top"
+        collapsedHeight={88}
+      >
         <View style={promptStyles.header}>
           <View style={promptStyles.headerTextBox}>
             <View style={promptStyles.readyRow}>
@@ -366,7 +389,7 @@ export function RouteCompletionPromptPanel({
           contentContainerStyle={[
             promptStyles.content,
             isWide && promptStyles.contentWide,
-            { paddingBottom: Math.max(insets.bottom + 108, 126) },
+            { paddingBottom: Math.max(insets.bottom + 24, 36) },
           ]}
         >
           <View style={promptStyles.summaryCard}>
@@ -462,8 +485,8 @@ export function RouteCompletionPromptPanel({
               time={formatTimelineTime(startTime, "Start")}
               title="Start location"
               subtitle={
-                start.description ||
-                start.title ||
+                start?.description ||
+                start?.title ||
                 "GPS position used when the route started"
               }
               marker="S"
@@ -510,43 +533,53 @@ export function RouteCompletionPromptPanel({
 
             <CompletionTimelineItem
               time={durationLabel || "End"}
-              title={end.title || "End location"}
-              subtitle={end.description || "Final destination for this route"}
+              title={end?.title || "End location"}
+              subtitle={end?.description || "Final destination for this route"}
               marker="E"
               status="end"
               isLast
             />
           </View>
-        </ScrollView>
 
-        <View
-          style={[
-            promptStyles.stickyFooter,
-            { paddingBottom: Math.max(insets.bottom + 12, 18) },
-          ]}
-        >
-          <Pressable
-            style={[
-              promptStyles.completeButton,
-              buttonDisabled && promptStyles.disabledButton,
-            ]}
-            onPress={() => setShowConfirmation(true)}
-            disabled={buttonDisabled}
-          >
-            {isCompletingRoute ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Feather name="check" size={20} color="#FFFFFF" />
-            )}
-            <Text style={promptStyles.completeButtonText}>
-              {isCompletingRoute
-                ? "Completing route..."
-                : allStopsResolved
-                  ? "Complete route"
-                  : `${pendingCount} stops still pending`}
-            </Text>
-          </Pressable>
-        </View>
+          <View style={promptStyles.actionContainer}>
+            {allStopsResolved ? (
+              <Pressable
+                style={({ pressed }) => [
+                  promptStyles.navigateEndBtn,
+                  pressed && promptStyles.btnPressed,
+                ]}
+                onPress={() => setNavModalVisible(true)}
+              >
+                <MaterialCommunityIcons name="navigation-variant" size={20} color="#2563EB" />
+                <Text style={promptStyles.navigateEndBtnText}>
+                  Navigate to End Location
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              style={[
+                promptStyles.completeButton,
+                buttonDisabled && promptStyles.disabledButton,
+              ]}
+              onPress={() => setShowConfirmation(true)}
+              disabled={buttonDisabled}
+            >
+              {isCompletingRoute ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Feather name="check" size={20} color="#FFFFFF" />
+              )}
+              <Text style={promptStyles.completeButtonText}>
+                {isCompletingRoute
+                  ? "Completing route..."
+                  : allStopsResolved
+                    ? "Complete route"
+                    : `${pendingCount} stops still pending`}
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </DraggableRouteSheet>
 
       <CompleteRouteConfirmation
@@ -557,6 +590,81 @@ export function RouteCompletionPromptPanel({
         onCancel={() => setShowConfirmation(false)}
         onConfirm={handleConfirmCompletion}
       />
+
+      <Modal
+        visible={navModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNavModalVisible(false)}
+      >
+        <View style={navModalStyles.backdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setNavModalVisible(false)}
+          />
+          <View style={navModalStyles.modalCard}>
+            <View style={navModalStyles.handle} />
+            <Text style={navModalStyles.modalTitle}>Navigate to End Location</Text>
+            <Text style={navModalStyles.modalSubtitle} numberOfLines={1}>
+              {end?.title || end?.address || end?.fullAddress || 'Final Destination'}
+            </Text>
+
+            <Pressable
+              style={({ pressed }) => [
+                navModalStyles.optionButton,
+                navModalStyles.routeflowBtn,
+                pressed && navModalStyles.btnPressed,
+              ]}
+              onPress={async () => {
+                setNavModalVisible(false);
+                const targetEnd = end || (stops && stops.length > 0 ? stops[stops.length - 1] : start) || { title: 'End Location', address: 'End Location' };
+                if (onNavigateActiveStop) {
+                  await onNavigateActiveStop(targetEnd);
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="compass-outline" size={24} color="#FFFFFF" />
+              <View style={navModalStyles.btnTextContainer}>
+                <Text style={navModalStyles.btnTitleLight}>RouteFloww Navigation</Text>
+                <Text style={navModalStyles.btnDescLight}>Stay in app with live GPS follow</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                navModalStyles.optionButton,
+                navModalStyles.googleMapsBtn,
+                pressed && navModalStyles.btnPressed,
+              ]}
+              onPress={async () => {
+                setNavModalVisible(false);
+                const targetEnd = end || (stops && stops.length > 0 ? stops[stops.length - 1] : start) || { title: 'End Location', address: 'End Location' };
+                try {
+                  await Linking.openURL(getNavigationUrl(targetEnd));
+                } catch {
+                  Alert.alert('Error', 'Unable to open Google Maps.');
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="google-maps" size={24} color="#1E293B" />
+              <View style={navModalStyles.btnTextContainer}>
+                <Text style={navModalStyles.btnTitleDark}>Google Maps</Text>
+                <Text style={navModalStyles.btnDescDark}>Open in external Google Maps app</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                navModalStyles.modalCancelButton,
+                pressed && navModalStyles.btnPressed,
+              ]}
+              onPress={() => setNavModalVisible(false)}
+            >
+              <Text style={navModalStyles.modalCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -600,8 +708,13 @@ function CompletedMetric({
   );
 }
 
-type RouteCompletedPanelProps = RoutePreviewPanelProps & {
+type RouteCompletedPanelProps = Partial<RoutePreviewPanelProps> & {
   isWide: boolean;
+  routeName?: string;
+  stops?: any[];
+  durationLabel?: string;
+  distanceLabel?: string;
+  isRetryingFailedStops?: boolean;
   onCreateNewRoute?: () => void;
   onRetryFailedStops?: (failedStops: any[]) => void;
 };
@@ -612,6 +725,7 @@ export function RouteCompletedPanel({
   stops,
   distanceLabel,
   durationLabel,
+  isRetryingFailedStops = false,
   onCreateNewRoute,
   onRetryFailedStops,
 }: RouteCompletedPanelProps) {
@@ -1164,20 +1278,44 @@ const promptStyles = StyleSheet.create({
     position: "absolute",
     right: 0,
   },
+  actionContainer: {
+    marginTop: 20,
+    gap: 12,
+  },
   completeButton: {
     alignItems: "center",
     backgroundColor: "#2563EB",
-    borderRadius: 17,
+    borderRadius: 16,
     flexDirection: "row",
     gap: 9,
     justifyContent: "center",
-    minHeight: 56,
+    minHeight: 52,
     paddingHorizontal: 18,
   },
   completeButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  navigateEndBtn: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#2563EB",
+    borderWidth: 1.5,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 9,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 18,
+  },
+  navigateEndBtnText: {
+    color: "#2563EB",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  btnPressed: {
+    opacity: 0.85,
   },
   disabledButton: {
     opacity: 0.45,
@@ -1538,5 +1676,102 @@ const completedStyles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.45,
+  },
+});
+
+const navModalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 2,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#64748B",
+    marginBottom: 18,
+  },
+  optionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginBottom: 12,
+    gap: 14,
+  },
+  routeflowBtn: {
+    backgroundColor: "#2563EB",
+  },
+  googleMapsBtn: {
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  btnPressed: {
+    opacity: 0.85,
+  },
+  btnTextContainer: {
+    flex: 1,
+  },
+  btnTitleLight: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  btnDescLight: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#DBEAFE",
+    marginTop: 1,
+  },
+  btnTitleDark: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  btnDescDark: {
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#64748B",
+    marginTop: 1,
+  },
+  modalCancelButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
   },
 });

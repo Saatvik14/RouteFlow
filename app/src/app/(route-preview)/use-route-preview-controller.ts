@@ -6,6 +6,11 @@ import { ordersService } from './../../services/api/orders';
 import { routesService } from './../../services/api/routes';
 import { userService } from './../../services/api/users';
 import {
+  isLocationAllowedForUser,
+  isIndiaAllowedForEmail,
+  getCurrentUserEmailSync,
+} from './../../utils/locationPermissions';
+import {
   addManifestStopsToBackend,
   buildManifestOrderPayloads,
   importRouteManifestFromFile,
@@ -336,7 +341,17 @@ function buildRetryRouteLocation(point: any) {
   };
 }
 
-function isUnitedKingdomSuggestion(suggestion: PlaceSuggestion) {
+function isUnitedKingdomSuggestion(suggestion: PlaceSuggestion): boolean {
+  const userEmail = getCurrentUserEmailSync();
+  const isIndiaAllowed = isIndiaAllowedForEmail(userEmail);
+
+  if (isLocationAllowedForUser(suggestion, userEmail)) {
+    return true;
+  }
+  if (suggestion.details && isLocationAllowedForUser(suggestion.details, userEmail)) {
+    return true;
+  }
+
   const searchableAddress = [
     suggestion?.fullAddress,
     suggestion?.subtitle,
@@ -346,13 +361,26 @@ function isUnitedKingdomSuggestion(suggestion: PlaceSuggestion) {
     .join(', ')
     .toLowerCase();
 
-  return (
+  const isUk = (
     searchableAddress.includes('united kingdom') ||
     searchableAddress.includes(', uk') ||
     searchableAddress.includes(', gb') ||
     searchableAddress.endsWith(' uk') ||
     searchableAddress.endsWith(' gb')
   );
+
+  if (isUk) return true;
+
+  if (isIndiaAllowed) {
+    return (
+      searchableAddress.includes('india') ||
+      searchableAddress.includes(', in') ||
+      searchableAddress.endsWith(' in') ||
+      searchableAddress.endsWith(' india')
+    );
+  }
+
+  return false;
 }
 
 export function useRoutePreviewController(
@@ -1010,7 +1038,13 @@ const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) =>
   if (!route || !selectedStop || !effectiveRouteId) return;
 
   if (!isUnitedKingdomSuggestion(suggestion)) {
-    setErrorMessage('Only locations within the United Kingdom are supported.');
+    const userEmail = getCurrentUserEmailSync();
+    const isIndiaAllowed = isIndiaAllowedForEmail(userEmail);
+    setErrorMessage(
+      isIndiaAllowed
+        ? 'Only locations within the United Kingdom and India are supported.'
+        : 'Only locations within the United Kingdom are supported.'
+    );
     return;
   }
 
@@ -1196,7 +1230,13 @@ const handleRemoveEditedStop = useCallback(async () => {
 
     if (!selectedStop) {
       if (!isUnitedKingdomSuggestion(selectedSuggestion)) {
-        setErrorMessage('Only locations within the United Kingdom are supported.');
+        const userEmail = getCurrentUserEmailSync();
+        const isIndiaAllowed = isIndiaAllowedForEmail(userEmail);
+        setErrorMessage(
+          isIndiaAllowed
+            ? 'Only locations within the United Kingdom and India are supported.'
+            : 'Only locations within the United Kingdom are supported.'
+        );
         return;
       }
     }
@@ -1720,6 +1760,11 @@ const handleRemoveEditedStop = useCallback(async () => {
       };
 
       setRoute(nextRoute);
+
+      const nextPendingStop = getActiveStop(nextStops).stop || nextRoute.end;
+      if (isNavigating && nextPendingStop) {
+        setNavigationTargetStop(nextPendingStop);
+      }
 
       // Keep the route in transit after the last stop is resolved.
       // The user must explicitly confirm completion from the completion panel.

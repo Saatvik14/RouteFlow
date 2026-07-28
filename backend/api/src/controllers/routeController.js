@@ -4,6 +4,12 @@ const { ROUTE_LIMIT } = require('../constants/limits');
 const {
   addApproximateEtaFields,
 } = require('../utils/approximateEta');
+const {
+  isAllowedAddress,
+  getCountryCodeFilter,
+  isIndiaAllowedUser,
+  isIndiaAddress,
+} = require('../utils/locationPermissions');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -12,7 +18,7 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
  * Shared helper to fetch geocoding data from Geoapify.
  * Used by both Route and Order controllers.
  */
-const getGeocodingData = async (address) => {
+const getGeocodingData = async (address, userEmail) => {
   const { name, street, housenumber, postcode, city, country } = address;
   const apiKey = process.env.GEOAPIFY_API_KEY;
 
@@ -46,7 +52,7 @@ const getGeocodingData = async (address) => {
   url.searchParams.append('city', city || '');
   url.searchParams.append('country', country || '');
   url.searchParams.append('format', 'json');
-  url.searchParams.append('filter', 'countrycode:gb');
+  url.searchParams.append('filter', getCountryCodeFilter(userEmail));
   url.searchParams.append('apiKey', apiKey);
 
   try {
@@ -111,16 +117,14 @@ const createRoute = async (req, res) => {
     });
   }
 
-  const isUkAddress = (loc) => {
-    if (!loc) return true;
-    const cc = (loc.countryCode || loc.country_code || '').toLowerCase();
-    const name = (loc.country || '').toLowerCase();
-    const addr = (loc.full_address || loc.address || '').toLowerCase();
-    return cc === 'gb' || name.includes('united kingdom') || name === 'uk' || addr.includes('united kingdom') || addr.includes(', uk');
-  };
-
-  if (!isUkAddress(start_location) || (end_location && !isUkAddress(end_location))) {
-    return res.status(400).json({ message: 'Only locations within the United Kingdom are supported.' });
+  const userEmail = req.user?.email;
+  if (!isAllowedAddress(start_location, userEmail) || (end_location && !isAllowedAddress(end_location, userEmail))) {
+    const isIndiaAllowed = isIndiaAllowedUser(userEmail);
+    return res.status(400).json({
+      message: isIndiaAllowed
+        ? 'Only locations within the United Kingdom and India are supported.'
+        : 'Only locations within the United Kingdom are supported.',
+    });
   }
 
   try {
@@ -646,7 +650,7 @@ const geocodeAddress = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields: street, housenumber, postcode, city, and country are required.' });
     }
 
-    const bestMatch = await getGeocodingData(req.body);
+    const bestMatch = await getGeocodingData(req.body, req.user?.email);
     if (!bestMatch) {
       return res.status(404).json({ message: 'No geocoding results found' });
     }
@@ -673,12 +677,13 @@ const autocompleteAddress = async (req, res) => {
   }
 
   try {
+    const countryFilter = getCountryCodeFilter(req.user?.email);
     const autocompleteUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
     autocompleteUrl.searchParams.append('text', text);
     autocompleteUrl.searchParams.append('limit', limit || '3');
     autocompleteUrl.searchParams.append('lang', lang || 'en');
     autocompleteUrl.searchParams.append('format', 'json');
-    autocompleteUrl.searchParams.append('filter', 'countrycode:gb');
+    autocompleteUrl.searchParams.append('filter', countryFilter);
     autocompleteUrl.searchParams.append('apiKey', apiKey);
 
     const autocompleteResponse = await fetch(autocompleteUrl.toString());
@@ -691,7 +696,7 @@ const autocompleteAddress = async (req, res) => {
       geocodeUrl.searchParams.append('limit', limit || '3');
       geocodeUrl.searchParams.append('lang', lang || 'en');
       geocodeUrl.searchParams.append('format', 'json');
-      geocodeUrl.searchParams.append('filter', 'countrycode:gb');
+      geocodeUrl.searchParams.append('filter', countryFilter);
       geocodeUrl.searchParams.append('apiKey', apiKey);
 
       const geocodeResponse = await fetch(geocodeUrl.toString());
@@ -918,6 +923,85 @@ const optimizeRoute = async (req, res) => {
         order,
       ])
     );
+
+    const isIndiaCoordinates = (coords) => {
+      if (!coords || !Array.isArray(coords) || coords.length < 2) return false;
+      const lon = coords[0];
+      const lat = coords[1];
+      return lat >= 6.0 && lat <= 38.0 && lon >= 68.0 && lon <= 98.0;
+    };
+
+    const isIndiaRoute =
+      isIndiaAddress({ full_address: route.start_full_address }) ||
+      isIndiaAddress({ full_address: route.end_full_address }) ||
+      isIndiaCoordinates(startCoordinates) ||
+      isIndiaCoordinates(endCoordinates) ||
+      allOrders.some((o) => isIndiaCoordinates(o.coordinates));
+
+    if (isIndiaRoute) {
+      // Do not call PharmDel API for India routes; shuffle stops in random order
+      const shuffledOrders = [...allOrders];
+      for (let i = shuffledOrders.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledOrders[i], shuffledOrders[j]] = [shuffledOrders[j], shuffledOrders[i]];
+      }
+
+      const orderIds = shuffledOrders.map((o) => Number(o.order_id));
+      const sequenceNumbers = shuffledOrders.map((_, index) => index + 1);
+
+      await runQuery(
+        `
+          UPDATE orders AS o
+          SET sequence_no = updated.sequence_no,
+              eta_duration = NULL,
+              eta_distance = NULL
+          FROM unnest(
+            $1::bigint[],
+            $2::integer[]
+          ) AS updated(order_id, sequence_no)
+          WHERE o.order_id = updated.order_id
+            AND o.route_id = $3
+        `,
+        [orderIds, sequenceNumbers, route_id]
+      );
+
+      const finalSteps = [
+        {
+          type: 'start',
+          location: startCoordinates,
+        },
+        ...shuffledOrders.map((order, index) => ({
+          type: 'job',
+          id: order.order_id,
+          sequence_no: index + 1,
+          order_preference: order.order_preference,
+          duration: 0,
+          arrival: 0,
+          distance: 0,
+          location: order.coordinates,
+        })),
+        {
+          type: 'end',
+          location: endCoordinates,
+        },
+      ];
+
+      return res.status(200).json({
+        code: 0,
+        routes: [
+          {
+            vehicle: 0,
+            cost: 0,
+            steps: finalSteps,
+            summary: {
+              distance: 0,
+              duration: 0,
+            },
+          },
+        ],
+        unassigned: [],
+      });
+    }
 
     /*
      * 4. Divide orders into preference groups.
