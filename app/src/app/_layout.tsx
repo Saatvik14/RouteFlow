@@ -186,6 +186,7 @@ export default function RootLayout() {
               <Stack.Screen name="(MapScreen)/MapScreen" />
               <Stack.Screen name="route-points" />
               <Stack.Screen name="route-preview" />
+              <Stack.Screen name="driver-routes" />
             </Stack>
 
             <Modal

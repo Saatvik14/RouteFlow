@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS routes (
     route_id SERIAL PRIMARY KEY,
-    user_id UUID NOT NULL, -- Assuming UUID for user_id, adjust if different
+    user_id INT NOT NULL,
     name VARCHAR(255) NOT NULL,
     start_full_address TEXT NOT NULL,
     end_full_address TEXT NOT NULL,
@@ -16,3 +16,4 @@ CREATE TABLE IF NOT EXISTS routes (
 ALTER TABLE routes add is_active boolean default true;
 ALTER TABLE routes ADD COLUMN distance DECIMAL(10, 3) DEFAULT 0;
 ALTER TABLE routes ADD COLUMN duration DECIMAL(10, 3) DEFAULT 0;
+ALTER TABLE routes ADD COLUMN driver_id INT REFERENCES drivers(driver_id) ON DELETE SET NULL;

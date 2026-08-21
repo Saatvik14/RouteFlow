@@ -1,6 +1,7 @@
 import { useAuth } from './../_layout';
 import { fetchAndStoreConfig, restoreAuthToken } from './../../services/api';
 import { routesService } from './../../services/api/routes';
+import { driversService, Driver } from './../../services/api/drivers';
 import { isTokenValid } from './../../services/auth/jwtUtils';
 import { addManifestStopsToBackend } from '../(route-preview)/route-preview-input.service';
 import { ROUTE_STATUS_PENDING } from './../(route-preview)/route-preview.helpers';
@@ -491,6 +492,29 @@ export default function RoutePointsScreen() {
   const [showEndSheet, setShowEndSheet] = useState(false);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
 
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [showDriverSheet, setShowDriverSheet] = useState(false);
+  const [showAddDriverModal, setShowAddDriverModal] = useState(false);
+  const [newDriverName, setNewDriverName] = useState('');
+  const [newDriverPhone, setNewDriverPhone] = useState('');
+  const [newDriverEmail, setNewDriverEmail] = useState('');
+  const [isCreatingDriver, setIsCreatingDriver] = useState(false);
+
+  useEffect(() => {
+    const loadDrivers = async () => {
+      try {
+        const response = await driversService.getDrivers();
+        if (response.success && Array.isArray(response.data)) {
+          setDrivers(response.data);
+        }
+      } catch (err) {
+        console.log('Error loading drivers:', err);
+      }
+    };
+    loadDrivers();
+  }, []);
+
   const [dateTimePickerTarget, setDateTimePickerTarget] =
     useState<PickerTarget | null>(null);
 
@@ -866,6 +890,7 @@ export default function RoutePointsScreen() {
   end_location: buildBackendLocationPayload(finalEndLocation, 'End Location'),
   start_datetime: buildDateTimeISOString(startDate, startTime),
   end_datetime: buildDateTimeISOString(endDate, endTime),
+  driver_id: selectedDriver?.driver_id || null,
 
   // Extra frontend fields
   routeName,
@@ -1117,6 +1142,23 @@ export default function RoutePointsScreen() {
             ) : null}
           </View>
 
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Driver details</Text>
+
+            <InfoCard
+              icon="👤"
+              iconColor="#2F76F6"
+              title={selectedDriver ? selectedDriver.name : 'Assign Driver'}
+              subtitle={
+                selectedDriver
+                  ? selectedDriver.phone || selectedDriver.email || 'Assigned driver'
+                  : 'Tap to select or add driver'
+              }
+              showChevron
+              onPress={() => setShowDriverSheet(true)}
+            />
+          </View>
+
           {/* <View style={styles.section}>
             <Text style={styles.sectionTitle}>Break</Text>
 
@@ -1164,6 +1206,55 @@ export default function RoutePointsScreen() {
             <Text style={styles.defaultText}>Save as default</Text>
           </Pressable>
         </View>
+
+        <DriverPickerSheet
+          visible={showDriverSheet}
+          drivers={drivers}
+          selectedDriver={selectedDriver}
+          onClose={() => setShowDriverSheet(false)}
+          onSelect={(driver) => {
+            setSelectedDriver(driver);
+            setShowDriverSheet(false);
+          }}
+          onOpenAddDriver={() => setShowAddDriverModal(true)}
+        />
+
+        <AddDriverSheet
+          visible={showAddDriverModal}
+          name={newDriverName}
+          phone={newDriverPhone}
+          email={newDriverEmail}
+          isSubmitting={isCreatingDriver}
+          onChangeName={setNewDriverName}
+          onChangePhone={setNewDriverPhone}
+          onChangeEmail={setNewDriverEmail}
+          onClose={() => setShowAddDriverModal(false)}
+          onSubmit={async () => {
+            if (!newDriverName.trim()) return;
+            try {
+              setIsCreatingDriver(true);
+              const res = await driversService.createDriver({
+                name: newDriverName.trim(),
+                phone: newDriverPhone.trim() || undefined,
+                email: newDriverEmail.trim() || undefined,
+              });
+              if (res.success && res.data) {
+                const created = res.data;
+                setDrivers((prev) => [created, ...prev]);
+                setSelectedDriver(created);
+                setShowAddDriverModal(false);
+                setShowDriverSheet(false);
+                setNewDriverName('');
+                setNewDriverPhone('');
+                setNewDriverEmail('');
+              }
+            } catch (err) {
+              console.log('Create driver error:', err);
+            } finally {
+              setIsCreatingDriver(false);
+            }
+          }}
+        />
 
         <EndLocationSheet
           visible={showEndSheet}
@@ -1964,4 +2055,281 @@ const styles = StyleSheet.create({
     color: '#667085',
     marginTop: 2,
   },
+
+  driverModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '90%',
+    maxWidth: 420,
+  },
+
+  driverModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  driverModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#101828',
+  },
+
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#344054',
+    marginBottom: 6,
+    marginTop: 10,
+  },
+
+  driverInput: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: '#101828',
+    backgroundColor: '#FFFFFF',
+  },
+
+  createDriverButton: {
+    height: 48,
+    backgroundColor: '#2F76F6',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+
+  createDriverText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  addDriverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    marginBottom: 14,
+  },
+
+  addDriverText: {
+    color: '#2F76F6',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+
+  driverOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#E4E7EC',
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+  },
+
+  selectedDriverOption: {
+    borderColor: '#2F76F6',
+    backgroundColor: '#F0F5FF',
+  },
+
+  driverName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#101828',
+  },
+
+  driverMeta: {
+    fontSize: 13,
+    color: '#667085',
+    marginTop: 2,
+  },
 });
+
+function DriverPickerSheet({
+  visible,
+  drivers,
+  selectedDriver,
+  onClose,
+  onSelect,
+  onOpenAddDriver,
+}: {
+  visible: boolean;
+  drivers: Driver[];
+  selectedDriver: Driver | null;
+  onClose: () => void;
+  onSelect: (driver: Driver | null) => void;
+  onOpenAddDriver: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
+
+        <View
+          style={[
+            styles.bottomSheet,
+            {
+              paddingBottom: Math.max(insets.bottom + 24, 36),
+            },
+          ]}
+        >
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Assign Driver</Text>
+
+            <Pressable onPress={onClose}>
+              <Text style={styles.sheetDone}>Done</Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            style={styles.addDriverRow}
+            onPress={() => {
+              onClose();
+              onOpenAddDriver();
+            }}
+          >
+            <Text style={styles.addDriverText}>+ Add New Driver</Text>
+          </Pressable>
+
+          <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+            <Pressable
+              style={[
+                styles.driverOption,
+                selectedDriver === null && styles.selectedDriverOption,
+              ]}
+              onPress={() => onSelect(null)}
+            >
+              <View>
+                <Text style={styles.driverName}>Unassigned</Text>
+                <Text style={styles.driverMeta}>No driver assigned to this route</Text>
+              </View>
+              {selectedDriver === null ? <Text style={styles.selectedTick}>✓</Text> : null}
+            </Pressable>
+
+            {drivers.map((driver) => {
+              const isSelected = selectedDriver?.driver_id === driver.driver_id;
+              return (
+                <Pressable
+                  key={driver.driver_id}
+                  style={[styles.driverOption, isSelected && styles.selectedDriverOption]}
+                  onPress={() => onSelect(driver)}
+                >
+                  <View>
+                    <Text style={styles.driverName}>{driver.name}</Text>
+                    {driver.phone || driver.email ? (
+                      <Text style={styles.driverMeta}>
+                        {[driver.phone, driver.email].filter(Boolean).join(' • ')}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {isSelected ? <Text style={styles.selectedTick}>✓</Text> : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function AddDriverSheet({
+  visible,
+  name,
+  phone,
+  email,
+  isSubmitting,
+  onChangeName,
+  onChangePhone,
+  onChangeEmail,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  name: string;
+  phone: string;
+  email: string;
+  isSubmitting: boolean;
+  onChangeName: (val: string) => void;
+  onChangePhone: (val: string) => void;
+  onChangeEmail: (val: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
+
+        <View style={styles.driverModalCard}>
+          <View style={styles.driverModalHeader}>
+            <Text style={styles.driverModalTitle}>Add New Driver</Text>
+            <Pressable onPress={onClose}>
+              <Text style={styles.closeText}>×</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.inputLabel}>Driver Name *</Text>
+          <TextInput
+            style={styles.driverInput}
+            placeholder="e.g. John Smith"
+            placeholderTextColor="#98A2B3"
+            value={name}
+            onChangeText={onChangeName}
+          />
+
+          <Text style={styles.inputLabel}>Phone Number (Optional)</Text>
+          <TextInput
+            style={styles.driverInput}
+            placeholder="e.g. +44 7911 123456"
+            placeholderTextColor="#98A2B3"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={onChangePhone}
+          />
+
+          <Text style={styles.inputLabel}>Email (Optional)</Text>
+          <TextInput
+            style={styles.driverInput}
+            placeholder="e.g. driver@example.com"
+            placeholderTextColor="#98A2B3"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={onChangeEmail}
+          />
+
+          <Pressable
+            style={[styles.createDriverButton, isSubmitting && { opacity: 0.6 }]}
+            disabled={isSubmitting}
+            onPress={onSubmit}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.createDriverText}>Create & Select Driver</Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}

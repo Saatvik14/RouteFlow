@@ -554,6 +554,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     router.push("/support" as never);
   };
 
+  const handleDriverRoutes = () => {
+    onClose();
+    router.push("/driver-routes" as never);
+  };
+
   const handleRouteHistory = () => {
     onClose();
     router.push("/route-history" as never);
@@ -1105,7 +1110,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </Pressable>
 
           <View style={styles.quickActions}>
-            {/* {renderQuickAction('home', 'Home', handleHome, pathname === '/')} */}
+            {renderQuickAction(
+              "users",
+              "Routes per Driver",
+              handleDriverRoutes,
+              pathname?.includes("driver-routes"),
+            )}
             {renderQuickAction(
               "settings",
               "Settings",

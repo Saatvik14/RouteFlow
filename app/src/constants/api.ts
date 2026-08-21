@@ -128,7 +128,12 @@ export const API_ENDPOINTS = {
   SUPPORT: {
     SUBMIT: '/support/submit',
   },
-
+  DRIVERS: {
+    FETCH_ALL: '/driver/fetch-all',
+    CREATE: '/driver/create',
+    EDIT: '/driver/edit',
+    DELETE: (id: string) => `/driver/delete?driver_id=${id}`,
+  },
 };
 
 /**

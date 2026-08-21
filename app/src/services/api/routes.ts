@@ -26,8 +26,12 @@ export interface Route {
   likes: number;
   createdAt: string;
   updatedAt: string;
-    route_id: number;
+  route_id: number;
   status?: string;
+  driver_id?: number | null;
+  driver_name?: string | null;
+  driver_phone?: string | null;
+  driver_email?: string | null;
 }
 
 /**
@@ -35,7 +39,7 @@ export interface Route {
  */
 export interface CreateRouteRequest {
   name: string;
-
+  driver_id?: number | null;
 }
 
 /**
@@ -44,6 +48,7 @@ export interface CreateRouteRequest {
 export interface UpdateRouteRequest extends Partial<CreateRouteRequest> {
   route_id: number;
   status?: string;
+  driver_id?: number | null;
 }
 
 /**

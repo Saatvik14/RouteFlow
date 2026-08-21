@@ -12,6 +12,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const configurationRoutes = require('./routes/configurationRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const driverRoutes = require('./routes/driverRoutes');
 
 const app = express();
 
@@ -56,5 +57,6 @@ app.use('/config', configurationRoutes);
 app.use('/route', require('./routes/routeManifestRoutes'));
 app.use('/support', supportRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
+app.use('/driver', driverRoutes);
 
 module.exports = app;

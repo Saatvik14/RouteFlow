@@ -82,6 +82,7 @@ const createRoute = async (req, res) => {
     start_datetime, // New: route start datetime
     end_datetime,   // New: route end datetime
     status, // New: route status (optional)
+    driver_id, // New: driver assignment
     saveAddressDefault
   } = req.body;
   const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
@@ -150,8 +151,8 @@ const createRoute = async (req, res) => {
 
     // 5. Create entry in routes table
     const insertRouteQuery = `
-      INSERT INTO routes (user_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO routes (user_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status, driver_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `;
     const routeRes = await runQuery(insertRouteQuery, [
@@ -161,7 +162,8 @@ const createRoute = async (req, res) => {
       end_location.full_address,
       start_datetime,
       end_datetime,
-      status || ROUTE_STATUS.PENDING // Default status
+      status || ROUTE_STATUS.PENDING, // Default status
+      driver_id || null
     ]);
     // If saveAddressDefault is true, update the user's default addresses in config_model
     if (saveAddressDefault) {
@@ -212,11 +214,12 @@ const fetchAllRoutes = async (req, res) => {
     // 1. Fetch all active routes
     const routesResult = await runQuery(
       `
-        SELECT *
-        FROM routes
-        WHERE user_id = $1
-          AND is_active = true
-        ORDER BY created_at DESC
+        SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
+        FROM routes r
+        LEFT JOIN drivers d ON r.driver_id = d.driver_id
+        WHERE r.user_id = $1
+          AND r.is_active = true
+        ORDER BY r.created_at DESC
       `,
       [user_id]
     );
@@ -365,6 +368,10 @@ const fetchAllRoutes = async (req, res) => {
         end_datetime: route.end_datetime,
         status: route.status,
         user_id: route.user_id,
+        driver_id: route.driver_id || null,
+        driver_name: route.driver_name || null,
+        driver_phone: route.driver_phone || null,
+        driver_email: route.driver_email || null,
         end_mode: route.end_mode || 'round_trip',
         distance: parseFloat(route.distance || 0),
         duration:  route.start_datetime && route.end_datetime
@@ -422,7 +429,12 @@ const fetchRouteById = async (req, res) => {
 
   try {
     // 1. Fetch the route main data
-    const routeResult = await runQuery('SELECT * FROM routes WHERE route_id = $1 AND user_id = $2', [id, user_id]);
+    const routeResult = await runQuery(`
+      SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
+      FROM routes r
+      LEFT JOIN drivers d ON r.driver_id = d.driver_id
+      WHERE r.route_id = $1 AND r.user_id = $2
+    `, [id, user_id]);
 
     if (routeResult.rows.length === 0) {
       return res.status(404).json({ message: 'Route not found or unauthorized' });
@@ -454,6 +466,10 @@ const fetchRouteById = async (req, res) => {
       end_datetime: route.end_datetime,
       status: route.status,
       user_id: route.user_id,
+      driver_id: route.driver_id || null,
+      driver_name: route.driver_name || null,
+      driver_phone: route.driver_phone || null,
+      driver_email: route.driver_email || null,
       end_mode: route.end_mode || "round_trip",
       distance: parseFloat(route.distance || 0),
       duration: parseFloat(route.duration || 0),
@@ -545,7 +561,8 @@ const editRoute = async (req, res) => {
     distance,
     duration,
     end_mode,
-    is_active
+    is_active,
+    driver_id
   } = req.body;
 
   const user_id = req.user?.user_id;
@@ -574,6 +591,7 @@ const editRoute = async (req, res) => {
     addField('duration', duration);
     addField('end_mode', end_mode);
     addField('is_active', is_active);
+    addField('driver_id', driver_id);
 
     const insertLocQuery = `
       INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
