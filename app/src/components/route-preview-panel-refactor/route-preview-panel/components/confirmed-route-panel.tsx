@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
 import { SUBSCRIPTION_TYPES } from '@/src/constants/api';
+import { useUserRole } from '@/src/hooks/useUserRole';
 
 type ConfirmedRoutePanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
@@ -61,6 +62,7 @@ export function ConfirmedRoutePanel({
   subscriptionType
 }: ConfirmedRoutePanelProps) {
   const insets = useSafeAreaInsets();
+  const { canNavigateRoute, isBusinessOwner, isFleetDriver } = useUserRole();
 
   const normalizedStatus = String(routeStatus || '').toLowerCase();
   const isReadyToStart =
@@ -256,65 +258,71 @@ export function ConfirmedRoutePanel({
             },
           ]}
         >
-          <View style={localStyles.footerSecondRow}>
+          {!isFleetDriver ? (
+            <View style={localStyles.footerSecondRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  localStyles.editButton,
+                  pressed && localStyles.buttonPressedLight,
+                ]}
+                onPress={onOpenEditRoute || onRefine}
+                hitSlop={6}
+              >
+                <Feather name="edit-2" size={15} color="#1E293B" />
+                <Text style={localStyles.editButtonText}>
+                  {isReadyToStart ? 'Edit route' : 'Refine route'}
+                </Text>
+              </Pressable>
+
+         {subscriptionType!= SUBSCRIPTION_TYPES.LITE &&     <Pressable
+                style={({ pressed }) => [
+                  localStyles.editButton,
+                  !canOpenReorderStops && localStyles.disabledButton,
+                  pressed && canOpenReorderStops && localStyles.buttonPressedLight,
+                ]}
+                onPress={() => onOpenReorderStops?.()}
+                disabled={!canOpenReorderStops}
+                hitSlop={6}
+              >
+                <MaterialCommunityIcons
+                  name="drag-vertical"
+                  size={18}
+                  color="#1E293B"
+                />
+                <Text style={localStyles.editButtonText}>Reorder stops</Text>
+              </Pressable>}
+            </View>
+          ) : null}
+
+          {!isFleetDriver ? (
             <Pressable
               style={({ pressed }) => [
-                localStyles.editButton,
+                localStyles.cancelButton,
                 pressed && localStyles.buttonPressedLight,
               ]}
-              onPress={onOpenEditRoute || onRefine}
+              onPress={onCancelRoute}
               hitSlop={6}
             >
-              <Feather name="edit-2" size={15} color="#1E293B" />
-              <Text style={localStyles.editButtonText}>
-                {isReadyToStart ? 'Edit route' : 'Refine route'}
-              </Text>
+              <Feather name="trash-2" size={17} color="#EF4444" />
+              <Text style={localStyles.cancelButtonText}>Cancel route</Text>
             </Pressable>
+          ) : null}
 
-       {subscriptionType!= SUBSCRIPTION_TYPES.LITE &&     <Pressable
+          {canNavigateRoute ? (
+            <Pressable
               style={({ pressed }) => [
-                localStyles.editButton,
-                !canOpenReorderStops && localStyles.disabledButton,
-                pressed && canOpenReorderStops && localStyles.buttonPressedLight,
+                localStyles.startButton,
+                primaryButtonDisabled && localStyles.disabledButton,
+                pressed && !primaryButtonDisabled && localStyles.buttonPressed,
               ]}
-              onPress={() => onOpenReorderStops?.()}
-              disabled={!canOpenReorderStops}
+              onPress={handlePrimaryAction}
+              disabled={primaryButtonDisabled}
               hitSlop={6}
             >
-              <MaterialCommunityIcons
-                name="drag-vertical"
-                size={18}
-                color="#1E293B"
-              />
-              <Text style={localStyles.editButtonText}>Reorder stops</Text>
-            </Pressable>}
-          </View>
-
-          <Pressable
-            style={({ pressed }) => [
-              localStyles.cancelButton,
-              pressed && localStyles.buttonPressedLight,
-            ]}
-            onPress={onCancelRoute}
-            hitSlop={6}
-          >
-            <Feather name="trash-2" size={17} color="#EF4444" />
-            <Text style={localStyles.cancelButtonText}>Cancel route</Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              localStyles.startButton,
-              primaryButtonDisabled && localStyles.disabledButton,
-              pressed && !primaryButtonDisabled && localStyles.buttonPressed,
-            ]}
-            onPress={handlePrimaryAction}
-            disabled={primaryButtonDisabled}
-            hitSlop={6}
-          >
-            <Feather name="play-circle" size={16} color="#FFFFFF" />
-            <Text style={localStyles.startButtonText}>{primaryLabel}</Text>
-          </Pressable>
+              <Feather name="play-circle" size={16} color="#FFFFFF" />
+              <Text style={localStyles.startButtonText}>{primaryLabel}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </DraggableRouteSheet>

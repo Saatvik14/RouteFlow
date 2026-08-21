@@ -176,6 +176,8 @@ export default function SignupScreen() {
     }
   };
 
+  const [selectedRole, setSelectedRole] = useState<'INDEPENDENT_DRIVER' | 'FLEET_DRIVER' | 'BUSINESS_OWNER'>('INDEPENDENT_DRIVER');
+
   const executeSignup = async () => {
     setLoading(true);
     try {
@@ -184,7 +186,7 @@ export default function SignupScreen() {
         email: email.trim(),
         phone_no: phone.trim(),
         password,
-        role: 'DRIVER',
+        role: selectedRole,
       });
 
       if (response.success && response.data?.accessToken) {
@@ -254,6 +256,69 @@ export default function SignupScreen() {
               </View>
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <Text style={[styles.label, isMobile && styles.labelMobile, { marginBottom: 8 }]}>
+                Who are you?
+              </Text>
+
+              <View style={roleStyles.roleCardsContainer}>
+                <Pressable
+                  style={[
+                    roleStyles.roleCard,
+                    selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleCardActive,
+                  ]}
+                  onPress={() => setSelectedRole('INDEPENDENT_DRIVER')}
+                >
+                  <Text style={roleStyles.roleIcon}>🚗</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[roleStyles.roleTitle, selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleTitleActive]}>
+                      Independent Driver
+                    </Text>
+                    <Text style={roleStyles.roleSubtitle}>
+                      Plan & navigate my own routes
+                    </Text>
+                  </View>
+                  {selectedRole === 'INDEPENDENT_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    roleStyles.roleCard,
+                    selectedRole === 'FLEET_DRIVER' && roleStyles.roleCardActive,
+                  ]}
+                  onPress={() => setSelectedRole('FLEET_DRIVER')}
+                >
+                  <Text style={roleStyles.roleIcon}>🚚</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[roleStyles.roleTitle, selectedRole === 'FLEET_DRIVER' && roleStyles.roleTitleActive]}>
+                      Fleet Driver
+                    </Text>
+                    <Text style={roleStyles.roleSubtitle}>
+                      Drive routes assigned to me
+                    </Text>
+                  </View>
+                  {selectedRole === 'FLEET_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    roleStyles.roleCard,
+                    selectedRole === 'BUSINESS_OWNER' && roleStyles.roleCardActive,
+                  ]}
+                  onPress={() => setSelectedRole('BUSINESS_OWNER')}
+                >
+                  <Text style={roleStyles.roleIcon}>🏢</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[roleStyles.roleTitle, selectedRole === 'BUSINESS_OWNER' && roleStyles.roleTitleActive]}>
+                      Business Owner
+                    </Text>
+                    <Text style={roleStyles.roleSubtitle}>
+                      Manage drivers & dispatch routes
+                    </Text>
+                  </View>
+                  {selectedRole === 'BUSINESS_OWNER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
+                </Pressable>
+              </View>
 
               <Text style={[styles.label, isMobile && styles.labelMobile]}>Full Name</Text>
               <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
@@ -1348,5 +1413,51 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
     fontFamily: APP_FONT,
+  },
+});
+
+const roleStyles = StyleSheet.create({
+  roleCardsContainer: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  roleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  roleCardActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  roleIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  roleTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+    fontFamily: APP_FONT,
+  },
+  roleTitleActive: {
+    color: '#2563EB',
+  },
+  roleSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    fontFamily: APP_FONT,
+  },
+  roleCheck: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2563EB',
+    marginLeft: 8,
   },
 });

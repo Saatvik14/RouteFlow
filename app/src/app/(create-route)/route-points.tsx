@@ -2,6 +2,7 @@ import { useAuth } from './../_layout';
 import { fetchAndStoreConfig, restoreAuthToken } from './../../services/api';
 import { routesService } from './../../services/api/routes';
 import { driversService, Driver } from './../../services/api/drivers';
+import { useUserRole } from './../../hooks/useUserRole';
 import { isTokenValid } from './../../services/auth/jwtUtils';
 import { addManifestStopsToBackend } from '../(route-preview)/route-preview-input.service';
 import { ROUTE_STATUS_PENDING } from './../(route-preview)/route-preview.helpers';
@@ -408,6 +409,14 @@ export default function RoutePointsScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const { isLoggedIn, logout } = useAuth();
+  const { canAddDriver, isFleetDriver } = useUserRole();
+
+  useEffect(() => {
+    if (isFleetDriver) {
+      Alert.alert('Permission Denied', 'Fleet drivers cannot create new routes. Routes are created by Business Owners.');
+      router.back();
+    }
+  }, [isFleetDriver, router]);
 
   // Check for valid JWT token
   useEffect(() => {
@@ -1142,22 +1151,24 @@ export default function RoutePointsScreen() {
             ) : null}
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Driver details</Text>
+          {canAddDriver ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Driver details</Text>
 
-            <InfoCard
-              icon="👤"
-              iconColor="#2F76F6"
-              title={selectedDriver ? selectedDriver.name : 'Assign Driver'}
-              subtitle={
-                selectedDriver
-                  ? selectedDriver.phone || selectedDriver.email || 'Assigned driver'
-                  : 'Tap to select or add driver'
-              }
-              showChevron
-              onPress={() => setShowDriverSheet(true)}
-            />
-          </View>
+              <InfoCard
+                icon="👤"
+                iconColor="#2F76F6"
+                title={selectedDriver ? selectedDriver.name : 'Assign Driver'}
+                subtitle={
+                  selectedDriver
+                    ? selectedDriver.phone || selectedDriver.email || 'Assigned driver'
+                    : 'Tap to select or add driver'
+                }
+                showChevron
+                onPress={() => setShowDriverSheet(true)}
+              />
+            </View>
+          ) : null}
 
           {/* <View style={styles.section}>
             <Text style={styles.sectionTitle}>Break</Text>
@@ -1230,13 +1241,20 @@ export default function RoutePointsScreen() {
           onChangeEmail={setNewDriverEmail}
           onClose={() => setShowAddDriverModal(false)}
           onSubmit={async () => {
-            if (!newDriverName.trim()) return;
+            if (!newDriverName.trim()) {
+              Alert.alert('Required', 'Please enter a driver name.');
+              return;
+            }
+            if (!newDriverEmail.trim()) {
+              Alert.alert('Required', 'Driver email is required to create their Fleet Driver user account.');
+              return;
+            }
             try {
               setIsCreatingDriver(true);
               const res = await driversService.createDriver({
                 name: newDriverName.trim(),
                 phone: newDriverPhone.trim() || undefined,
-                email: newDriverEmail.trim() || undefined,
+                email: newDriverEmail.trim(),
               });
               if (res.success && res.data) {
                 const created = res.data;
@@ -1247,9 +1265,12 @@ export default function RoutePointsScreen() {
                 setNewDriverName('');
                 setNewDriverPhone('');
                 setNewDriverEmail('');
+              } else {
+                Alert.alert('Error', res.error || 'Failed to create driver');
               }
             } catch (err) {
               console.log('Create driver error:', err);
+              Alert.alert('Error', 'Failed to create driver');
             } finally {
               setIsCreatingDriver(false);
             }
@@ -2306,7 +2327,7 @@ function AddDriverSheet({
             onChangeText={onChangePhone}
           />
 
-          <Text style={styles.inputLabel}>Email (Optional)</Text>
+          <Text style={styles.inputLabel}>Driver Email * (Creates Fleet Account)</Text>
           <TextInput
             style={styles.driverInput}
             placeholder="e.g. driver@example.com"

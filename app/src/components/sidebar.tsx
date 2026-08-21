@@ -2,6 +2,7 @@ import { useAuth } from "./../app/_layout";
 import { restoreAuthToken } from "./../services/api";
 import { routesService } from "./../services/api/routes";
 import { ordersService } from "./../services/api/orders";
+import { useUserRole } from "./../hooks/useUserRole";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { jwtDecode } from "jwt-decode";
@@ -372,6 +373,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { logout } = useAuth();
+  const { canCreateRoute, canViewDriverRoutes } = useUserRole();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
@@ -1110,12 +1112,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </Pressable>
 
           <View style={styles.quickActions}>
-            {renderQuickAction(
+            {canViewDriverRoutes ? renderQuickAction(
               "users",
               "Routes per Driver",
               handleDriverRoutes,
               pathname?.includes("driver-routes"),
-            )}
+            ) : null}
             {renderQuickAction(
               "settings",
               "Settings",

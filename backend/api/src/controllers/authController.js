@@ -54,7 +54,10 @@ const signup = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user in Supabase
+    const VALID_ROLES = ['INDEPENDENT_DRIVER', 'FLEET_DRIVER', 'BUSINESS_OWNER'];
+    const userRole = VALID_ROLES.includes(role) ? role : 'INDEPENDENT_DRIVER';
+
+    // Create user in Supabase / Postgres
     const insertQuery = `
       INSERT INTO users (name, phone_no, email, password, role, status)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -66,7 +69,7 @@ const signup = async (req, res) => {
       phone_no, 
       email || null, 
       hashedPassword, 
-      role || 'user', 
+      userRole, 
       'active'
     ]);
 
@@ -648,4 +651,101 @@ const verifyOtp = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, refresh, checkHealth, sendOtpEmail, verifyOtp };
+// @desc    Admin: Delete any user by email or user_id
+// @route   DELETE /users/admin/delete-user
+// @access  Public / Protected
+const adminDeleteUser = async (req, res) => {
+  const targetEmail = req.query?.email || req.body?.email;
+  const targetId = req.query?.user_id || req.body?.user_id;
+
+  if (!targetEmail && !targetId) {
+    return res.status(400).json({ message: 'Provide email or user_id in query params or body.' });
+  }
+
+  try {
+    let result;
+    if (targetEmail) {
+      result = await runQuery(
+        'DELETE FROM users WHERE email = $1 RETURNING user_id, name, email, role',
+        [targetEmail]
+      );
+    } else {
+      result = await runQuery(
+        'DELETE FROM users WHERE user_id = $1 RETURNING user_id, name, email, role',
+        [targetId]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    return res.status(200).json({
+      message: 'User deleted successfully',
+      deletedUser: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Admin Delete User Error:', error);
+    return res.status(500).json({ message: 'Server error while deleting user', error: error.message });
+  }
+};
+
+// @desc    Admin: Change any user role
+// @route   PUT /users/admin/change-role
+// @access  Public / Protected
+const adminChangeUserRole = async (req, res) => {
+  const { email, user_id, role } = req.body;
+  const targetRole = String(role || '').toUpperCase().trim();
+
+  const VALID_ROLES = ['INDEPENDENT_DRIVER', 'FLEET_DRIVER', 'BUSINESS_OWNER'];
+  if (!targetRole || !VALID_ROLES.includes(targetRole)) {
+    return res.status(400).json({
+      message: `Invalid role. Allowed values: ${VALID_ROLES.join(', ')}`,
+    });
+  }
+
+  const targetEmail = email || req.query?.email;
+  const targetId = user_id || req.query?.user_id;
+
+  if (!targetEmail && !targetId) {
+    return res.status(400).json({ message: 'Provide email or user_id' });
+  }
+
+  try {
+    let result;
+    if (targetEmail) {
+      result = await runQuery(
+        'UPDATE users SET role = $1, updated_at = NOW() WHERE email = $2 RETURNING user_id, name, email, role',
+        [targetRole, targetEmail]
+      );
+    } else {
+      result = await runQuery(
+        'UPDATE users SET role = $1, updated_at = NOW() WHERE user_id = $2 RETURNING user_id, name, email, role',
+        [targetRole, targetId]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    return res.status(200).json({
+      message: 'User role updated successfully',
+      user: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Admin Change User Role Error:', error);
+    return res.status(500).json({ message: 'Server error while updating user role', error: error.message });
+  }
+};
+
+module.exports = {
+  signup,
+  login,
+  refresh,
+  checkHealth,
+  sendOtpEmail,
+  verifyOtp,
+  adminDeleteUser,
+  adminChangeUserRole,
+};

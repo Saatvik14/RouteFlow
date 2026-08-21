@@ -59,6 +59,8 @@ const fetchAllDrivers = async (req, res) => {
   }
 };
 
+const bcrypt = require('bcryptjs');
+
 // @desc    Create new driver
 // @route   POST /driver/create
 // @access  Private
@@ -74,24 +76,70 @@ const createDriver = async (req, res) => {
     return res.status(400).json({ message: 'Driver name is required.' });
   }
 
+  if (!email || !email.trim()) {
+    return res.status(400).json({ message: 'Driver email is required.' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanName = name.trim();
+  const cleanPhone = phone?.trim() || '';
+
   try {
     await ensureDriverSchemaExists();
+
+    // 1. Check if a user account already exists for this email
+    let driverUserId = null;
+    const existingUserRes = await runQuery('SELECT user_id, role FROM users WHERE email = $1', [cleanEmail]);
+
+    if (existingUserRes.rows.length > 0) {
+      driverUserId = existingUserRes.rows[0].user_id;
+    } else {
+      // 2. Automatically create a user account for the driver with role FLEET_DRIVER
+      const tempPhone = cleanPhone || `driver_${Date.now()}`;
+      const defaultPassword = 'Driver@' + Math.floor(1000 + Math.random() * 9000);
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(defaultPassword, salt);
+
+      const createUserRes = await runQuery(
+        `
+          INSERT INTO users (name, phone_no, email, password, role, status)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING user_id
+        `,
+        [cleanName, tempPhone, cleanEmail, hashedPassword, 'FLEET_DRIVER', 'active']
+      );
+
+      if (createUserRes.rows.length > 0) {
+        driverUserId = createUserRes.rows[0].user_id;
+
+        // Initialize user config for the fleet driver
+        await runQuery(
+          `INSERT INTO config_model (user_id, subscription_type)
+           VALUES ($1, $2)
+           ON CONFLICT (user_id) DO NOTHING`,
+          [driverUserId, 'trial']
+        );
+      }
+    }
+
+    // 3. Create the driver record linked to the business owner user_id
     const result = await runQuery(
       `
         INSERT INTO drivers (user_id, name, phone, email)
         VALUES ($1, $2, $3, $4)
         RETURNING *
       `,
-      [user_id, name.trim(), phone?.trim() || null, email?.trim() || null]
+      [user_id, cleanName, cleanPhone || null, cleanEmail]
     );
 
     return res.status(201).json({
-      message: 'Driver created successfully',
+      message: 'Driver and Fleet Driver account created successfully',
       ...result.rows[0],
+      driver_user_id: driverUserId,
     });
   } catch (error) {
     console.error('Create Driver Error:', error);
-    return res.status(500).json({ message: 'Server error during driver creation' });
+    return res.status(500).json({ message: 'Server error during driver creation', error: error.message });
   }
 };
 
