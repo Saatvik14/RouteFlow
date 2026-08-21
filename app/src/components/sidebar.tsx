@@ -1080,22 +1080,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.contentScrollInner}
         >
-          <View style={styles.planCard}>
-            <View style={styles.planIconCircle}>
-              <Feather name="user" size={16} color="#2563EB" />
-            </View>
+          {!isFleetDriver ? (
+            <View style={styles.planCard}>
+              <View style={styles.planIconCircle}>
+                <Feather name="user" size={16} color="#2563EB" />
+              </View>
 
-            <View style={styles.planTextBox}>
-              <Text style={styles.planTitle}>Free plan</Text>
-              <Text style={styles.planSubtitle}>No subscription</Text>
-            </View>
+              <View style={styles.planTextBox}>
+                <Text style={styles.planTitle}>Free plan</Text>
+                <Text style={styles.planSubtitle}>No subscription</Text>
+              </View>
 
-            <View style={styles.planRouteCountPill}>
-              <Text style={styles.planRouteCountText}>
-                {routes.length} routes
-              </Text>
+              <View style={styles.planRouteCountPill}>
+                <Text style={styles.planRouteCountText}>
+                  {routes.length} routes
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {!isFleetDriver ? (
             <Pressable style={styles.subscribeButton} onPress={() => {
@@ -1209,13 +1211,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <Pressable
-            style={styles.createRouteButton}
-            onPress={handleCreateRoute}
-          >
-            <Feather name="plus" size={19} color="#FFFFFF" />
-            <Text style={styles.createRouteText}>Create route</Text>
-          </Pressable>
+          {!isFleetDriver && canCreateRoute ? (
+            <Pressable
+              style={styles.createRouteButton}
+              onPress={handleCreateRoute}
+            >
+              <Feather name="plus" size={19} color="#FFFFFF" />
+              <Text style={styles.createRouteText}>Create route</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
             <Feather name="log-out" size={16} color="#64748B" />

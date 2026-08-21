@@ -437,17 +437,32 @@ const fetchAllRoutes = async (req, res) => {
 const fetchRouteById = async (req, res) => {
   const { id } = req.query;
   const user_id = req.user?.user_id;
+  const user_email = req.user?.email;
+  const user_role = String(req.user?.role || '').toUpperCase().trim();
 
   if (!id) return res.status(400).json({ message: 'Route ID is required in query parameters' });
 
   try {
-    // 1. Fetch the route main data
-    const routeResult = await runQuery(`
+    let query = `
       SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
       FROM routes r
       LEFT JOIN drivers d ON r.driver_id = d.driver_id
       WHERE r.route_id = $1 AND r.user_id = $2
-    `, [id, user_id]);
+    `;
+    let queryParams = [id, user_id];
+
+    if (user_role === 'FLEET_DRIVER' && user_email) {
+      query = `
+        SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
+        FROM routes r
+        LEFT JOIN drivers d ON r.driver_id = d.driver_id
+        WHERE r.route_id = $1 AND (r.user_id = $2 OR LOWER(d.email) = LOWER($3))
+      `;
+      queryParams = [id, user_id, user_email];
+    }
+
+    // 1. Fetch the route main data
+    const routeResult = await runQuery(query, queryParams);
 
     if (routeResult.rows.length === 0) {
       return res.status(404).json({ message: 'Route not found or unauthorized' });
@@ -651,12 +666,23 @@ const editRoute = async (req, res) => {
     }
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    const user_email = req.user?.email;
+    const user_role = String(req.user?.role || '').toUpperCase().trim();
+
+    let whereClause = `WHERE route_id = $${paramIdx++} AND user_id = $${paramIdx}`;
     updateValues.push(route_id, user_id);
+
+    if (user_role === 'FLEET_DRIVER' && user_email) {
+      const emailIdx = paramIdx + 1;
+      whereClause = `WHERE route_id = $${paramIdx - 1} AND (user_id = $${paramIdx} OR driver_id IN (SELECT driver_id FROM drivers WHERE LOWER(email) = LOWER($${emailIdx})))`;
+      updateValues.push(user_email);
+    }
 
     const query = `
       UPDATE routes 
       SET ${updateFields.join(', ')}
-      WHERE route_id = $${paramIdx++} AND user_id = $${paramIdx}
+      ${whereClause}
       RETURNING *
     `;
 
