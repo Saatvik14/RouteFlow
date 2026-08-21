@@ -270,6 +270,17 @@ async function getMySubscription(req, res) {
   }
 }
 
+const getSubscriptionPlans = (_req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      plans: SUBSCRIPTION_PLANS,
+    },
+  });
+};
+
 const requestEnterprisePlan = async (req, res) => {
   try {
     const userId = getAuthenticatedUserId(req);
