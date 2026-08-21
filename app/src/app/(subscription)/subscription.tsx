@@ -22,10 +22,12 @@ import {
 import {
   getMySubscription,
   getSubscriptionPlans,
+  requestEnterprisePlan,
   verifySubscriptionPurchase,
   type PlanCode,
   type SubscriptionPlan,
 } from "../../services/api/subscriptionApi";
+import { useUserRole } from "../../hooks/useUserRole";
 
 const COLORS = {
   background: "#F7F9FC",
@@ -268,6 +270,8 @@ function PlanCard({
 export default function SubscriptionScreen() {
   const router = useRouter();
   const { refreshSubscription } = useAuth();
+  const { isFleetDriver, isBusinessOwner } = useUserRole();
+  const [submittingEnterprise, setSubmittingEnterprise] = useState(false);
   const processedPurchaseTokens = useRef(new Set<string>());
 
   const [customAlert, setCustomAlert] = useState<CustomAlertState>({
@@ -284,6 +288,25 @@ export default function SubscriptionScreen() {
   const [checkingSubscription, setCheckingSubscription] = useState(true);
   const [loadingStoreProducts, setLoadingStoreProducts] = useState(false);
   const [purchaseToProcess, setPurchaseToProcess] = useState<any>(null);
+
+  const handleEnterpriseRequest = async () => {
+    try {
+      setSubmittingEnterprise(true);
+      const res = await requestEnterprisePlan();
+      showAlert(
+        "Inquiry Sent!",
+        res.message || "Our team has received your Enterprise Plan request and will contact you shortly.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    } catch (err: any) {
+      showAlert(
+        "Request Failed",
+        err.message || "Failed to submit Enterprise Plan request. Please try again."
+      );
+    } finally {
+      setSubmittingEnterprise(false);
+    }
+  };
 
   const showAlert = (
     title: string,
@@ -651,6 +674,29 @@ export default function SubscriptionScreen() {
   const plansDisabled =
     Boolean(selectedPlan) || checkingSubscription || loadingPlanDetails;
 
+  if (isFleetDriver) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={{ flex: 1, padding: 32, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>🚚</Text>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 8 }}>
+            Fleet Driver Account
+          </Text>
+          <Text style={{ fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
+            Subscriptions and billing are managed by your Business Owner. No subscription upgrade is required for driver accounts.
+          </Text>
+          <Pressable
+            style={[styles.planButton, { paddingHorizontal: 32 }]}
+            onPress={handleBack}
+          >
+            <Text style={styles.planButtonText}>Back to Home</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -746,7 +792,7 @@ export default function SubscriptionScreen() {
             </View>
           ) : null}
 
-          {currentPlan === "lite" && !planDetailsError && (
+          {currentPlan === "lite" && !planDetailsError && !isBusinessOwner && (
             <View style={styles.upgradeCallout}>
               <Feather name="trending-up" size={18} color={COLORS.primaryDark} />
               <Text style={styles.upgradeCalloutText}>
@@ -755,7 +801,48 @@ export default function SubscriptionScreen() {
             </View>
           )}
 
-          {currentPlan === "standard" ? (
+          {isBusinessOwner ? (
+            <View style={styles.planList}>
+              <PlanCard
+                plan={{
+                  code: 'standard' as PlanCode,
+                  productId: 'enterprise_plan',
+                  basePlanId: 'enterprise',
+                  name: 'Enterprise Plan',
+                  description: 'Full fleet management, unlimited drivers, and custom route optimization.',
+                  fallbackPrice: 'Contact Sales',
+                  billingPeriod: '/custom',
+                  routeLabel: 'Unlimited drivers & routes',
+                  limits: { dailyRoutes: null },
+                  capabilities: {
+                    cameraAddressScanner: true,
+                    voiceAddressSearch: true,
+                    routeManifestImport: true,
+                    copyPastRouteStops: true,
+                    reorderOptimisedStops: true,
+                    advancedStopPreferences: true,
+                  },
+                  badgeLabel: 'FOR BUSINESSES',
+                  popular: true,
+                  sortOrder: 1,
+                  iconLibrary: 'material-community',
+                  iconName: 'office-building',
+                  features: [
+                    'Unlimited driver accounts & dispatching',
+                    'Driver assignment & routes-per-driver view',
+                    'Advanced route optimization & stop reordering',
+                    'Dedicated account manager & 24/7 support',
+                  ],
+                }}
+                price="Contact Sales"
+                active={false}
+                loading={submittingEnterprise}
+                disabled={submittingEnterprise}
+                currentPlan={null}
+                onPress={handleEnterpriseRequest}
+              />
+            </View>
+          ) : currentPlan === "standard" ? (
             <View style={styles.standardActiveCard}>
               <View style={styles.successBadgeContainer}>
                 <MaterialCommunityIcons name="check-circle" size={32} color={COLORS.success} />

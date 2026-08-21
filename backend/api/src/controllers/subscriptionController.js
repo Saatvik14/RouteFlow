@@ -1,5 +1,6 @@
 const { runQuery } = require("../config/db");
 const { getPlanByProductId, SUBSCRIPTION_PLANS } = require("./../constants/subscription");
+const { sendEmailWithGmailApi } = require("../utils/emailSender");
 const {
   acknowledgeGoogleSubscription,
   getGoogleSubscription,
@@ -269,19 +270,62 @@ async function getMySubscription(req, res) {
   }
 }
 
-const getSubscriptionPlans = (_req, res) => {
-  res.set("Cache-Control", "no-store");
+const requestEnterprisePlan = async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    
+    const userRes = await runQuery(
+      'SELECT user_id, name, email, phone_no, role FROM users WHERE user_id = $1',
+      [userId]
+    );
 
-  return res.status(200).json({
-    success: true,
-    data: {
-      plans: SUBSCRIPTION_PLANS,
-    },
-  });
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = userRes.rows[0];
+    const recipientEmail = process.env.GOOGLE_SENDER_EMAIL || 'support@routefloww.com';
+
+    const subject = `[Enterprise Plan Inquiry] Request from ${user.name}`;
+    const text = `Business Owner Request:\nName: ${user.name}\nEmail: ${user.email}\nPhone: ${user.phone_no || 'N/A'}\nUser ID: ${user.user_id}\n\nThis user wants to purchase the Enterprise Plan.`;
+    const html = `
+      <div style="font-family: sans-serif; padding: 20px; color: #1E293B;">
+        <h2 style="color: #4F46E5;">Enterprise Plan Purchase Request</h2>
+        <p>A Business Owner has requested to upgrade to the Enterprise Plan.</p>
+        <table style="width: 100%; max-width: 500px; border-collapse: collapse; margin-top: 16px;">
+          <tr><td style="padding: 8px; font-weight: bold;">Name:</td><td style="padding: 8px;">${user.name}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">${user.email}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${user.phone_no || 'N/A'}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">User ID:</td><td style="padding: 8px;">${user.user_id}</td></tr>
+          <tr><td style="padding: 8px; font-weight: bold;">Role:</td><td style="padding: 8px;">${user.role}</td></tr>
+        </table>
+      </div>
+    `;
+
+    try {
+      await sendEmailWithGmailApi({
+        to: recipientEmail,
+        subject,
+        text,
+        html,
+      });
+    } catch (emailErr) {
+      console.error('Failed sending Enterprise Plan email notification:', emailErr);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Enterprise plan request sent to support team. We will contact you shortly.',
+    });
+  } catch (error) {
+    console.error('requestEnterprisePlan error:', error);
+    return res.status(500).json({ message: error.message || 'Server error processing request.' });
+  }
 };
 
 module.exports = {
   verifyPurchase,
   getMySubscription,
-  getSubscriptionPlans
+  getSubscriptionPlans,
+  requestEnterprisePlan,
 };

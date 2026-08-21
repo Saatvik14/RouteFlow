@@ -43,11 +43,13 @@ const fetchAllDrivers = async (req, res) => {
     await ensureDriverSchemaExists();
     const result = await runQuery(
       `
-        SELECT *
-        FROM drivers
-        WHERE user_id = $1
-          AND is_active = true
-        ORDER BY created_at DESC
+        SELECT d.*
+        FROM drivers d
+        LEFT JOIN users u ON LOWER(d.email) = LOWER(u.email)
+        WHERE d.user_id = $1
+          AND d.is_active = true
+          AND (d.email IS NULL OR u.user_id IS NOT NULL)
+        ORDER BY d.created_at DESC
       `,
       [user_id]
     );
@@ -89,6 +91,7 @@ const createDriver = async (req, res) => {
 
     // 1. Check if a user account already exists for this email
     let driverUserId = null;
+    let tempPassword = null;
     const existingUserRes = await runQuery('SELECT user_id, role FROM users WHERE email = $1', [cleanEmail]);
 
     if (existingUserRes.rows.length > 0) {
@@ -96,9 +99,9 @@ const createDriver = async (req, res) => {
     } else {
       // 2. Automatically create a user account for the driver with role FLEET_DRIVER
       const tempPhone = cleanPhone || `driver_${Date.now()}`;
-      const defaultPassword = 'Driver@' + Math.floor(1000 + Math.random() * 9000);
+      tempPassword = 'Driver@' + Math.floor(1000 + Math.random() * 9000);
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(defaultPassword, salt);
+      const hashedPassword = await bcrypt.hash(tempPassword, salt);
 
       const createUserRes = await runQuery(
         `
@@ -119,6 +122,31 @@ const createDriver = async (req, res) => {
            ON CONFLICT (user_id) DO NOTHING`,
           [driverUserId, 'trial']
         );
+
+        // Send welcome email with login credentials to the driver
+        try {
+          const { sendEmailWithGmailApi } = require('../utils/emailSender');
+          const ownerName = req.user?.name || 'Your Business Owner';
+          await sendEmailWithGmailApi({
+            to: cleanEmail,
+            subject: 'Welcome to RouteFloww - Your Fleet Driver Account',
+            text: `Hi ${cleanName},\n\n${ownerName} has added you as a Fleet Driver on RouteFloww.\n\nYour Login Credentials:\nEmail: ${cleanEmail}\nTemporary Password: ${tempPassword}\n\nPlease download the RouteFloww app and log in to view your assigned routes.`,
+            html: `
+              <div style="font-family: sans-serif; padding: 20px; color: #1E293B;">
+                <h2 style="color: #4F46E5;">Welcome to RouteFloww!</h2>
+                <p>Hi <strong>${cleanName}</strong>,</p>
+                <p><strong>${ownerName}</strong> has added you as a Fleet Driver on RouteFloww.</p>
+                <div style="background-color: #F1F5F9; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                  <p style="margin: 4px 0;"><strong>Email:</strong> ${cleanEmail}</p>
+                  <p style="margin: 4px 0;"><strong>Password:</strong> <code style="background: #E2E8F0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${tempPassword}</code></p>
+                </div>
+                <p>You can now log into the RouteFloww app to view your assigned routes and start navigation.</p>
+              </div>
+            `,
+          });
+        } catch (emailErr) {
+          console.error('Failed sending welcome email to fleet driver:', emailErr);
+        }
       }
     }
 
@@ -136,6 +164,7 @@ const createDriver = async (req, res) => {
       message: 'Driver and Fleet Driver account created successfully',
       ...result.rows[0],
       driver_user_id: driverUserId,
+      temp_password: tempPassword,
     });
   } catch (error) {
     console.error('Create Driver Error:', error);

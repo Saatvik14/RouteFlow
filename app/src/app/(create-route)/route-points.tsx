@@ -1257,7 +1257,7 @@ export default function RoutePointsScreen() {
                 email: newDriverEmail.trim(),
               });
               if (res.success && res.data) {
-                const created = res.data;
+                const created = res.data as any;
                 setDrivers((prev) => [created, ...prev]);
                 setSelectedDriver(created);
                 setShowAddDriverModal(false);
@@ -1265,6 +1265,13 @@ export default function RoutePointsScreen() {
                 setNewDriverName('');
                 setNewDriverPhone('');
                 setNewDriverEmail('');
+
+                if (created.temp_password) {
+                  Alert.alert(
+                    'Fleet Driver Account Created',
+                    `Fleet Driver account created for ${created.name}.\n\nCredentials sent to email: ${created.email}\nTemporary Password: ${created.temp_password}`
+                  );
+                }
               } else {
                 Alert.alert('Error', res.error || 'Failed to create driver');
               }

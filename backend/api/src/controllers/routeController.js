@@ -202,27 +202,40 @@ const createRoute = async (req, res) => {
 // @access  Private
 // @desc    Fetch all active routes for logged-in user
 // @route   GET /route/fetch-all
-// @access  Private
 const fetchAllRoutes = async (req, res) => {
   const user_id = req.user?.user_id;
+  const user_email = req.user?.email;
+  const user_role = String(req.user?.role || '').toUpperCase().trim();
 
   if (!user_id) {
     return res.status(401).json({ message: 'Unauthorized user' });
   }
 
   try {
-    // 1. Fetch all active routes
-    const routesResult = await runQuery(
-      `
+    let query = `
+      SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
+      FROM routes r
+      LEFT JOIN drivers d ON r.driver_id = d.driver_id
+      WHERE r.user_id = $1
+        AND r.is_active = true
+      ORDER BY r.created_at DESC
+    `;
+    let queryParams = [user_id];
+
+    if (user_role === 'FLEET_DRIVER' && user_email) {
+      query = `
         SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
         FROM routes r
-        LEFT JOIN drivers d ON r.driver_id = d.driver_id
-        WHERE r.user_id = $1
+        JOIN drivers d ON r.driver_id = d.driver_id
+        WHERE (LOWER(d.email) = LOWER($1) OR r.user_id = $2)
           AND r.is_active = true
         ORDER BY r.created_at DESC
-      `,
-      [user_id]
-    );
+      `;
+      queryParams = [user_email, user_id];
+    }
+
+    // 1. Fetch all active routes
+    const routesResult = await runQuery(query, queryParams);
 
     const routes = routesResult.rows;
 

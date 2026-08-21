@@ -373,7 +373,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { logout } = useAuth();
-  const { canCreateRoute, canViewDriverRoutes } = useUserRole();
+  const { canCreateRoute, canViewDriverRoutes, isFleetDriver } = useUserRole();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
@@ -1097,19 +1097,21 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </View>
           </View>
 
-          <Pressable style={styles.subscribeButton} onPress={() => {
-        onClose();
-        router.push("/subscription");
-    }}>
-            <View style={styles.subscribeIconBox}>
-              <MaterialCommunityIcons
-                name="lightning-bolt"
-                size={15}
-                color="#F59E0B"
-              />
-            </View>
-            <Text style={styles.subscribeText}>Upgrade subscription</Text>
-          </Pressable>
+          {!isFleetDriver ? (
+            <Pressable style={styles.subscribeButton} onPress={() => {
+              onClose();
+              router.push("/subscription");
+            }}>
+              <View style={styles.subscribeIconBox}>
+                <MaterialCommunityIcons
+                  name="lightning-bolt"
+                  size={15}
+                  color="#F59E0B"
+                />
+              </View>
+              <Text style={styles.subscribeText}>Upgrade subscription</Text>
+            </Pressable>
+          ) : null}
 
           <View style={styles.quickActions}>
             {canViewDriverRoutes ? renderQuickAction(

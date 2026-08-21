@@ -85,6 +85,12 @@ export default function RootLayout() {
         return;
       }
 
+      const userRole = String(userObj.role || '').toUpperCase().trim();
+      if (userRole === 'FLEET_DRIVER') {
+        setIsTrialExpired(false);
+        return;
+      }
+
       const subscriptionType = String(userObj.subscription_type || userObj.subscriptionType || 'trial').toLowerCase();
 
       if (subscriptionType !== 'trial') {

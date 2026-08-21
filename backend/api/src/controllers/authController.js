@@ -665,11 +665,21 @@ const adminDeleteUser = async (req, res) => {
   try {
     let result;
     if (targetEmail) {
+      const cleanEmail = targetEmail.trim().toLowerCase();
+      // 1. Delete associated driver entries in drivers table
+      await runQuery('DELETE FROM drivers WHERE LOWER(email) = $1', [cleanEmail]);
+      // 2. Delete user account from users table
       result = await runQuery(
-        'DELETE FROM users WHERE email = $1 RETURNING user_id, name, email, role',
-        [targetEmail]
+        'DELETE FROM users WHERE LOWER(email) = $1 RETURNING user_id, name, email, role',
+        [cleanEmail]
       );
     } else {
+      // Get user's email if possible
+      const uRes = await runQuery('SELECT email FROM users WHERE user_id = $1', [targetId]);
+      if (uRes.rows.length > 0 && uRes.rows[0].email) {
+        await runQuery('DELETE FROM drivers WHERE LOWER(email) = LOWER($1)', [uRes.rows[0].email]);
+      }
+      await runQuery('DELETE FROM drivers WHERE user_id = $1', [targetId]);
       result = await runQuery(
         'DELETE FROM users WHERE user_id = $1 RETURNING user_id, name, email, role',
         [targetId]
@@ -681,7 +691,7 @@ const adminDeleteUser = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: 'User deleted successfully',
+      message: 'User and driver profile deleted successfully',
       deletedUser: result.rows[0],
     });
   } catch (error) {

@@ -111,3 +111,9 @@ export async function getSubscriptionPlans(): Promise<SubscriptionPlansResponse>
 
   return "data" in response ? response.data : response;
 }
+
+export function requestEnterprisePlan(): Promise<{ success: boolean; message: string }> {
+  return apiRequest<{ success: boolean; message: string }>("/api/subscriptions/request-enterprise", {
+    method: "POST",
+  });
+}
