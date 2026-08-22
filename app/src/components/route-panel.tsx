@@ -154,24 +154,47 @@ const isOptimized =
     const routeId = latestRoute?.route_id || latestRoute?.id || latestRoute?.routeId;
     if (!routeId) return;
 
+    const actualStartTimeIso = new Date().toISOString();
+
     try {
       setLoading(true);
       // Update status to in_transit
-      await routesService.updateRoute({
+      const updateResponse = await routesService.updateRoute({
         route_id: String(routeId),
         status: 'in_transit',
+        start_datetime: actualStartTimeIso,
       });
+
+      if (!updateResponse?.success) {
+        throw new Error(updateResponse?.error || 'Unable to start route.');
+      }
+
+      // The edit response only contains the route row. Fetch the complete route
+      // after saving the actual start time so stop ETA and distance are updated
+      // before the in-transit panel opens.
+      const refreshedResponse = await routesService.getRoute(String(routeId));
+      if (!refreshedResponse?.success) {
+        throw new Error(
+          refreshedResponse?.error || 'Unable to refresh started route.',
+        );
+      }
 
       router.push({
         pathname: '/route-preview',
-        params: { id: String(routeId) },
+        params: {
+          id: String(routeId),
+          refresh: actualStartTimeIso,
+        },
       } as any);
     } catch (error) {
       console.error('Failed to start route', error);
       // Fallback: navigate anyway if update fails
       router.push({
         pathname: '/route-preview',
-        params: { id: String(routeId) },
+        params: {
+          id: String(routeId),
+          refresh: actualStartTimeIso,
+        },
       } as any);
     } finally {
       if (isMounted.current) setLoading(false);

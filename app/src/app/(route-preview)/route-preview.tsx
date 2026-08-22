@@ -33,6 +33,10 @@ export default function RoutePreviewScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const routeId = useMemo(() => getParam(params.id, ''), [params.id]);
+  const routeRefreshKey = useMemo(
+    () => getParam(params.refresh, ''),
+    [params.refresh],
+  );
   const shouldCarryPastStops = useMemo(
     () => getParam(params.carryPastStops as string | string[] | undefined, 'false') === 'true',
     [params.carryPastStops]
@@ -140,7 +144,7 @@ export default function RoutePreviewScreen() {
     handleToggleMockingLocation,
     handleSaveStopPriority,
     routeStartDatetime
-  } = useRoutePreviewController(routeId);
+  } = useRoutePreviewController(routeId, routeRefreshKey);
 
   const handleScanAddress = () => {
     setIsScannerVisible(true);

@@ -98,7 +98,7 @@ export default function RootLayout() {
         return;
       }
 
-      if (userObj.created_at || userObj.createdAt) {
+      if (subscriptionType !== 'trial' &&(userObj.created_at || userObj.createdAt)) {
         const createdAt = new Date(userObj.created_at || userObj.createdAt);
         const diffTime = Math.abs(Date.now() - createdAt.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

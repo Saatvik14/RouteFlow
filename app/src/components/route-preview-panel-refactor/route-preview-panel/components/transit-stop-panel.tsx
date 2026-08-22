@@ -694,17 +694,6 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
     setNavModalVisible(true);
   };
 
-  const handleCallStop = async (targetStop: any) => {
-    const phone = getStopPhone(targetStop);
-    if (!phone) return;
-
-    try {
-      await Linking.openURL(`tel:${phone}`);
-    } catch {
-      // No-op. Device may not support calls.
-    }
-  };
-
   const markDeliveredIfActive = () => {
     if (!selectedStop || isSameStop(selectedStop, stop)) onMarkStopDelivered?.();
   };

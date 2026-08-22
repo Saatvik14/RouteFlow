@@ -385,6 +385,7 @@ function isUnitedKingdomSuggestion(suggestion: PlaceSuggestion): boolean {
 
 export function useRoutePreviewController(
   routeIdFromParams: string,
+  routeRefreshKey = '',
 ): UseRoutePreviewControllerResult {
   const router = useRouter();
 
@@ -607,7 +608,7 @@ const resolvedPanelMode = useMemo<PanelMode>(() => {
     return () => {
       mounted = false;
     };
-  }, [routeIdFromParams]);
+  }, [routeIdFromParams, routeRefreshKey]);
 
 useEffect(() => {
   let mounted = true;
@@ -1612,7 +1613,7 @@ const handleRemoveEditedStop = useCallback(async () => {
         ...route,
         coordinates: path.coordinates,
       };
-
+      
       const actualStartTimeIso = new Date().toISOString();
       await persistRouteSnapshot({
         routeId: effectiveRouteId,
@@ -1623,7 +1624,31 @@ const handleRemoveEditedStop = useCallback(async () => {
         startDatetime: actualStartTimeIso,
       });
 
-      setRoute(nextRoute);
+      let routeWithRefreshedStops = nextRoute;
+
+      try {
+        // Fetch the route again after its actual start time is saved. The route
+        // details endpoint derives each stop's ETA from that time and returns
+        // the optimized distance used by the in-transit panels.
+        const refreshedResponse = await routesService.getRoute(effectiveRouteId);
+        const refreshedResult = await buildRouteFromBackendResponse(
+          refreshedResponse,
+          effectiveRouteId,
+        );
+
+        routeWithRefreshedStops = {
+          ...refreshedResult.route,
+          // The details response contains route points, not the full road path.
+          coordinates: nextRoute.coordinates,
+        };
+      } catch (refreshError) {
+        console.warn('Unable to refresh route details after starting:', refreshError);
+        setErrorMessage(
+          'Route started, but the latest ETA and distance could not be loaded.',
+        );
+      }
+
+      setRoute(routeWithRefreshedStops);
       setRouteMeta({
         distanceLabel: formatDistance(path.distanceMeters),
         durationLabel: formatDuration(path.durationSeconds),
