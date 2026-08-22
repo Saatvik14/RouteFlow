@@ -258,41 +258,39 @@ export function ConfirmedRoutePanel({
             },
           ]}
         >
-          {!isFleetDriver ? (
-            <View style={localStyles.footerSecondRow}>
-              <Pressable
-                style={({ pressed }) => [
-                  localStyles.editButton,
-                  pressed && localStyles.buttonPressedLight,
-                ]}
-                onPress={onOpenEditRoute || onRefine}
-                hitSlop={6}
-              >
-                <Feather name="edit-2" size={15} color="#1E293B" />
-                <Text style={localStyles.editButtonText}>
-                  {isReadyToStart ? 'Edit route' : 'Refine route'}
-                </Text>
-              </Pressable>
+          <View style={localStyles.footerSecondRow}>
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.editButton,
+                pressed && localStyles.buttonPressedLight,
+              ]}
+              onPress={onOpenEditRoute || onRefine}
+              hitSlop={6}
+            >
+              <Feather name="edit-2" size={15} color="#1E293B" />
+              <Text style={localStyles.editButtonText}>
+                {isReadyToStart ? 'Edit route' : 'Refine route'}
+              </Text>
+            </Pressable>
 
-         {subscriptionType!= SUBSCRIPTION_TYPES.LITE &&     <Pressable
-                style={({ pressed }) => [
-                  localStyles.editButton,
-                  !canOpenReorderStops && localStyles.disabledButton,
-                  pressed && canOpenReorderStops && localStyles.buttonPressedLight,
-                ]}
-                onPress={() => onOpenReorderStops?.()}
-                disabled={!canOpenReorderStops}
-                hitSlop={6}
-              >
-                <MaterialCommunityIcons
-                  name="drag-vertical"
-                  size={18}
-                  color="#1E293B"
-                />
-                <Text style={localStyles.editButtonText}>Reorder stops</Text>
-              </Pressable>}
-            </View>
-          ) : null}
+       {subscriptionType!= SUBSCRIPTION_TYPES.LITE &&     <Pressable
+              style={({ pressed }) => [
+                localStyles.editButton,
+                !canOpenReorderStops && localStyles.disabledButton,
+                pressed && canOpenReorderStops && localStyles.buttonPressedLight,
+              ]}
+              onPress={() => onOpenReorderStops?.()}
+              disabled={!canOpenReorderStops}
+              hitSlop={6}
+            >
+              <MaterialCommunityIcons
+                name="drag-vertical"
+                size={18}
+                color="#1E293B"
+              />
+              <Text style={localStyles.editButtonText}>Reorder stops</Text>
+            </Pressable>}
+          </View>
 
           {!isFleetDriver ? (
             <Pressable

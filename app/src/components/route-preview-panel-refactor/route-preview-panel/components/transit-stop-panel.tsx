@@ -7,6 +7,7 @@ import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
 import { McIcon, PackageActionIcon } from './icons';
 import { RouteCompletionPromptPanel } from './completion-panels';
+import { useUserRole } from '../../../../hooks/useUserRole';
 
 type TransitPanelView = 'current' | 'route' | 'stop-detail';
 
@@ -633,6 +634,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
   } = props;
 
   const insets = useSafeAreaInsets();
+  const { isBusinessOwner } = useUserRole();
   const [panelView, setPanelView] = useState<TransitPanelView>('current');
   const [selectedStop, setSelectedStop] = useState<any | null>(null);
   const [navModalVisible, setNavModalVisible] = useState(false);
@@ -756,31 +758,45 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           </View>
         </View>
 
-        <View style={localStyles.currentActionsRow}>
-          <ActionButton
-            label="Navigate"
-            variant="blue"
-            disabled={Boolean(isUpdatingStopStatus)}
-            icon={<MaterialCommunityIcons name="navigation-variant" size={24} color="#FFFFFF" />}
-            onPress={() => handleNavigateStop(stop)}
-          />
+        {isBusinessOwner ? (
+          <View style={localStyles.dispatchCard}>
+            <View style={localStyles.dispatchIconBox}>
+              <Feather name="eye" size={20} color="#2563EB" />
+            </View>
+            <View style={localStyles.dispatchTextBox}>
+              <Text style={localStyles.dispatchTitle}>Dispatch Monitoring Mode</Text>
+              <Text style={localStyles.dispatchSubtitle}>
+                Route in progress by assigned driver. Live navigation and status updates are managed by the driver.
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={localStyles.currentActionsRow}>
+            <ActionButton
+              label="Navigate"
+              variant="blue"
+              disabled={Boolean(isUpdatingStopStatus)}
+              icon={<MaterialCommunityIcons name="navigation-variant" size={24} color="#FFFFFF" />}
+              onPress={() => handleNavigateStop(stop)}
+            />
 
-          <ActionButton
-            label={isUpdatingStopStatus ? 'Updating' : 'Delivered'}
-            variant="green"
-            disabled={Boolean(isUpdatingStopStatus)}
-            icon={<PackageActionIcon type="delivered" />}
-            onPress={onMarkStopDelivered}
-          />
+            <ActionButton
+              label={isUpdatingStopStatus ? 'Updating' : 'Delivered'}
+              variant="green"
+              disabled={Boolean(isUpdatingStopStatus)}
+              icon={<PackageActionIcon type="delivered" />}
+              onPress={onMarkStopDelivered}
+            />
 
-          <ActionButton
-            label={isUpdatingStopStatus ? 'Updating' : 'Failed'}
-            variant="red"
-            disabled={Boolean(isUpdatingStopStatus)}
-            icon={<PackageActionIcon type="failed" />}
-            onPress={onMarkStopFailed}
-          />
-        </View>
+            <ActionButton
+              label={isUpdatingStopStatus ? 'Updating' : 'Failed'}
+              variant="red"
+              disabled={Boolean(isUpdatingStopStatus)}
+              icon={<PackageActionIcon type="failed" />}
+              onPress={onMarkStopFailed}
+            />
+          </View>
+        )}
 
         <View style={localStyles.addressCard}>
           <View style={localStyles.addressIconBox}>
@@ -1066,35 +1082,37 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
           />
         </View>
 
-        <View style={localStyles.detailBottomActions}>
-          <Pressable
-            style={({ pressed }) => [
-              localStyles.bottomStatusButton,
-              localStyles.bottomDeliveredButton,
-              (!canUpdateThisStop || isUpdatingStopStatus) && localStyles.actionDisabled,
-              pressed && canUpdateThisStop && !isUpdatingStopStatus && localStyles.pressed,
-            ]}
-            onPress={markDeliveredIfActive}
-            disabled={!canUpdateThisStop || Boolean(isUpdatingStopStatus)}
-          >
-            <Feather name="check-circle" size={18} color="#16A34A" />
-            <Text style={localStyles.bottomDeliveredText}>Delivered</Text>
-          </Pressable>
+        {!isBusinessOwner ? (
+          <View style={localStyles.detailBottomActions}>
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.bottomStatusButton,
+                localStyles.bottomDeliveredButton,
+                (!canUpdateThisStop || isUpdatingStopStatus) && localStyles.actionDisabled,
+                pressed && canUpdateThisStop && !isUpdatingStopStatus && localStyles.pressed,
+              ]}
+              onPress={markDeliveredIfActive}
+              disabled={!canUpdateThisStop || Boolean(isUpdatingStopStatus)}
+            >
+              <Feather name="check-circle" size={18} color="#16A34A" />
+              <Text style={localStyles.bottomDeliveredText}>Delivered</Text>
+            </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [
-              localStyles.bottomStatusButton,
-              localStyles.bottomFailedButton,
-              (!canUpdateThisStop || isUpdatingStopStatus) && localStyles.actionDisabled,
-              pressed && canUpdateThisStop && !isUpdatingStopStatus && localStyles.pressed,
-            ]}
-            onPress={markFailedIfActive}
-            disabled={!canUpdateThisStop || Boolean(isUpdatingStopStatus)}
-          >
-            <Feather name="x-circle" size={18} color="#EF4444" />
-            <Text style={localStyles.bottomFailedText}>Failed</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.bottomStatusButton,
+                localStyles.bottomFailedButton,
+                (!canUpdateThisStop || isUpdatingStopStatus) && localStyles.actionDisabled,
+                pressed && canUpdateThisStop && !isUpdatingStopStatus && localStyles.pressed,
+              ]}
+              onPress={markFailedIfActive}
+              disabled={!canUpdateThisStop || Boolean(isUpdatingStopStatus)}
+            >
+              <Feather name="x-circle" size={18} color="#EF4444" />
+              <Text style={localStyles.bottomFailedText}>Failed</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {!canUpdateThisStop ? (
           <Text style={localStyles.currentOnlyHint}>Delivery status can be changed only for the current active stop.</Text>
@@ -2211,5 +2229,38 @@ const localStyles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#64748B',
+  },
+  dispatchCard: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  dispatchIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchTextBox: {
+    flex: 1,
+  },
+  dispatchTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0369A1',
+    marginBottom: 2,
+  },
+  dispatchSubtitle: {
+    fontSize: 12,
+    color: '#0284C7',
+    lineHeight: 16,
   },
 });

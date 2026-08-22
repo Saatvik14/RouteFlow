@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import type { RoutePreviewPanelProps } from "../types";
+import { useUserRole } from "../../../../hooks/useUserRole";
 
 function getNavigationUrl(stop: any): string {
   const lat = stop?.latitude ?? stop?.lat;
@@ -338,6 +339,7 @@ export function RouteCompletionPromptPanel({
   onNavigateActiveStop?: (stop?: any) => Promise<void> | void;
 }) {
   const insets = useSafeAreaInsets();
+  const { isBusinessOwner } = useUserRole();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [navModalVisible, setNavModalVisible] = useState(false);
 
@@ -541,44 +543,46 @@ export function RouteCompletionPromptPanel({
             />
           </View>
 
-          <View style={promptStyles.actionContainer}>
-            {allStopsResolved ? (
+          {!isBusinessOwner ? (
+            <View style={promptStyles.actionContainer}>
+              {allStopsResolved ? (
+                <Pressable
+                  style={({ pressed }) => [
+                    promptStyles.navigateEndBtn,
+                    pressed && promptStyles.btnPressed,
+                  ]}
+                  onPress={() => setNavModalVisible(true)}
+                >
+                  <MaterialCommunityIcons name="navigation-variant" size={20} color="#2563EB" />
+                  <Text style={promptStyles.navigateEndBtnText}>
+                    Navigate to End Location
+                  </Text>
+                </Pressable>
+              ) : null}
+
               <Pressable
-                style={({ pressed }) => [
-                  promptStyles.navigateEndBtn,
-                  pressed && promptStyles.btnPressed,
+                style={[
+                  promptStyles.completeButton,
+                  buttonDisabled && promptStyles.disabledButton,
                 ]}
-                onPress={() => setNavModalVisible(true)}
+                onPress={() => setShowConfirmation(true)}
+                disabled={buttonDisabled}
               >
-                <MaterialCommunityIcons name="navigation-variant" size={20} color="#2563EB" />
-                <Text style={promptStyles.navigateEndBtnText}>
-                  Navigate to End Location
+                {isCompletingRoute ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Feather name="check" size={20} color="#FFFFFF" />
+                )}
+                <Text style={promptStyles.completeButtonText}>
+                  {isCompletingRoute
+                    ? "Completing route..."
+                    : allStopsResolved
+                      ? "Complete route"
+                      : `${pendingCount} stops still pending`}
                 </Text>
               </Pressable>
-            ) : null}
-
-            <Pressable
-              style={[
-                promptStyles.completeButton,
-                buttonDisabled && promptStyles.disabledButton,
-              ]}
-              onPress={() => setShowConfirmation(true)}
-              disabled={buttonDisabled}
-            >
-              {isCompletingRoute ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Feather name="check" size={20} color="#FFFFFF" />
-              )}
-              <Text style={promptStyles.completeButtonText}>
-                {isCompletingRoute
-                  ? "Completing route..."
-                  : allStopsResolved
-                    ? "Complete route"
-                    : `${pendingCount} stops still pending`}
-              </Text>
-            </Pressable>
-          </View>
+            </View>
+          ) : null}
         </ScrollView>
       </DraggableRouteSheet>
 
