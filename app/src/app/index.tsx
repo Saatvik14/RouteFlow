@@ -21,7 +21,7 @@ export default function Index() {
 
   useEffect(() => {
     if (isRoleLoading) return;
-    if (isBusinessOwner || workspace === 'map') {
+    if (workspace === 'map') {
       setIsLoading(false);
       return;
     }
