@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { restoreAuthToken } from '../services/api';
 import { jwtDecode } from 'jwt-decode';
 
-export type UserRole = 'INDEPENDENT_DRIVER' | 'FLEET_DRIVER' | 'BUSINESS_OWNER';
+export type UserRole = 'INDEPENDENT_DRIVER' | 'FLEET_DRIVER' | 'BUSINESS_OWNER' | 'PLATFORM_ADMIN';
 
 type JwtPayload = {
   role?: string;
@@ -15,6 +15,7 @@ export const normalizeRole = (rawRole?: string): UserRole => {
   const norm = String(rawRole || '').toUpperCase().trim();
   if (norm === 'FLEET_DRIVER') return 'FLEET_DRIVER';
   if (norm === 'BUSINESS_OWNER') return 'BUSINESS_OWNER';
+  if (norm === 'PLATFORM_ADMIN') return 'PLATFORM_ADMIN';
   return 'INDEPENDENT_DRIVER'; // Default for legacy users or INDEPENDENT_DRIVER
 };
 
@@ -30,8 +31,12 @@ export function useUserRole() {
         if (token) {
           const decoded = jwtDecode<JwtPayload>(token);
           const rawRole = decoded?.role || decoded?.user?.role;
+          // The authenticated account type controls the primary app experience.
+          // Organization membership grants tenant permissions, but must never turn a
+          // legacy independent driver into a dispatcher after migration backfills.
+          const resolvedRole = normalizeRole(rawRole);
           if (isMounted) {
-            setRole(normalizeRole(rawRole));
+            setRole(resolvedRole);
           }
         }
       } catch (err) {
@@ -48,7 +53,7 @@ export function useUserRole() {
 
   const isIndependentDriver = role === 'INDEPENDENT_DRIVER';
   const isFleetDriver = role === 'FLEET_DRIVER';
-  const isBusinessOwner = role === 'BUSINESS_OWNER';
+  const isBusinessOwner = role === 'BUSINESS_OWNER' || role === 'PLATFORM_ADMIN';
 
   return {
     role,
@@ -59,8 +64,8 @@ export function useUserRole() {
 
     // Feature Flags & Permissions
     canCreateRoute: isIndependentDriver || isBusinessOwner,
-    canAddDriver: isBusinessOwner,
-    canViewDriverRoutes: isBusinessOwner,
+    canAddDriver: isIndependentDriver || isBusinessOwner,
+    canViewDriverRoutes: isIndependentDriver || isBusinessOwner,
     canNavigateRoute: isIndependentDriver || isFleetDriver,
     canUpdateDeliveryStatus: isIndependentDriver || isFleetDriver,
   };

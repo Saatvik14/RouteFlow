@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
@@ -24,6 +23,7 @@ import {
   isIndiaAllowedForEmail,
   getCurrentUserEmailSync,
 } from '@/src/utils/locationPermissions';
+import { ExpoFileSystem } from '@/src/utils/expoFileSystem';
 
 const isUkLocation = (item: any) => {
   return isLocationAllowedForUser(item);
@@ -191,10 +191,9 @@ export function SearchPanel({
       document.body.removeChild(link);
     } else {
       try {
-        const fileUri = FileSystem.documentDirectory + 'sample-route-manifest.csv';
-        await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        const file = new ExpoFileSystem.File(ExpoFileSystem.Paths.document, 'sample-route-manifest.csv');
+        file.write(csvContent);
+        const fileUri = file.uri;
 
         const isSharingAvailable = await Sharing.isAvailableAsync();
         if (isSharingAvailable) {

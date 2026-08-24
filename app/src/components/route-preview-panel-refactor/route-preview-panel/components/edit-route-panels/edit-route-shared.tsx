@@ -6,6 +6,8 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import type { PlaceSuggestion } from '../../types';
+export type { PlaceSuggestion } from '../../types';
 
 export type EditTarget = 'start' | 'end';
 export type StopOrder = 'early' | 'auto' | 'last';
@@ -21,15 +23,6 @@ export type StopDetails = {
   address?: string;
   latitude?: number | null;
   longitude?: number | null;
-};
-
-export type PlaceSuggestion = {
-  id?: string | number;
-  title: string;
-  subtitle?: string;
-  fullAddress?: string;
-  latitude?: number;
-  longitude?: number;
 };
 
 export type BaseEditProps = {

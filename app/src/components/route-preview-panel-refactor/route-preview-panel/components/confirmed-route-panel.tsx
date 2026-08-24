@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
+  ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +16,7 @@ import type { RoutePreviewPanelProps } from '../types';
 import { DraggableRouteSheet } from './draggable-route-sheet';
 import { SUBSCRIPTION_TYPES } from '@/src/constants/api';
 import { useUserRole } from '@/src/hooks/useUserRole';
+import { DriverProfile, enterpriseService } from '@/src/services/api/enterprise';
 
 type ConfirmedRoutePanelProps = RoutePreviewPanelProps & {
   isWide: boolean;
@@ -43,6 +46,7 @@ type TimelineItem = {
 
 export function ConfirmedRoutePanel({
   isWide,
+  routeId,
   routeName,
   start,
   end,
@@ -63,6 +67,14 @@ export function ConfirmedRoutePanel({
 }: ConfirmedRoutePanelProps) {
   const insets = useSafeAreaInsets();
   const { canNavigateRoute, isBusinessOwner, isFleetDriver } = useUserRole();
+  const [isAssignmentOpen, setIsAssignmentOpen] = useState(false);
+  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
+  const [isAssigningDriver, setIsAssigningDriver] = useState(false);
+  const [assignmentError, setAssignmentError] = useState('');
+  const [drivers, setDrivers] = useState<DriverProfile[]>([]);
+  const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null);
+  const [assignedDriver, setAssignedDriver] = useState<{ id: number; name: string } | null>(null);
+  const [assignmentVersion, setAssignmentVersion] = useState(0);
 
   const normalizedStatus = String(routeStatus || '').toLowerCase();
   const isReadyToStart =
@@ -70,6 +82,75 @@ export function ConfirmedRoutePanel({
 
   const isInTransit = normalizedStatus === 'in_transit';
   const canOpenReorderStops = Boolean(onOpenReorderStops);
+  const numericRouteId = Number(routeId);
+  const canAssignDriver = isBusinessOwner && isReadyToStart && Number.isInteger(numericRouteId) && numericRouteId > 0;
+
+  useEffect(() => {
+    setAssignedDriver(null);
+    setSelectedDriverId(null);
+    setAssignmentVersion(0);
+    setAssignmentError('');
+    setIsAssignmentOpen(false);
+  }, [routeId]);
+
+  const openAssignment = async () => {
+    if (!canAssignDriver) return;
+    setIsAssignmentOpen(true);
+    setIsLoadingDrivers(true);
+    setAssignmentError('');
+
+    const [teamResponse, routeResponse] = await Promise.all([
+      enterpriseService.getTeam({ status: 'active' }),
+      enterpriseService.getRouteDetail(numericRouteId),
+    ]);
+
+    if (!teamResponse.success || !teamResponse.data) {
+      setDrivers([]);
+      setAssignmentError(teamResponse.error || 'Active drivers could not be loaded. Try again.');
+    } else {
+      setDrivers((teamResponse.data.drivers || []).filter((driver) => driver.active));
+    }
+
+    if (routeResponse.success && routeResponse.data?.route) {
+      const currentRoute = routeResponse.data.route;
+      const currentDriver = currentRoute.driver
+        ? { id: Number(currentRoute.driver.id), name: String(currentRoute.driver.name || 'Driver') }
+        : null;
+      setAssignedDriver(currentDriver);
+      setSelectedDriverId(currentDriver?.id || null);
+      setAssignmentVersion(Number(currentRoute.assignmentVersion || 0));
+    } else if (!assignmentError) {
+      setAssignmentError(routeResponse.error || 'Route assignment details could not be loaded.');
+    }
+
+    setIsLoadingDrivers(false);
+  };
+
+  const assignDriver = async () => {
+    if (!selectedDriverId || isAssigningDriver) return;
+    const selectedDriver = drivers.find((driver) => driver.driverId === selectedDriverId);
+    if (!selectedDriver) return;
+
+    setIsAssigningDriver(true);
+    setAssignmentError('');
+    const response = await enterpriseService.assignRoute(
+      numericRouteId,
+      selectedDriverId,
+      assignmentVersion,
+    );
+
+    if (!response.success) {
+      setAssignmentError(response.error || 'The route could not be assigned. Refresh and try again.');
+      setIsAssigningDriver(false);
+      return;
+    }
+
+    const nextVersion = Number((response.data as any)?.route?.assignmentVersion);
+    setAssignmentVersion(Number.isFinite(nextVersion) ? nextVersion : assignmentVersion + 1);
+    setAssignedDriver({ id: selectedDriver.driverId, name: selectedDriver.name });
+    setIsAssigningDriver(false);
+    setIsAssignmentOpen(false);
+  };
 
   const primaryButtonDisabled = Boolean(
     isStartingRoute || isInTransit || (isReadyToStart && !onStartRoute),
@@ -106,6 +187,7 @@ export function ConfirmedRoutePanel({
   });
 
   return (
+    <>
     <DraggableRouteSheet
       isWide={isWide}
       initialSnap="middle"
@@ -258,6 +340,24 @@ export function ConfirmedRoutePanel({
             },
           ]}
         >
+          {canAssignDriver ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={assignedDriver ? `Reassign route currently assigned to ${assignedDriver.name}` : 'Assign driver to route'}
+              style={({ pressed }) => [
+                localStyles.assignButton,
+                pressed && localStyles.buttonPressed,
+              ]}
+              onPress={openAssignment}
+              hitSlop={6}
+            >
+              <Feather name={assignedDriver ? 'user-check' : 'user-plus'} size={17} color="#FFFFFF" />
+              <Text numberOfLines={1} style={localStyles.assignButtonText}>
+                {assignedDriver ? `Reassign driver · ${assignedDriver.name}` : 'Assign driver'}
+              </Text>
+            </Pressable>
+          ) : null}
+
           <View style={localStyles.footerSecondRow}>
             <Pressable
               style={({ pressed }) => [
@@ -324,6 +424,118 @@ export function ConfirmedRoutePanel({
         </View>
       </View>
     </DraggableRouteSheet>
+    <Modal
+      visible={isAssignmentOpen}
+      transparent
+      animationType="slide"
+      onRequestClose={() => !isAssigningDriver && setIsAssignmentOpen(false)}
+    >
+      <View style={localStyles.assignmentOverlay}>
+        <Pressable
+          accessibilityLabel="Close driver assignment"
+          style={localStyles.assignmentBackdrop}
+          onPress={() => !isAssigningDriver && setIsAssignmentOpen(false)}
+        />
+        <View style={[localStyles.assignmentSheet, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}>
+          <View style={localStyles.assignmentHandle} />
+          <View style={localStyles.assignmentHeader}>
+            <View style={localStyles.assignmentHeaderCopy}>
+              <Text style={localStyles.assignmentTitle}>{assignedDriver ? 'Reassign driver' : 'Assign driver'}</Text>
+              <Text numberOfLines={2} style={localStyles.assignmentSubtitle}>{routeName || 'Optimized route'}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              disabled={isAssigningDriver}
+              onPress={() => setIsAssignmentOpen(false)}
+              style={localStyles.assignmentClose}
+            >
+              <Feather name="x" size={22} color="#64748B" />
+            </Pressable>
+          </View>
+
+          {isLoadingDrivers ? (
+            <View style={localStyles.assignmentState}>
+              <ActivityIndicator color="#2F74F7" />
+              <Text style={localStyles.assignmentStateText}>Loading active drivers…</Text>
+            </View>
+          ) : (
+            <>
+              {assignmentError ? (
+                <View accessibilityRole="alert" style={localStyles.assignmentError}>
+                  <Feather name="alert-circle" size={17} color="#B42318" />
+                  <Text style={localStyles.assignmentErrorText}>{assignmentError}</Text>
+                </View>
+              ) : null}
+
+              {drivers.length === 0 ? (
+                <View style={localStyles.assignmentState}>
+                  <View style={localStyles.assignmentEmptyIcon}><Feather name="users" size={22} color="#2F74F7" /></View>
+                  <Text style={localStyles.assignmentEmptyTitle}>No active drivers</Text>
+                  <Text style={localStyles.assignmentStateText}>Invite a driver from Team and wait for them to accept before assigning this route.</Text>
+                </View>
+              ) : (
+                <ScrollView style={localStyles.driverList} showsVerticalScrollIndicator={false}>
+                  {drivers.map((driver) => {
+                    const selected = selectedDriverId === driver.driverId;
+                    const sameRoute = driver.currentAssignment?.routeId === numericRouteId;
+                    const availability = sameRoute
+                      ? 'Currently assigned to this route'
+                      : driver.currentAssignment
+                        ? `Currently on ${driver.currentAssignment.name}`
+                        : 'Available';
+                    return (
+                      <Pressable
+                        key={driver.driverId}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected }}
+                        onPress={() => setSelectedDriverId(driver.driverId)}
+                        style={({ pressed }) => [
+                          localStyles.driverOption,
+                          selected && localStyles.driverOptionSelected,
+                          pressed && localStyles.buttonPressedLight,
+                        ]}
+                      >
+                        <View style={[localStyles.driverAvatar, selected && localStyles.driverAvatarSelected]}>
+                          <Text style={[localStyles.driverAvatarText, selected && localStyles.driverAvatarTextSelected]}>{driver.name.trim().charAt(0).toUpperCase() || 'D'}</Text>
+                        </View>
+                        <View style={localStyles.driverCopy}>
+                          <Text numberOfLines={1} style={localStyles.driverName}>{driver.name}</Text>
+                          <Text numberOfLines={1} style={[localStyles.driverAvailability, !driver.currentAssignment && localStyles.driverAvailable]}>{availability}</Text>
+                        </View>
+                        <View style={[localStyles.radioOuter, selected && localStyles.radioOuterSelected]}>
+                          {selected ? <View style={localStyles.radioInner} /> : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
+              {drivers.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={assignedDriver ? 'Confirm driver reassignment' : 'Confirm driver assignment'}
+                  disabled={!selectedDriverId || isAssigningDriver || selectedDriverId === assignedDriver?.id}
+                  onPress={assignDriver}
+                  style={({ pressed }) => [
+                    localStyles.assignmentConfirm,
+                    (!selectedDriverId || isAssigningDriver || selectedDriverId === assignedDriver?.id) && localStyles.disabledButton,
+                    pressed && selectedDriverId !== assignedDriver?.id && localStyles.buttonPressed,
+                  ]}
+                >
+                  {isAssigningDriver ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Feather name="user-check" size={17} color="#FFFFFF" />}
+                  <Text style={localStyles.assignmentConfirmText}>
+                    {selectedDriverId === assignedDriver?.id ? 'Already assigned' : assignedDriver ? 'Reassign route' : 'Assign route'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -1123,6 +1335,26 @@ const localStyles = StyleSheet.create({
     gap: 6,
   },
 
+  assignButton: {
+    width: '100%',
+    minHeight: 46,
+    borderRadius: 12,
+    backgroundColor: '#2F74F7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+
+  assignButtonText: {
+    ...font('600'),
+    flexShrink: 1,
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#FFFFFF',
+  },
+
   cancelButton: {
     width: '100%',
     height: 32,
@@ -1196,5 +1428,245 @@ const localStyles = StyleSheet.create({
 
   buttonPressedLight: {
     opacity: 0.82,
+  },
+
+  assignmentOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+  },
+
+  assignmentBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  assignmentSheet: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '78%',
+    alignSelf: 'center',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    elevation: 18,
+  },
+
+  assignmentHandle: {
+    width: 54,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#D8DEE8',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+
+  assignmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+
+  assignmentHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+
+  assignmentTitle: {
+    ...font('600'),
+    fontSize: 20,
+    lineHeight: 26,
+    color: '#101828',
+  },
+
+  assignmentSubtitle: {
+    ...font('400'),
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#64748B',
+  },
+
+  assignmentClose: {
+    width: 44,
+    height: 44,
+    marginTop: -7,
+    marginRight: -8,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  assignmentState: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+
+  assignmentStateText: {
+    ...font('400'),
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+
+  assignmentEmptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EAF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  assignmentEmptyTitle: {
+    ...font('600'),
+    marginTop: 12,
+    fontSize: 16,
+    lineHeight: 21,
+    color: '#101828',
+  },
+
+  assignmentError: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 10,
+    backgroundColor: '#FEF3F2',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+
+  assignmentErrorText: {
+    ...font('400'),
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#B42318',
+  },
+
+  driverList: {
+    maxHeight: 340,
+    marginBottom: 14,
+  },
+
+  driverOption: {
+    minHeight: 64,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 8,
+  },
+
+  driverOptionSelected: {
+    borderColor: '#9BC0FF',
+    backgroundColor: '#F3F7FF',
+  },
+
+  driverAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  driverAvatarSelected: {
+    backgroundColor: '#DCEAFF',
+  },
+
+  driverAvatarText: {
+    ...font('600'),
+    fontSize: 15,
+    color: '#475467',
+  },
+
+  driverAvatarTextSelected: {
+    color: '#1D5FD1',
+  },
+
+  driverCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 10,
+  },
+
+  driverName: {
+    ...font('500'),
+    fontSize: 14,
+    lineHeight: 19,
+    color: '#101828',
+  },
+
+  driverAvailability: {
+    ...font('400'),
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#667085',
+  },
+
+  driverAvailable: {
+    color: '#027A48',
+  },
+
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#98A2B3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  radioOuterSelected: {
+    borderColor: '#2F74F7',
+  },
+
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#2F74F7',
+  },
+
+  assignmentConfirm: {
+    width: '100%',
+    minHeight: 50,
+    borderRadius: 12,
+    backgroundColor: '#2F74F7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+
+  assignmentConfirmText: {
+    ...font('600'),
+    fontSize: 14,
+    lineHeight: 18,
+    color: '#FFFFFF',
   },
 });

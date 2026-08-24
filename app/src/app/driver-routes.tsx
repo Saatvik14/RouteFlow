@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { driversService, Driver } from '../services/api/drivers';
 import { routesService } from '../services/api/routes';
 import { ordersService } from '../services/api/orders';
+import { Sidebar } from '../components/sidebar';
 
 type RouteItem = {
   id: string;
@@ -82,6 +83,7 @@ export default function DriverRoutesScreen() {
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Fetch Drivers and Routes
   useEffect(() => {
@@ -232,15 +234,25 @@ export default function DriverRoutesScreen() {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color="#101828" />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open navigation"
+          style={styles.backButton}
+          onPress={() => setIsSidebarOpen(true)}
+        >
+          <Feather name="menu" size={22} color="#101828" />
         </Pressable>
         <Text style={styles.headerTitle}>Routes per Driver</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Driver Selector Section */}
-      <View style={styles.selectorContainer}>
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+      <View style={styles.workspaceSheet}>
+        <View style={styles.sheetHandle} />
+
+        {/* Driver Selector Section */}
+        <View style={styles.selectorContainer}>
         <Text style={styles.selectorLabel}>Select Driver</Text>
         <Pressable
           style={styles.dropdownButton}
@@ -254,10 +266,10 @@ export default function DriverRoutesScreen() {
           </View>
           <Feather name="chevron-down" size={20} color="#64748B" />
         </Pressable>
-      </View>
+        </View>
 
-      {/* Routes List */}
-      <View style={styles.content}>
+        {/* Routes List */}
+        <View style={styles.content}>
         {isLoading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#2F76F6" />
@@ -343,6 +355,7 @@ export default function DriverRoutesScreen() {
             ))}
           </ScrollView>
         )}
+        </View>
       </View>
 
       {/* Driver Selection Modal */}
@@ -463,6 +476,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
+  workspaceSheet: {
+    flex: 1,
+    width: '96%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    marginVertical: 12,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#E5EAF1',
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  sheetHandle: {
+    width: 74,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#D8DEE8',
+    alignSelf: 'center',
+    marginTop: 10,
+  },
   backButton: {
     width: 40,
     height: 40,
@@ -472,7 +510,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#101828',
   },
   selectorContainer: {
@@ -485,7 +523,7 @@ const styles = StyleSheet.create({
   },
   selectorLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#475467',
     marginBottom: 8,
   },
@@ -507,7 +545,7 @@ const styles = StyleSheet.create({
   },
   dropdownButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#101828',
   },
   content: {
@@ -531,7 +569,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#101828',
     marginTop: 16,
     marginBottom: 6,
@@ -550,7 +588,7 @@ const styles = StyleSheet.create({
   },
   countSummaryText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#64748B',
   },
   routeCard: {
@@ -574,7 +612,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#101828',
     flex: 1,
     marginRight: 10,
@@ -586,7 +624,7 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   badgeBlue: { backgroundColor: '#EFF6FF' },
   badgeTextBlue: { color: '#2563EB' },
@@ -612,7 +650,7 @@ const styles = StyleSheet.create({
   },
   driverTagText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#2563EB',
     marginLeft: 6,
   },
@@ -656,7 +694,7 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#101828',
   },
   searchBox: {
@@ -701,7 +739,7 @@ const styles = StyleSheet.create({
   },
   driverOptionName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#101828',
   },
   driverOptionMeta: {
@@ -713,3 +751,4 @@ const styles = StyleSheet.create({
     color: '#2F76F6',
   },
 });
+

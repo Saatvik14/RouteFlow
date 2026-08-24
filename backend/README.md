@@ -1,159 +1,49 @@
-# Backend
+# RouteFloww backend
 
-Backend service for the platform.
+Express/PostgreSQL API for RouteFloww authentication, route planning and enterprise delivery operations.
 
-## Tech Stack
+## Runtime architecture
 
-* Node.js
-* Express.js
-* Supabase
-* Axios
-* Nodemon
+- Express 5 controllers and routers in `api/src`
+- PostgreSQL through `pg`; transactions use `withTransaction`
+- JWT access and refresh tokens
+- Gmail API invitation email delivery
+- Route optimisation through the existing optimisation integration
+- Protected proof files in PostgreSQL by default, or a private Supabase Storage bucket
+- Foreground location updates stored in PostgreSQL and read by an efficient polling API
 
----
+The enterprise routes are mounted at `/api/enterprise`. Legacy route, order, driver and manifest routes remain available but now require authentication and tenant-aware access checks.
 
-# Project Structure
+## Setup
 
-```text
-backend/
-│
-├── src/
-│   │
-│   ├── config/
-│   ├── controllers/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── services/
-│   ├── sockets/
-│   ├── utils/
-│   │
-│   ├── app.js
-│   └── server.js
-│
-├── package.json
-└── .env
-```
+1. Install Node.js and PostgreSQL.
+2. Run `npm install` in this directory.
+3. Copy `.env.example` to `.env` and replace every placeholder secret.
+4. Apply the existing table SQL for a new database, then apply the enterprise migration:
 
----
+   ```bash
+   psql "$DATABASE_URL" -f database/migrations/apply_enterprise_delivery_schema.psql
+   ```
 
-# Prerequisites
+5. Start with `npm run dev` or `npm start`.
 
-Install the following before starting:
+The ordered migrations are additive and backfill organizations, memberships, route tenant IDs, assignment history, normalized route states and normalized stop states. Their table-by-table responsibilities are documented in [database/migrations/README.md](./database/migrations/README.md). Back up production data and run the complete set in a staging copy before production rollout.
 
-* Node.js (LTS)
-* npm
+## Required environment
 
----
+At minimum configure `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `APP_BASE_URL` and `CORS_ORIGINS`. Configure the Gmail variables before sending invitations. `APP_BASE_URL` must be the user-visible frontend origin so invitation links open `/invite?token=...` correctly.
 
-# Backend Setup
+Invitation links default to 48 hours through `INVITATION_EXPIRES_HOURS`. No invitation secret or driver password is included in logs or stored in plaintext.
 
-## 1. Clone Repository
+If `PROOF_STORAGE_BUCKET` is blank, protected proof bytes are stored in PostgreSQL. If set, create a private Supabase bucket and configure the server-only service key; never make the bucket public.
 
-```bash
-git clone https://github.com/Saatvik14/RouteFlow.git
-```
+## Commands
 
----
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start with nodemon |
+| `npm start` | Start the API |
+| `npm test` | Run backend policy, lifecycle, invitation, reporting and security tests |
+| `npm run check` | Parse the API entrypoint and run tests |
 
-## 2. Go To Backend Folder
-
-```bash
-cd RouteFlow/backend
-```
-
----
-
-## 3. Install Dependencies
-
-```bash
-npm install
-```
-
----
-
-# Environment Variables
-
-Create a `.env` file inside the backend folder.
-
-## Example `.env`
-
-```env
-PORT=5000
-
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_KEY=your_supabase_service_key
-
-OPTIMIZATION_API_URL=http://localhost:8989/optimize
-```
-
----
-
-# Running The Backend
-
-## Development Mode
-
-```bash
-npm run dev
-```
-
-The backend will start on:
-
-```text
-http://localhost:5000
-```
-
-Nodemon is enabled, so the server automatically reloads whenever files are changed.
-
----
-
-## Production Mode
-
-```bash
-npm start
-```
-
----
-
-# Available Scripts
-
-| Command     | Description                 |
-| ----------- | --------------------------- |
-| npm run dev | Starts backend with nodemon |
-| npm start   | Starts backend normally     |
-
----
-
-# API Base URL
-
-```text
-http://localhost:5000/api
-```
-
----
-
-# Current Features
-
-* Express server setup
-* Route optimization API integration
-* Supabase integration
-* REST API structure
-* Modular backend architecture
-
----
-
-# Future Features
-
-* Authentication
-* Saved routes
-* Subscription plans
-* Fleet management
-* Live tracking
-* Notifications
-* Admin dashboard
-
----
-
-# Author
-
-Saatvik Rawat
+See [ENTERPRISE_DELIVERY.md](./ENTERPRISE_DELIVERY.md) for roles, state machines and API endpoints.

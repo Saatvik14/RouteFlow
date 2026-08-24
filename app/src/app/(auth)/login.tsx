@@ -1,5 +1,5 @@
 import { authService, setAuthToken } from './../../services/api';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -49,6 +49,7 @@ export default function LoginScreen() {
   const { height, width } = useWindowDimensions();
   const { login } = useAuth();
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
 
   const isWeb = Platform.OS === 'web';
   const isWide = width >= 768;
@@ -74,7 +75,7 @@ export default function LoginScreen() {
       if (response.success && response.data?.accessToken) {
         await setAuthToken(response.data.accessToken);
         login();
-        router.replace('/');
+        router.replace(returnTo ? String(returnTo) as any : '/');
       } else {
         setError(response.error || 'Login failed. Please try again.');
       }

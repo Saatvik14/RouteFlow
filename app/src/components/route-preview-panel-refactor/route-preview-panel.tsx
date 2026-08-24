@@ -38,7 +38,7 @@ export function RoutePreviewPanel(props: RoutePreviewPanelProps) {
         end={props.end}
         stops={props.stops}
         isSaving={props.isSavingStopOrder}
-        errorMessage={props.errorMessage}
+        errorMessage={props.errorMessage || undefined}
         onCancel={props.onCancelReorderStops || (() => undefined)}
         onSave={props.onSaveStopOrder || (() => undefined)}
       />

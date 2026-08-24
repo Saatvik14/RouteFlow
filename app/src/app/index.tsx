@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View, Image, Text } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,14 +9,27 @@ import MapScreen from '../components/maps/RouteMap';
 import { RoutePanel } from '../components/route-panel';
 import { Sidebar } from '../components/sidebar';
 import { IMAGES } from '../constants/theme';
+import { useUserRole } from '../hooks/useUserRole';
 
 export default function Index() {
   const router = useRouter();
+  const { workspace } = useLocalSearchParams<{ workspace?: string }>();
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { isLoading: isRoleLoading, isBusinessOwner, isFleetDriver } = useUserRole();
 
   useEffect(() => {
+    if (isRoleLoading) return;
+    if (isFleetDriver) {
+      router.replace('/fleet-routes' as any);
+      return;
+    }
+    if (isBusinessOwner || workspace === 'map') {
+      setIsLoading(false);
+      return;
+    }
+
     async function checkUserRoute() {
       try {
         const resp: any = await routesService.getRoutes(1, 0);
@@ -43,7 +56,7 @@ export default function Index() {
     }
 
     checkUserRoute();
-  }, []);
+  }, [isBusinessOwner, isFleetDriver, isRoleLoading, router, workspace]);
 
   if (isLoading) {
     return (

@@ -12,9 +12,10 @@ const { addOrder,
         reorderOrders
  } = require('../controllers/orderController');
 const { protect } = require('../middleware/authMiddleware');
+const { loadOrganizationContext } = require('../middleware/rbacMiddleware');
 
 // All order APIs are protected
-router.use(protect);
+router.use(protect, loadOrganizationContext);
 
 router.post('/add', addOrder);
 router.put('/edit', editOrder);
@@ -25,7 +26,7 @@ router.get('/fetch', fetchOrdersByRoute);
 router.post('/vehicleplace', setVehiclePlacement);
 router.get('/vehicleplace', getVehiclePlacementByOrderId);
 router.post('/add/bulk', addBulkOrders);
-router.put('/reorder', protect, reorderOrders);
+router.put('/reorder', reorderOrders);
 
 
 module.exports = router;

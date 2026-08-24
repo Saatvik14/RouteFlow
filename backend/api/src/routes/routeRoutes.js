@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, autocompleteAddress, optimizeRoute, cancelRoute, reverseGeocode } = require('../controllers/routeController');
 const { protect } = require('../middleware/authMiddleware'); // Assuming this exists to verify JWT
+const { loadOrganizationContext } = require('../middleware/rbacMiddleware');
 
 // All route APIs are protected by authentication
-router.use(protect);
+router.use(protect, loadOrganizationContext);
 
 router.post('/create', createRoute);
 router.get('/fetch/all', fetchAllRoutes);

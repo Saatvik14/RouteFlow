@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const { runQuery } = require('../config/db');
+const { runQuery, withTransaction } = require('../config/db');
 const { 
   JWT_ACCESS_SECRET, 
   JWT_REFRESH_SECRET, 
@@ -9,25 +9,23 @@ const {
   JWT_REFRESH_EXPIRES_IN,
 } = require('../config/env');
 const { sendEmailWithGmailApi } = require('../utils/emailSender');
+const { generateAccessToken: createAccessToken, generateRefreshToken } = require('../services/tokenService');
 
 // Helper functions to generate tokens
 const generateAccessToken = (id, email, role, name) => {
-  return jwt.sign({ id, email, role, name }, JWT_ACCESS_SECRET, { expiresIn: JWT_ACCESS_EXPIRES_IN });
-};
-
-const generateRefreshToken = (id) => {
-  return jwt.sign({ id }, JWT_REFRESH_SECRET, {
-    expiresIn: JWT_REFRESH_EXPIRES_IN,
-  });
+  return createAccessToken({ user_id: id, email, role, name });
 };
 
 // @desc    Register new user
 // @route   POST /api/v1/auth/signup
 // @access  Public
 const signup = async (req, res) => {
-  const { name, phone_no, email, password, role } = req.body;
+  const { name, phone_no, password, role } = req.body;
+  const email = req.body.email?.trim().toLowerCase() || null;
+  const cleanName = String(name || '').trim();
+  const cleanPhone = String(phone_no || '').trim();
   // Basic validation 
-  if (!name || !phone_no || !password) {
+  if (!cleanName || !cleanPhone || !password) {
     return res.status(400).json({ message: 'Please enter all required fields: name, phone_no, password' });
   }
 
@@ -35,53 +33,70 @@ const signup = async (req, res) => {
     return res.status(400).json({ message: 'Password must be at least 6 characters long' });
   }
 
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ message: 'Please enter a valid email address.' });
+  }
+
+  if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
+    return res.status(503).json({ message: 'Authentication is temporarily unavailable.' });
+  }
+
   try {
-    // Check if user already exists by phone_no
-    const phoneCheck = await runQuery('SELECT user_id FROM users WHERE phone_no = $1', [phone_no]);
-    if (phoneCheck.rows.length > 0) {
-      return res.status(400).json({ message: 'User with this phone number already exists' });
-    }
-
-    // Check if user already exists by email (if provided)
-    if (email) {
-      const emailCheck = await runQuery('SELECT user_id FROM users WHERE email = $1', [email]);
-      if (emailCheck.rows.length > 0) {
-        return res.status(400).json({ message: 'User with this email already exists' });
-      }
-    }
-
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const VALID_ROLES = ['INDEPENDENT_DRIVER', 'FLEET_DRIVER', 'BUSINESS_OWNER'];
+    // Fleet-driver access can only be granted by accepting an organization
+    // invitation. Public signup may create a business or an independent driver.
+    const VALID_ROLES = ['INDEPENDENT_DRIVER', 'BUSINESS_OWNER'];
     const userRole = VALID_ROLES.includes(role) ? role : 'INDEPENDENT_DRIVER';
 
-    // Create user in Supabase / Postgres
-    const insertQuery = `
-      INSERT INTO users (name, phone_no, email, password, role, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING user_id, name, phone_no, email, role, status, created_at, updated_at
-    `;
-    
-    const newUserResult = await runQuery(insertQuery, [
-      name, 
-      phone_no, 
-      email || null, 
-      hashedPassword, 
-      userRole, 
-      'active'
-    ]);
+    const newUser = await withTransaction(async (client) => {
+      const existingResult = await client.query(
+        `SELECT user_id FROM users
+         WHERE phone_no = $1 OR ($2::text IS NOT NULL AND LOWER(email) = LOWER($2))
+         LIMIT 1`,
+        [cleanPhone, email]
+      );
+      if (existingResult.rows.length > 0) {
+        const duplicate = new Error('An account with this phone number or email already exists.');
+        duplicate.statusCode = 409;
+        throw duplicate;
+      }
 
-    const newUser = newUserResult.rows[0];
+      const inserted = await client.query(
+        `INSERT INTO users (name, phone_no, email, password, role, status)
+         VALUES ($1, $2, $3, $4, $5, 'active')
+         RETURNING user_id, name, phone_no, email, role, status, created_at, updated_at`,
+        [cleanName, cleanPhone, email, hashedPassword, userRole]
+      );
+      const user = inserted.rows[0];
 
-    // Create default configuration entry for the new user, set subscription_type to 'trial'
-    await runQuery(
-      `INSERT INTO config_model (user_id, subscription_type)
-       VALUES ($1, $2)
-       ON CONFLICT (user_id) DO UPDATE SET subscription_type = $2`,
-      [newUser.user_id, 'trial']
-    );
+      await client.query(
+        `INSERT INTO config_model (user_id, subscription_type)
+         VALUES ($1, 'trial')
+         ON CONFLICT (user_id) DO UPDATE SET subscription_type = EXCLUDED.subscription_type`,
+        [user.user_id]
+      );
+
+      // Both public account types own a private workspace. Independent drivers
+      // keep the independent app experience while retaining the full legacy
+      // route, stop and driver-management workflow inside their own tenant.
+      if (['BUSINESS_OWNER', 'INDEPENDENT_DRIVER'].includes(userRole)) {
+        const organizationResult = await client.query(
+          `INSERT INTO organizations (name, legacy_owner_user_id)
+           VALUES ($1, $2)
+           RETURNING organization_id`,
+          [userRole === 'BUSINESS_OWNER' ? `${cleanName}'s business` : `${cleanName}'s workspace`, user.user_id]
+        );
+        await client.query(
+          `INSERT INTO organization_memberships (organization_id, user_id, role, status)
+           VALUES ($1, $2, 'owner', 'active')`,
+          [organizationResult.rows[0].organization_id, user.user_id]
+        );
+      }
+
+      return user;
+    });
 
     res.status(201).json({
       accessToken: generateAccessToken(newUser.user_id, newUser.email, newUser.role, newUser.name),
@@ -89,6 +104,10 @@ const signup = async (req, res) => {
     });
   } catch (error) {
     console.error('Signup Error Detailed:', error.message || error);
+    if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+    if (error.code === '23505') {
+      return res.status(409).json({ message: 'An account with this phone number or email already exists.' });
+    }
     res.status(500).json({ message: 'Server error during signup', detail: error.code === 'ECONNREFUSED' ? 'Database connection failed' : 'Internal error' });
   }
 };
@@ -103,17 +122,25 @@ const login = async (req, res) => {
     return res.status(400).json({ message: 'Please enter identifier (phone number or email) and password' });
   }
 
+  if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
+    return res.status(503).json({ message: 'Authentication is temporarily unavailable.' });
+  }
+
   try {
     // Find user by email OR phone number
     const userResult = await runQuery(
       'SELECT * FROM users WHERE email = $1 OR phone_no = $1',
-      [identifier]
+      [String(identifier).trim().toLowerCase()]
     );
 
     const user = userResult.rows[0];
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    if (String(user.status || '').toLowerCase() !== 'active') {
+      return res.status(403).json({ message: 'This account is inactive. Contact your administrator.' });
     }
 
     // Check password
@@ -140,6 +167,10 @@ const refresh = async (req, res) => {
 
   if (!refreshToken) {
     return res.status(401).json({ message: 'Refresh token is required' });
+  }
+
+  if (!JWT_REFRESH_SECRET || !JWT_ACCESS_SECRET) {
+    return res.status(503).json({ message: 'Authentication is temporarily unavailable.' });
   }
 
   try {

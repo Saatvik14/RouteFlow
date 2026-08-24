@@ -24,6 +24,7 @@ export type StopDetails = {
 
 export type RoutePreviewPanelProps = {
   mode: PanelMode;
+  routeId?: string;
   subscriptionType?: string;
   errorMessage?: string | null;
   routeName: string;

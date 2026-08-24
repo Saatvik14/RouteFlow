@@ -10,6 +10,9 @@ const {
   isIndiaAllowedUser,
   isIndiaAddress,
 } = require('../utils/locationPermissions');
+const { assertRouteReadable, assertRouteMutable } = require('../services/accessControlService');
+const { normalizeRouteState } = require('../services/routeLifecycleService');
+const { HttpError } = require('../utils/httpError');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -86,8 +89,12 @@ const createRoute = async (req, res) => {
     saveAddressDefault
   } = req.body;
   const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
+  const organization_id = req.organization?.id;
   if (!user_id) {
     return res.status(401).json({ message: 'User not authenticated.' });
+  }
+  if (String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER') {
+    return res.status(403).json({ message: 'Fleet drivers cannot create routes.' });
   }
 
   if (req.user?.subscription_type === 'lite') {
@@ -129,6 +136,18 @@ const createRoute = async (req, res) => {
   }
 
   try {
+    let validatedDriverId = null;
+    if (driver_id !== undefined && driver_id !== null && driver_id !== '') {
+      const driverResult = await runQuery(
+        `SELECT driver_id FROM drivers
+         WHERE driver_id = $1 AND organization_id = $2 AND is_active = TRUE AND removed_at IS NULL`,
+        [driver_id, organization_id]
+      );
+      if (driverResult.rows.length === 0) {
+        return res.status(400).json({ message: 'Select an active driver from your business.' });
+      }
+      validatedDriverId = Number(driver_id);
+    }
     const insertQuery = `
       INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -151,19 +170,20 @@ const createRoute = async (req, res) => {
 
     // 5. Create entry in routes table
     const insertRouteQuery = `
-      INSERT INTO routes (user_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status, driver_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO routes (user_id, organization_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status, driver_id, assigned_at, assignment_version)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $9::integer IS NULL THEN NULL ELSE NOW() END, CASE WHEN $9::integer IS NULL THEN 0 ELSE 1 END)
       RETURNING *
     `;
     const routeRes = await runQuery(insertRouteQuery, [
       user_id,
+      organization_id,
       name,
       start_location.full_address,
       end_location.full_address,
       start_datetime,
       end_datetime,
-      status || ROUTE_STATUS.PENDING, // Default status
-      driver_id || null
+      validatedDriverId ? 'assigned' : normalizeRouteState(status || 'draft'),
+      validatedDriverId
     ]);
     // If saveAddressDefault is true, update the user's default addresses in config_model
     if (saveAddressDefault) {
@@ -216,22 +236,23 @@ const fetchAllRoutes = async (req, res) => {
       SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
       FROM routes r
       LEFT JOIN drivers d ON r.driver_id = d.driver_id
-      WHERE r.user_id = $1
+      WHERE r.organization_id = $1
         AND r.is_active = true
       ORDER BY r.created_at DESC
     `;
-    let queryParams = [user_id];
+    let queryParams = [req.organization.id];
 
     if (user_role === 'FLEET_DRIVER' && user_email) {
       query = `
         SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
         FROM routes r
         JOIN drivers d ON r.driver_id = d.driver_id
-        WHERE (LOWER(d.email) = LOWER($1) OR r.user_id = $2)
+        WHERE r.organization_id = $1
+          AND d.account_user_id = $2
           AND r.is_active = true
         ORDER BY r.created_at DESC
       `;
-      queryParams = [user_email, user_id];
+      queryParams = [req.organization.id, user_id];
     }
 
     // 1. Fetch all active routes
@@ -291,14 +312,14 @@ const fetchAllRoutes = async (req, res) => {
           ON o.location_id = l.location_id
         JOIN routes r
           ON o.route_id = r.route_id
-        WHERE r.user_id = $1
+        WHERE r.organization_id = $1
           AND r.is_active = true
         ORDER BY
           o.route_id,
           o.sequence_no ASC NULLS LAST,
           o.created_at ASC
       `,
-      [user_id]
+      [req.organization.id]
     );
 
     // 4. Group stops by route_id
@@ -443,23 +464,14 @@ const fetchRouteById = async (req, res) => {
   if (!id) return res.status(400).json({ message: 'Route ID is required in query parameters' });
 
   try {
-    let query = `
+    await assertRouteReadable({ routeId: id, user: req.user });
+    const query = `
       SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
       FROM routes r
       LEFT JOIN drivers d ON r.driver_id = d.driver_id
-      WHERE r.route_id = $1 AND r.user_id = $2
+      WHERE r.route_id = $1 AND r.organization_id = $2
     `;
-    let queryParams = [id, user_id];
-
-    if (user_role === 'FLEET_DRIVER' && user_email) {
-      query = `
-        SELECT r.*, d.name AS driver_name, d.phone AS driver_phone, d.email AS driver_email
-        FROM routes r
-        LEFT JOIN drivers d ON r.driver_id = d.driver_id
-        WHERE r.route_id = $1 AND (r.user_id = $2 OR LOWER(d.email) = LOWER($3))
-      `;
-      queryParams = [id, user_id, user_email];
-    }
+    const queryParams = [id, req.organization.id];
 
     // 1. Fetch the route main data
     const routeResult = await runQuery(query, queryParams);
@@ -599,6 +611,20 @@ const editRoute = async (req, res) => {
   if (!route_id) return res.status(400).json({ message: 'Route ID is required' });
 
   try {
+    const isFleetDriver = String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER';
+    if (isFleetDriver) {
+      return res.status(403).json({
+        message: 'Drivers cannot directly edit route ownership, assignment, schedule or lifecycle. Send a route-change request instead.',
+      });
+    }
+    await assertRouteMutable({ routeId: route_id, user: req.user });
+
+    if (driver_id !== undefined) {
+      return res.status(400).json({ message: 'Use the assignment endpoint to assign or reassign a driver.' });
+    }
+    if (status !== undefined && !['draft', 'pending', 'optimized', 'ready'].includes(String(status).toLowerCase())) {
+      return res.status(400).json({ message: 'Use the route lifecycle endpoints to change route status.' });
+    }
     const updateFields = [];
     const updateValues = [];
     let paramIdx = 1;
@@ -614,12 +640,11 @@ const editRoute = async (req, res) => {
     addField('name', name);
     addField('start_datetime', start_datetime);
     addField('end_datetime', end_datetime);
-    addField('status', status);
+    addField('status', status === undefined ? undefined : normalizeRouteState(status));
     addField('distance', distance);
     addField('duration', duration);
     addField('end_mode', end_mode);
     addField('is_active', is_active);
-    addField('driver_id', driver_id);
 
     const insertLocQuery = `
       INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
@@ -667,17 +692,8 @@ const editRoute = async (req, res) => {
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
 
-    const user_email = req.user?.email;
-    const user_role = String(req.user?.role || '').toUpperCase().trim();
-
-    let whereClause = `WHERE route_id = $${paramIdx++} AND user_id = $${paramIdx}`;
-    updateValues.push(route_id, user_id);
-
-    if (user_role === 'FLEET_DRIVER' && user_email) {
-      const emailIdx = paramIdx + 1;
-      whereClause = `WHERE route_id = $${paramIdx - 1} AND (user_id = $${paramIdx} OR driver_id IN (SELECT driver_id FROM drivers WHERE LOWER(email) = LOWER($${emailIdx})))`;
-      updateValues.push(user_email);
-    }
+    const whereClause = `WHERE route_id = $${paramIdx++} AND organization_id = $${paramIdx}`;
+    updateValues.push(route_id, req.organization.id);
 
     const query = `
       UPDATE routes 
@@ -852,6 +868,10 @@ const optimizeRoute = async (req, res) => {
   };
 
   try {
+    if (String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER') {
+      return res.status(403).json({ message: 'Only dispatchers can optimize or significantly change an assigned route.' });
+    }
+    await assertRouteMutable({ routeId: route_id, user: req.user });
     /*
      * 1. Fetch route
      */
@@ -859,10 +879,10 @@ const optimizeRoute = async (req, res) => {
       `
         SELECT *
         FROM routes
-        WHERE route_id = $1
+        WHERE route_id = $1 AND organization_id = $2
         LIMIT 1
       `,
-      [route_id]
+      [route_id, req.organization.id]
     );
 
     if (routeResult.rows.length === 0) {
@@ -1420,6 +1440,10 @@ const cancelRoute = async (req, res) => {
         message: "route_id is required",
       });
     }
+    if (String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER') {
+      return res.status(403).json({ success: false, message: 'Drivers cannot cancel routes.' });
+    }
+    await assertRouteMutable({ routeId, user: req.user });
 
     const query = `
       WITH updated_route AS (
@@ -1427,13 +1451,13 @@ const cancelRoute = async (req, res) => {
         SET 
           status = 'cancelled',
           updated_at = NOW()
-        WHERE route_id = $1
+        WHERE route_id = $1 AND organization_id = $2
         RETURNING *
       ),
       updated_orders AS (
         UPDATE orders
         SET 
-          status = 'cancelled',
+          status = 'skipped',
           updated_at = NOW()
         WHERE route_id = $1
           AND LOWER(status) IN ('pending', 'pnding')
@@ -1444,7 +1468,7 @@ const cancelRoute = async (req, res) => {
         (SELECT COUNT(*) FROM updated_orders) AS cancelled_orders_count;
     `;
 
-    const result = await runQuery(query, [routeId]);
+    const result = await runQuery(query, [routeId, req.organization.id]);
 
     const data = result.rows?.[0];
 

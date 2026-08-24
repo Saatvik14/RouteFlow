@@ -1,0 +1,9 @@
+\set ON_ERROR_STOP on
+
+-- psql entrypoint. \ir resolves each migration relative to this file.
+\ir 20260823_001_create_organizations_and_organization_memberships.sql
+\ir 20260823_002_create_driver_invitations.sql
+\ir 20260823_003_extend_routes_and_create_assignment_audit_tables.sql
+\ir 20260823_004_extend_orders_and_create_proof_of_delivery_files.sql
+\ir 20260823_005_create_route_locations.sql
+\ir 20260823_006_backfill_independent_driver_workspaces.sql

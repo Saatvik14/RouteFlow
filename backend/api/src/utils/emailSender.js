@@ -23,6 +23,10 @@ const sendEmailWithGmailApi = async ({
     throw new Error('Google Gmail API environment variables are missing.');
   }
 
+  if (!to || /[\r\n]/.test(String(to)) || /[\r\n]/.test(String(subject))) {
+    throw new Error('Invalid email header value.');
+  }
+
   const oauth2Client = new google.auth.OAuth2(
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET

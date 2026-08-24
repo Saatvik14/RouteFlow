@@ -13,6 +13,7 @@ export * from './orders';
 export * from './routes';
 export * from './users';
 export * from './support';
+export * from './enterprise';
 
 // Export constants
 export { API_BASE_URL, API_CONFIG, API_ENDPOINTS, ERROR_MESSAGES, HTTP_STATUS } from '../../constants/api';
@@ -26,4 +27,5 @@ export { ordersService } from './orders';
 export { routesService } from './routes';
 export { userService } from './users';
 export { supportService } from './support';
+export { enterpriseService } from './enterprise';
 

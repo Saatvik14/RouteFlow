@@ -11,6 +11,11 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
 
       // Verify token
+      if (!JWT_ACCESS_SECRET) {
+        console.error('JWT access secret is not configured.');
+        return res.status(503).json({ message: 'Authentication is temporarily unavailable.' });
+      }
+
       const decoded = jwt.verify(token, JWT_ACCESS_SECRET);
 
       // Get user from the token with subscription_type from config_model
@@ -22,17 +27,20 @@ const protect = async (req, res, next) => {
          WHERE u.user_id = $1`,
         [decoded.id]
       );
-
       const user = userResult.rows[0];
 
       if (!user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });
       }
 
+      if (String(user.status || '').toLowerCase() !== 'active') {
+        return res.status(403).json({ message: 'This account is inactive.' });
+      }
+
       req.user = user; // Attach user object to the request
       next();
     } catch (error) {
-      console.error('JWT Verification Error:', error);
+
       return res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }

@@ -51,8 +51,8 @@ function getDevelopmentBaseUrl() {
 }
 
 // Default backend host (use your Render URL)
-const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
-// const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
+// const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
+const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_BACKEND_URL;
 
@@ -74,7 +74,7 @@ export const API_ENDPOINTS = {
     SEND_OTP: '/users/send-otp',
     VERIFY_OTP: '/users/verify-otp',
     LOGOUT: '/auth/logout',
-    REFRESH_TOKEN: '/refresh',
+    REFRESH_TOKEN: '/users/refresh',
     FORGOT_PASSWORD: '/auth/forgot-password',
     RESET_PASSWORD: '/auth/reset-password',
     VERIFY_EMAIL: '/auth/verify-email',
@@ -134,6 +134,35 @@ export const API_ENDPOINTS = {
     EDIT: '/driver/edit',
     DELETE: (id: string) => `/driver/delete?driver_id=${id}`,
   },
+  ENTERPRISE: {
+    CONTEXT: '/api/enterprise/context',
+    DASHBOARD: '/api/enterprise/dashboard',
+    TEAM: '/api/enterprise/team',
+    INVITATIONS: '/api/enterprise/invitations',
+    INVITATION_PREVIEW: (token: string) => `/api/enterprise/invitations/accept/${encodeURIComponent(token)}`,
+    INVITATION_ACCEPT_NEW: (token: string) => `/api/enterprise/invitations/accept/${encodeURIComponent(token)}/new`,
+    INVITATION_ACCEPT_EXISTING: (token: string) => `/api/enterprise/invitations/accept/${encodeURIComponent(token)}/existing`,
+    INVITATION_RESEND: (id: number) => `/api/enterprise/invitations/${id}/resend`,
+    INVITATION_REVOKE: (id: number) => `/api/enterprise/invitations/${id}/revoke`,
+    DRIVER: (id: number) => `/api/enterprise/team/drivers/${id}`,
+    DRIVER_HISTORY: (id: number) => `/api/enterprise/team/drivers/${id}/history`,
+    MY_ASSIGNMENTS: '/api/enterprise/assignments/mine',
+    ROUTE_ASSIGN: (id: number) => `/api/enterprise/routes/${id}/assign`,
+    ROUTE_ACCEPT: (id: number) => `/api/enterprise/routes/${id}/accept`,
+    ROUTE_REJECT: (id: number) => `/api/enterprise/routes/${id}/reject`,
+    ROUTE_START: (id: number) => `/api/enterprise/routes/${id}/start`,
+    ROUTE_COMPLETE: (id: number) => `/api/enterprise/routes/${id}/complete`,
+    ROUTE_CANCEL: (id: number) => `/api/enterprise/routes/${id}/cancel`,
+    ROUTE_DETAIL: (id: number) => `/api/enterprise/routes/${id}/detail`,
+    ROUTE_PROGRESS: (id: number) => `/api/enterprise/routes/${id}/progress`,
+    ROUTE_LOCATION: (id: number) => `/api/enterprise/routes/${id}/location`,
+    ROUTE_CHANGE_REQUEST: (id: number) => `/api/enterprise/routes/${id}/change-requests`,
+    STOP_ARRIVE: (id: number) => `/api/enterprise/stops/${id}/arrive`,
+    STOP_COMPLETE: (id: number) => `/api/enterprise/stops/${id}/complete`,
+    PROOF_CONTENT: (id: number) => `/api/enterprise/proofs/${id}/content`,
+    REPORT: '/api/enterprise/reports/daily',
+    REPORT_CSV: '/api/enterprise/reports/daily.csv',
+  },
 };
 
 /**
@@ -170,6 +199,11 @@ export const ERROR_MESSAGES = {
  * Route and Order Status Constants
  */
 export const ROUTE_STATUS = {
+  DRAFT: 'draft',
+  ASSIGNED: 'assigned',
+  ACCEPTED: 'accepted',
+  IN_PROGRESS: 'in_progress',
+  FAILED: 'failed',
   PENDING: 'pending',
   OPTIMIZED: 'optimized',
   IN_TRANSIT: 'in_transit',

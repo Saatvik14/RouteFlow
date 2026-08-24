@@ -373,7 +373,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { logout } = useAuth();
-  const { canCreateRoute, canViewDriverRoutes, isFleetDriver } = useUserRole();
+  const { canCreateRoute, canViewDriverRoutes, isBusinessOwner, isFleetDriver } = useUserRole();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
@@ -538,7 +538,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const handleHome = () => {
     onClose();
-    router.replace("/" as never);
+    router.replace({ pathname: "/", params: { workspace: "map" } } as never);
   };
 
   const handleCreateRoute = () => {
@@ -561,6 +561,26 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     router.push("/driver-routes" as never);
   };
 
+  const handleAssignedRoutes = () => {
+    onClose();
+    router.replace("/fleet-routes" as never);
+  };
+
+  const handleLiveDispatch = () => {
+    onClose();
+    router.push("/dashboard" as never);
+  };
+
+  const handleTeam = () => {
+    onClose();
+    router.push("/team" as never);
+  };
+
+  const handleReports = () => {
+    onClose();
+    router.push("/reports" as never);
+  };
+
   const handleRouteHistory = () => {
     onClose();
     router.push("/route-history" as never);
@@ -571,7 +591,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     onClose();
 
     router.push({
-      pathname: "/route-preview",
+      pathname: isFleetDriver ? "/driver-route" : "/route-preview",
       params: {
         id: String(routeId),
         routeId: String(routeId),
@@ -688,6 +708,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     isActive?: boolean,
   ) => (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={[
         styles.quickActionButton,
         isActive && styles.quickActionButtonActive,
@@ -702,12 +724,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         <Feather
           name={icon}
-          size={16}
+          size={17}
           color={isActive ? "#2563EB" : "#334155"}
         />
       </View>
       <Text
-        numberOfLines={1}
+        numberOfLines={2}
         style={[
           styles.quickActionText,
           isActive && styles.quickActionTextActive,
@@ -715,6 +737,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         {label}
       </Text>
+      <Feather name="chevron-right" size={17} color={isActive ? "#2563EB" : "#94A3B8"} />
     </Pressable>
   );
 
@@ -1116,11 +1139,41 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           ) : null}
 
           <View style={styles.quickActions}>
+            {isFleetDriver ? renderQuickAction(
+              "navigation",
+              "Assigned routes",
+              handleAssignedRoutes,
+              pathname?.includes("fleet-routes") || pathname?.includes("driver-route"),
+            ) : null}
+            {!isFleetDriver ? renderQuickAction(
+              "map",
+              "Map workspace",
+              handleHome,
+              pathname === "/",
+            ) : null}
+            {isBusinessOwner ? renderQuickAction(
+              "activity",
+              "Live dispatch",
+              handleLiveDispatch,
+              pathname?.includes("dashboard"),
+            ) : null}
             {canViewDriverRoutes ? renderQuickAction(
               "users",
               "Routes per Driver",
               handleDriverRoutes,
               pathname?.includes("driver-routes"),
+            ) : null}
+            {isBusinessOwner ? renderQuickAction(
+              "user-check",
+              "Team",
+              handleTeam,
+              pathname?.includes("team"),
+            ) : null}
+            {isBusinessOwner ? renderQuickAction(
+              "bar-chart-2",
+              "Reports",
+              handleReports,
+              pathname?.includes("reports"),
             ) : null}
             {renderQuickAction(
               "settings",
@@ -1291,7 +1344,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 23,
     lineHeight: 29,
-    fontWeight: "600",
+    fontWeight: "500",
   },
 
   profileTextBox: {
@@ -1302,7 +1355,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 15.5,
     lineHeight: 21,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#111827",
     letterSpacing: -0.2,
   },
@@ -1375,7 +1428,7 @@ const styles = StyleSheet.create({
   planTitle: {
     fontSize: 13.5,
     lineHeight: 17,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#2563EB",
   },
 
@@ -1401,7 +1454,7 @@ const styles = StyleSheet.create({
   planRouteCountText: {
     fontSize: 11,
     lineHeight: 14,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#64748B",
   },
 
@@ -1430,27 +1483,26 @@ const styles = StyleSheet.create({
   subscribeText: {
     fontSize: 13.5,
     lineHeight: 18,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#2563EB",
   },
 
   quickActions: {
     marginTop: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 9,
+    gap: 7,
   },
 
   quickActionButton: {
-    flex: 1,
-    minHeight: 54,
-    borderRadius: 16,
+    width: "100%",
+    minHeight: 48,
+    borderRadius: 14,
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E1E8F2",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
 
   quickActionButtonActive: {
@@ -1459,11 +1511,13 @@ const styles = StyleSheet.create({
   },
 
   quickActionIconBox: {
-    width: 25,
-    height: 22,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 3,
+    marginRight: 10,
   },
 
   quickActionIconBoxActive: {
@@ -1472,9 +1526,10 @@ const styles = StyleSheet.create({
   },
 
   quickActionText: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
+    flex: 1,
+    fontSize: 13.5,
+    lineHeight: 18,
+    fontWeight: "500",
     color: "#334155",
   },
 
@@ -1517,7 +1572,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14.5,
     lineHeight: 19,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#1E293B",
   },
 
@@ -1538,7 +1593,7 @@ const styles = StyleSheet.create({
   historyCountText: {
     fontSize: 12,
     lineHeight: 15,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#2563EB",
   },
 
@@ -1616,7 +1671,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13.5,
     lineHeight: 18,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#0F172A",
   },
 
@@ -1633,7 +1688,7 @@ const styles = StyleSheet.create({
   sectionCountText: {
     fontSize: 11.5,
     lineHeight: 14,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#2563EB",
   },
 
@@ -1699,7 +1754,7 @@ const styles = StyleSheet.create({
   routeDateDay: {
     fontSize: 15,
     lineHeight: 19,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#2563EB",
   },
 
@@ -1711,7 +1766,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 11,
     lineHeight: 14,
-    fontWeight: "600",
+    fontWeight: "400",
     color: "#64748B",
   },
 
@@ -1734,7 +1789,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 18,
-    fontWeight: "600",
+    fontWeight: "500",
     color: "#0F172A",
     letterSpacing: -0.15,
     marginRight: 7,
@@ -2162,7 +2217,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     lineHeight: 19,
-    fontWeight: "600",
+    fontWeight: "500",
     marginLeft: 8,
   },
 
@@ -2179,7 +2234,7 @@ const styles = StyleSheet.create({
     color: "#64748B",
     fontSize: 13.5,
     lineHeight: 18,
-    fontWeight: "600",
+    fontWeight: "500",
     marginLeft: 7,
   },
 });

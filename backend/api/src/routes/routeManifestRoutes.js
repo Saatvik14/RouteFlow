@@ -8,6 +8,9 @@ const {
 } = require('../controllers/routeManifestController');
 
 const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
+
+router.use(protect);
 
 router.post('/address/resolve', resolveAddressText);
 router.post('/address/scan', upload.single('image'), scanAddressImage);

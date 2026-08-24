@@ -67,3 +67,45 @@ export const Spacing = {
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
+
+// Shared operational UI tokens. Enterprise screens extend the same RouteFloww
+// palette and spacing scale instead of introducing a separate theme module.
+export const OperationsColors = {
+  ink: '#101828',
+  inkMuted: '#64748B',
+  inkSubtle: '#94A3B8',
+  canvas: '#F8FAFC',
+  surface: '#FFFFFF',
+  surfaceMuted: '#F8FAFC',
+  line: '#E2E8F0',
+  lineStrong: '#CBD5E1',
+  primary: '#2F76F6',
+  primaryDark: '#1F5FD2',
+  primarySoft: '#EAF2FF',
+  success: '#167A55',
+  successSoft: '#E8F7F0',
+  warning: '#9A5B08',
+  warningSoft: '#FFF4D8',
+  danger: '#B4233B',
+  dangerSoft: '#FDECEF',
+  info: '#2765B2',
+  infoSoft: '#EAF2FC',
+  focus: '#8CB8FF',
+} as const;
+
+export const OperationsSpacing = {
+  xs: Spacing.one,
+  sm: Spacing.two,
+  md: 12,
+  lg: Spacing.three,
+  xl: Spacing.four,
+  xxl: Spacing.five,
+  xxxl: 40,
+} as const;
+
+export const OperationsRadius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  pill: 999,
+} as const;

@@ -10,6 +10,11 @@ const {
   isAllowedAddress,
   isIndiaAllowedUser,
 } = require('../utils/locationPermissions');
+const {
+  assertRouteMutable,
+  assertRouteReadable,
+  getOrderAccess,
+} = require('../services/accessControlService');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) =>
@@ -631,6 +636,16 @@ const addOrder = async (req, res) => {
     return res.status(400).json({ message: 'route_id is required' });
   }
 
+  try {
+    await assertRouteMutable({
+      routeId: route_id,
+      user: req.user,
+      permission: String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER' ? 'addStops' : undefined,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 403).json({ message: error.message });
+  }
+
   if (req.user?.subscription_type === 'lite') {
     try {
       const stopsCountRes = await runQuery(
@@ -821,6 +836,21 @@ const editOrder = async (req, res) => {
       });
     }
 
+    const isFleetDriver = String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER';
+    if (isFleetDriver && hasOwn(req.body, 'status')) {
+      return res.status(403).json({
+        message: 'Use the stop execution endpoint to record arrival, delivery or failure.',
+      });
+    }
+    const routeAccess = await assertRouteMutable({
+      routeId: existingOrder.route_id,
+      user: req.user,
+      permission: isFleetDriver ? 'editStopDetails' : undefined,
+    });
+    if (isFleetDriver && hasLocationPatch(req.body) && ['in_progress', 'completed'].includes(routeAccess.status)) {
+      return res.status(409).json({ message: 'The stop address cannot be changed after the route has started.' });
+    }
+
     const locationUpdated =
       await updateLocationIfRequired(
         req.body,
@@ -881,16 +911,26 @@ const editOrder = async (req, res) => {
 // @route   DELETE /order/delete/all
 // @access  Private
 const deleteAllOrders = async (req, res) => {
+  const routeId = req.query.route_id || req.body?.route_id;
+  if (!routeId) {
+    return res.status(400).json({ message: 'route_id is required. Global stop deletion is not allowed.' });
+  }
   try {
-    await runQuery(
-      'DELETE FROM locations WHERE location_id IN (SELECT location_id FROM orders)'
+    await assertRouteMutable({ routeId, user: req.user });
+    const result = await runQuery(
+      `WITH deleted AS (
+         DELETE FROM orders WHERE route_id = $1 RETURNING location_id
+       )
+       DELETE FROM locations l
+       WHERE l.location_id IN (SELECT location_id FROM deleted)
+         AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.location_id = l.location_id)
+       RETURNING l.location_id`,
+      [routeId]
     );
 
-    await runQuery('DELETE FROM orders');
-
     return res.status(200).json({
-      message:
-        'All orders and their associated locations deleted successfully',
+      message: 'Route stops deleted successfully',
+      deletedLocations: result.rowCount,
     });
   } catch (error) {
     console.error('Delete All Orders Error:', error);
@@ -914,13 +954,17 @@ const deleteOrderById = async (req, res) => {
   }
 
   try {
+    const orderResult = await runQuery('SELECT route_id FROM orders WHERE order_id = $1', [id]);
+    if (orderResult.rows.length === 0) return res.status(404).json({ message: 'Order not found' });
+    const routeId = orderResult.rows[0].route_id;
+    await assertRouteMutable({ routeId, user: req.user });
     const result = await runQuery(
       `
         DELETE FROM orders
-        WHERE order_id = $1
+        WHERE order_id = $1 AND route_id = $2
         RETURNING location_id
       `,
-      [id]
+      [id, routeId]
     );
 
     if (result.rows.length === 0) {
@@ -959,6 +1003,7 @@ const deleteOrderById = async (req, res) => {
 // @access  Private
 const fetchOrders = async (req, res) => {
   try {
+    const isFleetDriver = String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER';
     const query = `
       SELECT
         o.*,
@@ -975,14 +1020,20 @@ const fetchOrders = async (req, res) => {
         op.side,
         op.vertical
       FROM orders o
+      JOIN routes r ON r.route_id = o.route_id
       JOIN locations l
         ON o.location_id = l.location_id
       LEFT JOIN order_placements op
         ON o.order_id = op.order_id
+      LEFT JOIN drivers d ON d.driver_id = r.driver_id
+      WHERE r.organization_id = $1
+        ${isFleetDriver ? 'AND d.account_user_id = $2' : ''}
       ORDER BY o.created_at DESC
     `;
 
-    const result = await runQuery(query);
+    const result = await runQuery(query, isFleetDriver
+      ? [req.organization.id, req.user.user_id]
+      : [req.organization.id]);
 
     return res.status(200).json(result.rows);
   } catch (error) {
@@ -1062,6 +1113,7 @@ const fetchOrdersByRoute = async (req, res) => {
         message: 'routeId is required',
       });
     }
+    await assertRouteReadable({ routeId, user: req.user });
 
     const ordersQuery = `
       SELECT
@@ -1092,14 +1144,14 @@ const fetchOrdersByRoute = async (req, res) => {
     const routeQuery = `
       SELECT start_datetime
       FROM routes
-      WHERE route_id = $1
+      WHERE route_id = $1 AND organization_id = $2
       LIMIT 1
     `;
 
     const [ordersResult, routeResult] =
       await Promise.all([
         runQuery(ordersQuery, [routeId]),
-        runQuery(routeQuery, [routeId]),
+        runQuery(routeQuery, [routeId, req.organization.id]),
       ]);
 
     const stopsWithApproximateEta =
@@ -1141,6 +1193,7 @@ const getVehiclePlacementByOrderId = async (
   }
 
   try {
+    await getOrderAccess({ orderId: order_id, user: req.user });
     const result = await runQuery(
       `
         SELECT *
@@ -1189,6 +1242,7 @@ const setVehiclePlacement = async (req, res) => {
   }
 
   try {
+    await getOrderAccess({ orderId: order_id, user: req.user });
     const orderCheck = await runQuery(
       `
         SELECT order_id
@@ -1267,6 +1321,16 @@ const addBulkOrders = async (req, res) => {
     });
   }
 
+  try {
+    await assertRouteMutable({
+      routeId: route_id,
+      user: req.user,
+      permission: String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER' ? 'addStops' : undefined,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 403).json({ message: error.message });
+  }
+
   if (req.user?.subscription_type === 'lite') {
     try {
       const stopsCountRes = await runQuery(
@@ -1338,6 +1402,16 @@ const reorderOrders = async (req, res) => {
     return res.status(400).json({
       message: 'route_id is required',
     });
+  }
+
+  try {
+    await assertRouteMutable({
+      routeId: route_id,
+      user: req.user,
+      permission: String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER' ? 'reorderStops' : undefined,
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 403).json({ message: error.message });
   }
 
   if (!Array.isArray(orders) || orders.length === 0) {

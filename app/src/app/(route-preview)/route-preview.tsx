@@ -531,6 +531,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
       ) : !isInitialLoading && route ? (
         <RoutePreviewPanel
           mode={activePanelMode}
+          routeId={routeId}
           subscriptionType={subscriptionType}
           routeName={routeTitle}
           startTime={routeStartDatetime}

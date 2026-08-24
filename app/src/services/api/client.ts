@@ -42,6 +42,15 @@ export class APIError extends Error {
   }
 }
 
+export const getApiErrorMessage = (
+  data: any,
+  fallback = ERROR_MESSAGES.UNKNOWN_ERROR,
+): string =>
+  data?.error?.message ||
+  data?.message ||
+  (typeof data?.error === 'string' ? data.error : null) ||
+  fallback;
+
 /**
  * Storage for auth token (persisted with AsyncStorage)
  */
@@ -151,7 +160,7 @@ export const makeRequest = async <T = any>(
 
     // Check for different status codes
     if (!response.ok) {
-      const errorMessage = data?.message || data?.error || ERROR_MESSAGES.UNKNOWN_ERROR;
+      const errorMessage = getApiErrorMessage(data);
       
       // Handle specific status codes
       if (response.status === HTTP_STATUS.UNAUTHORIZED) {
@@ -277,7 +286,7 @@ export async function apiPostMultipart<T = any>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Upload failed');
+    throw new APIError(response.status, getApiErrorMessage(data, 'Upload failed'), data);
   }
 
   return data as T;

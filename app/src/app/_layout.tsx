@@ -23,7 +23,8 @@ const AuthContext = createContext({
 
 export const useAuth = () => useContext(AuthContext);
 
-const PUBLIC_ROUTES = ['login', 'signup', 'forgot-password'];
+const AUTH_ONLY_ROUTES = ['login', 'signup', 'forgot-password'];
+const PUBLIC_ROUTES = [...AUTH_ONLY_ROUTES, 'invite'];
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -152,8 +153,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Check if the current route is an auth screen
-    const currentRoute = (segments as any)[1] ?? '';
+    const currentRoute = String((segments as any)[segments.length - 1] ?? '').replace(/[()]/g, '');
     const inAuthGroup = PUBLIC_ROUTES.includes(currentRoute);
+    const authOnlyRoute = AUTH_ONLY_ROUTES.includes(currentRoute);
 
     if (!isLoading && !isLoggedIn && !inAuthGroup) {
       // If not logged in and not on an auth screen, redirect to login
@@ -162,7 +164,7 @@ export default function RootLayout() {
       if (isTrialExpired) {
         // Trial has expired; a blocking modal dialog box is shown on top of the app.
         // No automatic redirect to /subscription here.
-      } else if (inAuthGroup) {
+      } else if (authOnlyRoute) {
         // If logged in and on an auth screen, redirect to home
         router.replace('/');
       }
@@ -178,7 +180,7 @@ export default function RootLayout() {
   }
 
   const isSubscriptionPage = segments.join('/').includes('subscription');
-  const inAuthGroup = PUBLIC_ROUTES.includes((segments as any)[1] ?? '');
+  const inAuthGroup = PUBLIC_ROUTES.includes(String((segments as any)[segments.length - 1] ?? '').replace(/[()]/g, ''));
 
   return (
     <AuthContext.Provider value={authContext}>
@@ -193,6 +195,13 @@ export default function RootLayout() {
               <Stack.Screen name="route-points" />
               <Stack.Screen name="route-preview" />
               <Stack.Screen name="driver-routes" />
+              <Stack.Screen name="fleet-routes" />
+              <Stack.Screen name="driver-route" />
+              <Stack.Screen name="dashboard" />
+              <Stack.Screen name="team" />
+              <Stack.Screen name="reports" />
+              <Stack.Screen name="route-detail" />
+              <Stack.Screen name="invite" />
             </Stack>
 
             <Modal
@@ -226,6 +235,7 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)/login" />
             <Stack.Screen name="(auth)/signup" />
             <Stack.Screen name="(auth)/forgot-password" />
+            <Stack.Screen name="invite" />
           </Stack>
         )}
       </ThemeProvider>

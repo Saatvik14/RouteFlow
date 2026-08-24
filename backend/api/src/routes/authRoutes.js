@@ -1,6 +1,7 @@
 const express = require('express');
 const { signup, login, refresh, checkHealth, sendOtpEmail, verifyOtp, adminDeleteUser, adminChangeUserRole } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
+const { requirePlatformAdmin } = require('../middleware/rbacMiddleware');
 
 const router = express.Router();
 
@@ -12,8 +13,8 @@ router.post('/login', login);
 router.post('/refresh', refresh);
 
 // Admin Helper Utility APIs
-router.delete('/admin/delete-user', adminDeleteUser);
-router.put('/admin/change-role', adminChangeUserRole);
+router.delete('/admin/delete-user', protect, requirePlatformAdmin, adminDeleteUser);
+router.put('/admin/change-role', protect, requirePlatformAdmin, adminChangeUserRole);
 
 // Example of a protected route
 router.get('/profile', protect, (req, res) => res.json({ message: `Welcome ${req.user.name}, you are authorized!`, user: req.user }));
