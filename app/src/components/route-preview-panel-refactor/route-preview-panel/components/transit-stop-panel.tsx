@@ -53,16 +53,15 @@ const formatArrivalTime = (value: unknown, options?: { includeDay?: boolean }) =
     const twelveHour = hour % 12 || 12;
     const timeStr = `${twelveHour}:${minute} ${suffix}`;
     const today = new Date();
-    const day = today.getDate();
-    const month = today.toLocaleDateString([], { month: 'short' });
+    const day = today.toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: 'numeric' });
+    const month = today.toLocaleDateString('en-GB', { timeZone: 'Europe/London', month: 'short' });
     return `${day} ${month}, ${timeStr}`;
   }
 
   const parsed = new Date(text);
   if (!Number.isNaN(parsed.getTime())) {
-    const day = parsed.getDate();
-    // const month = parsed.toLocaleDateString([], { month: 'short' });
-    const month = parsed.toLocaleDateString([], { month: 'short' });
+    const day = parsed.toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: 'numeric' });
+    const month = parsed.toLocaleDateString('en-GB', { timeZone: 'Europe/London', month: 'short' });
 
     const time = formatClock(parsed);
     return `${day} ${month}, ${time}`;

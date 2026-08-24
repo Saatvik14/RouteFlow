@@ -15,8 +15,8 @@ const getTimezone = () =>
   process.env.ROUTE_TIMEZONE?.trim() || DEFAULT_TIMEZONE;
 
 const toConfiguredTimezone = (date) => {
-  if(date==null) return date
-  return DateTime.fromJSDate(date, { zone: 'utc' })
+  if (date == null) return date;
+  return DateTime.fromJSDate(date)
     .setZone(getTimezone())
     .toISO();
 };
