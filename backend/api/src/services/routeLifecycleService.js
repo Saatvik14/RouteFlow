@@ -13,9 +13,9 @@ const transitions = Object.freeze({
 
 const normalizeRouteState = (state) => {
   const normalized = String(state || '').trim().toLowerCase().replace(/[ -]+/g, '_');
-  if (['pending', 'pnding', 'new', 'scheduled'].includes(normalized)) return 'draft';
-  if (['optimized', 'ready'].includes(normalized)) return 'draft';
-  if (['active', 'in_transit', 'started', 'running'].includes(normalized)) return 'in_progress';
+  if (['pending', 'pnding', 'new', 'scheduled'].includes(normalized)) return 'pending';
+  if (['optimized', 'ready'].includes(normalized)) return 'optimized';
+  if (['active', 'in_transit', 'started', 'running', 'in_progress'].includes(normalized)) return 'in_transit';
   if (['complete', 'done', 'delivered', 'closed', 'archived'].includes(normalized)) return 'completed';
   if (normalized === 'canceled') return 'cancelled';
   return normalized || 'draft';

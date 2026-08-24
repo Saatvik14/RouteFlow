@@ -1051,6 +1051,11 @@ const optimizeRoute = async (req, res) => {
         },
       ];
 
+      await runQuery(
+        `UPDATE routes SET status = 'optimized', updated_at = CURRENT_TIMESTAMP WHERE route_id = $1`,
+        [route_id]
+      );
+
       return res.status(200).json({
         code: 0,
         routes: [
@@ -1350,6 +1355,18 @@ const optimizeRoute = async (req, res) => {
           AND o.route_id = $5
       `,
       [orderIds, sequenceNumbers, etaDurations, etaDistances, route_id]
+    );
+
+    await runQuery(
+      `
+        UPDATE routes
+        SET status = 'optimized',
+            distance = $1,
+            duration = $2,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE route_id = $3
+      `,
+      [totalDistance * 0.000621371, totalDuration, route_id]
     );
 
     /*
