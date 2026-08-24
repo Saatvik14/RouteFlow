@@ -1,4 +1,5 @@
 import { useState, type ComponentProps } from "react";
+import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -733,6 +734,8 @@ export function RouteCompletedPanel({
   onCreateNewRoute,
   onRetryFailedStops,
 }: RouteCompletedPanelProps) {
+  const router = useRouter();
+  const { isFleetDriver } = useUserRole();
   const insets = useSafeAreaInsets();
   const routeStops = Array.isArray(stops) ? stops : [];
   const stats = countStopsByStatus(routeStops);
@@ -901,40 +904,52 @@ export function RouteCompletedPanel({
             </Pressable>
           ) : null}
 
-          <Pressable
-            style={[
-              hasFailures
-                ? completedStyles.secondaryButton
-                : completedStyles.primaryButton,
-              createRouteDisabled && completedStyles.disabledButton,
-            ]}
-            onPress={onCreateNewRoute}
-            disabled={createRouteDisabled}
-          >
-            {hasFailures ? (
-              <>
-                <View style={completedStyles.secondaryIconBox}>
-                  <Feather name="plus" size={19} color="#2563EB" />
-                </View>
-                <View style={completedStyles.secondaryTextBox}>
-                  <Text style={completedStyles.secondaryButtonText}>
+          {isFleetDriver ? (
+            <Pressable
+              style={completedStyles.primaryButton}
+              onPress={() => router.replace('/driver-routes' as any)}
+            >
+              <Feather name="list" size={19} color="#FFFFFF" />
+              <Text style={completedStyles.primaryButtonText}>
+                Back to assigned routes
+              </Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[
+                hasFailures
+                  ? completedStyles.secondaryButton
+                  : completedStyles.primaryButton,
+                createRouteDisabled && completedStyles.disabledButton,
+              ]}
+              onPress={onCreateNewRoute}
+              disabled={createRouteDisabled}
+            >
+              {hasFailures ? (
+                <>
+                  <View style={completedStyles.secondaryIconBox}>
+                    <Feather name="plus" size={19} color="#2563EB" />
+                  </View>
+                  <View style={completedStyles.secondaryTextBox}>
+                    <Text style={completedStyles.secondaryButtonText}>
+                      Create new route
+                    </Text>
+                    <Text style={completedStyles.secondaryButtonSubtext}>
+                      Set up another route from the beginning
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#94A3B8" />
+                </>
+              ) : (
+                <>
+                  <Feather name="plus" size={20} color="#FFFFFF" />
+                  <Text style={completedStyles.primaryButtonText}>
                     Create new route
                   </Text>
-                  <Text style={completedStyles.secondaryButtonSubtext}>
-                    Set up another route from the beginning
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#94A3B8" />
-              </>
-            ) : (
-              <>
-                <Feather name="plus" size={20} color="#FFFFFF" />
-                <Text style={completedStyles.primaryButtonText}>
-                  Create new route
-                </Text>
-              </>
-            )}
-          </Pressable>
+                </>
+              )}
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </DraggableRouteSheet>
