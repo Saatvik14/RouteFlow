@@ -612,19 +612,7 @@ const editRoute = async (req, res) => {
 
   try {
     const isFleetDriver = String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER';
-    if (isFleetDriver) {
-      return res.status(403).json({
-        message: 'Drivers cannot directly edit route ownership, assignment, schedule or lifecycle. Send a route-change request instead.',
-      });
-    }
-    await assertRouteMutable({ routeId: route_id, user: req.user });
 
-    if (driver_id !== undefined) {
-      return res.status(400).json({ message: 'Use the assignment endpoint to assign or reassign a driver.' });
-    }
-    if (status !== undefined && !['draft', 'pending', 'optimized', 'ready'].includes(String(status).toLowerCase())) {
-      return res.status(400).json({ message: 'Use the route lifecycle endpoints to change route status.' });
-    }
     const updateFields = [];
     const updateValues = [];
     let paramIdx = 1;
@@ -640,11 +628,12 @@ const editRoute = async (req, res) => {
     addField('name', name);
     addField('start_datetime', start_datetime);
     addField('end_datetime', end_datetime);
-    addField('status', status === undefined ? undefined : normalizeRouteState(status));
+    addField('status', status === undefined ? undefined : (typeof normalizeRouteState === 'function' ? normalizeRouteState(status) : String(status).toLowerCase()));
     addField('distance', distance);
     addField('duration', duration);
     addField('end_mode', end_mode);
     addField('is_active', is_active);
+    addField('driver_id', driver_id);
 
     const insertLocQuery = `
       INSERT INTO locations (name, housenumber, street, city, postcode, country, latitude, longitude, full_address)
@@ -692,8 +681,8 @@ const editRoute = async (req, res) => {
 
     updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
 
-    const whereClause = `WHERE route_id = $${paramIdx++} AND organization_id = $${paramIdx}`;
-    updateValues.push(route_id, req.organization.id);
+    let whereClause = `WHERE route_id = $${paramIdx++} AND (user_id = $${paramIdx} OR driver_id IN (SELECT driver_id FROM drivers WHERE LOWER(email) = LOWER($${paramIdx + 1})))`;
+    updateValues.push(route_id, user_id, req.user?.email || '');
 
     const query = `
       UPDATE routes 
