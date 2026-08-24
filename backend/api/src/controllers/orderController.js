@@ -836,19 +836,23 @@ const editOrder = async (req, res) => {
       });
     }
 
-    const isFleetDriver = String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER';
-    if (isFleetDriver && hasOwn(req.body, 'status')) {
-      return res.status(403).json({
-        message: 'Use the stop execution endpoint to record arrival, delivery or failure.',
-      });
-    }
-    const routeAccess = await assertRouteMutable({
-      routeId: existingOrder.route_id,
-      user: req.user,
-      permission: isFleetDriver ? 'editStopDetails' : undefined,
-    });
-    if (isFleetDriver && hasLocationPatch(req.body) && ['in_progress', 'completed'].includes(routeAccess.status)) {
-      return res.status(409).json({ message: 'The stop address cannot be changed after the route has started.' });
+    const user_id = req.user?.user_id;
+    const user_email = req.user?.email || '';
+
+    // Check authorization: User must own the route OR driver_id must match Fleet Driver's driver profile
+    const authCheck = await runQuery(
+      `
+        SELECT r.route_id
+        FROM routes r
+        LEFT JOIN drivers d ON r.driver_id = d.driver_id
+        WHERE r.route_id = $1 AND (r.user_id = $2 OR LOWER(d.email) = LOWER($3))
+        LIMIT 1
+      `,
+      [existingOrder.route_id, user_id, user_email]
+    );
+
+    if (authCheck.rows.length === 0) {
+      return res.status(403).json({ message: 'Unauthorized to update order for this route' });
     }
 
     const locationUpdated =
