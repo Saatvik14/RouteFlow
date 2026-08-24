@@ -11,6 +11,7 @@ const invitations = require('../controllers/invitationController');
 const team = require('../controllers/teamController');
 const operations = require('../controllers/operationsController');
 const dispatch = require('../controllers/dispatchController');
+const assignmentRecommendations = require('../controllers/assignmentRecommendationController');
 
 const router = express.Router();
 
@@ -25,6 +26,12 @@ const invitationWriteLimit = createRateLimiter({
   max: 20,
   code: 'INVITATION_RATE_LIMITED',
   keyGenerator: (req) => `${req.organization?.id || 'none'}:${req.user?.user_id || req.ip}:invitation-write`,
+});
+const assignmentRecommendationLimit = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  code: 'ASSIGNMENT_RECOMMENDATION_RATE_LIMITED',
+  keyGenerator: (req) => `${req.organization?.id || 'none'}:${req.user?.user_id || req.ip}:assignment-recommendation`,
 });
 
 router.get('/invitations/accept/:token', publicInvitationLimit, asyncHandler(invitations.previewInvitation));
@@ -47,6 +54,17 @@ router.delete('/team/drivers/:driverId', requireOrganizationRoles('owner', 'admi
 router.post('/routes/:routeId/change-requests', asyncHandler(team.requestRouteChange));
 
 router.get('/assignments/mine', asyncHandler(operations.listMyAssignments));
+router.post(
+  '/assignment-recommendations',
+  requireBusinessRole,
+  assignmentRecommendationLimit,
+  asyncHandler(assignmentRecommendations.generateRecommendations)
+);
+router.post(
+  '/assignment-recommendations/:recommendationRunId/confirm',
+  requireBusinessRole,
+  asyncHandler(assignmentRecommendations.confirmRecommendations)
+);
 router.post('/routes/:routeId/assign', requireBusinessRole, asyncHandler(operations.assignRoute));
 router.post('/routes/:routeId/accept', asyncHandler(operations.acceptAssignment));
 router.post('/routes/:routeId/reject', asyncHandler(operations.rejectAssignment));

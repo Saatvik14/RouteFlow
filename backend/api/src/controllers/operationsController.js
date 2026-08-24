@@ -9,9 +9,8 @@ const {
   MAX_PROOF_FILE_BYTES,
 } = require('../config/env');
 const { assertRouteReadable } = require('../services/accessControlService');
+const { assignRouteWithClient } = require('../services/routeAssignmentService');
 const {
-  assertAssignmentVersion,
-  assertAssignable,
   transitionRoute,
 } = require('../services/routeLifecycleService');
 const {
@@ -124,74 +123,13 @@ const assignRoute = async (req, res) => {
     ? null
     : Number(req.body.expectedVersion);
 
-  const route = await withTransaction(async (client) => {
-    const routeResult = await client.query(
-      `SELECT * FROM routes
-       WHERE route_id = $1 AND organization_id = $2
-       FOR UPDATE`,
-      [routeId, req.organization.id]
-    );
-    if (routeResult.rows.length === 0) throw new HttpError(404, 'ROUTE_NOT_FOUND', 'Route not found.');
-    const current = routeResult.rows[0];
-    assertAssignable(current.status);
-
-    assertAssignmentVersion(expectedVersion, current.assignment_version);
-
-    const driverResult = await client.query(
-      `SELECT d.*, om.status AS membership_status
-       FROM drivers d
-       LEFT JOIN organization_memberships om ON om.membership_id = d.membership_id
-       WHERE d.driver_id = $1 AND d.organization_id = $2 AND d.removed_at IS NULL
-       FOR UPDATE OF d`,
-      [driverId, req.organization.id]
-    );
-    const driver = driverResult.rows[0];
-    if (!driver) throw new HttpError(404, 'DRIVER_NOT_FOUND', 'Driver not found.');
-    if (!driver.is_active || driver.membership_status === 'inactive' || driver.membership_status === 'removed' || !driver.account_user_id) {
-      throw new HttpError(409, 'DRIVER_NOT_AVAILABLE', 'This driver is inactive or has not accepted their invitation.');
-    }
-
-    if (Number(current.driver_id) === driverId && ['assigned', 'accepted'].includes(current.status)) {
-      return { ...current, idempotent: true };
-    }
-
-    if (current.driver_id) {
-      await client.query(
-        `UPDATE route_assignments
-         SET status = 'reassigned', ended_at = NOW()
-         WHERE route_id = $1 AND assignment_version = $2 AND status IN ('assigned', 'accepted')`,
-        [routeId, current.assignment_version]
-      );
-    }
-
-    const nextVersion = Number(current.assignment_version || 0) + 1;
-    const updatedResult = await client.query(
-      `UPDATE routes
-       SET driver_id = $1, status = 'assigned', assignment_version = $2,
-           assigned_at = NOW(), accepted_at = NULL, rejected_at = NULL,
-           updated_at = NOW()
-       WHERE route_id = $3
-       RETURNING *`,
-      [driverId, nextVersion, routeId]
-    );
-    await client.query(
-      `INSERT INTO route_assignments (
-         route_id, organization_id, driver_id, assigned_by_user_id,
-         assignment_version, status, assigned_at
-       ) VALUES ($1, $2, $3, $4, $5, 'assigned', NOW())`,
-      [routeId, req.organization.id, driverId, req.user.user_id, nextVersion]
-    );
-    await insertAudit(client, {
-      organizationId: req.organization.id,
-      routeId,
-      actorUserId: req.user.user_id,
-      eventType: current.driver_id ? 'route_reassigned' : 'route_assigned',
-      fromState: current.status,
-      toState: 'assigned',
-      metadata: { previousDriverId: current.driver_id, driverId, assignmentVersion: nextVersion },
-    });
-    return updatedResult.rows[0];
-  });
+  const route = await withTransaction((client) => assignRouteWithClient(client, {
+    organizationId: req.organization.id,
+    routeId,
+    driverId,
+    actorUserId: req.user.user_id,
+    expectedVersion,
+  }));
 
   return res.status(route.idempotent ? 200 : 201).json({
     success: true,

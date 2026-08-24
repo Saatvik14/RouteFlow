@@ -48,6 +48,12 @@ export interface DriverProfile {
   active: boolean;
   membershipStatus: 'active' | 'inactive' | 'removed';
   permissions: DriverPermissions;
+  assignmentProfile: {
+    skills: string[];
+    licenseCategories: string[];
+    maxHoursPerDay: number;
+    homeBase: { latitude: number; longitude: number; label?: string } | null;
+  };
   currentAssignment: null | {
     routeId: number;
     name: string;
@@ -119,6 +125,49 @@ export interface DriverAssignment {
   permissions: DriverPermissions & { routePolicy?: Record<string, boolean> };
 }
 
+export interface AssignmentCandidate {
+  eligible: boolean;
+  driverId: number;
+  driverName: string;
+  score: number;
+  reasons: string[];
+  warnings: string[];
+  metrics: {
+    distanceKm: number | null;
+    dayHours: number;
+    weeklyHours?: number;
+    matchingHistory?: number;
+    performancePercent?: number;
+  };
+}
+
+export interface AssignmentRecommendation {
+  recommendationRunId: number;
+  status: 'draft' | 'confirmed' | 'expired' | 'cancelled';
+  expiresAt: string;
+  createdAt: string;
+  criteria: {
+    requiredSkills: string[];
+    licenseCategory: string | null;
+    maximumDistanceKm: number | null;
+    maximumHoursPerDay: number;
+    routeBufferMinutes: number;
+    weights: Record<string, number>;
+  };
+  interpretation: string;
+  summary: string;
+  llm: { used: boolean; model: string | null; warning: string | null };
+  recommendations: {
+    routeId: number;
+    routeName: string;
+    assignmentVersion: number;
+    selected: AssignmentCandidate | null;
+    alternatives: AssignmentCandidate[];
+    noMatchReasons: string[];
+    explanation: string;
+  }[];
+}
+
 const query = (values: Record<string, string | number | undefined | null>) => {
   const params = Object.entries(values)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -155,11 +204,20 @@ export const enterpriseService = {
   acceptInvitationNew: (token: string, data: { password: string; phone?: string }) =>
     apiPost<any>(API_ENDPOINTS.ENTERPRISE.INVITATION_ACCEPT_NEW(token), data),
   acceptInvitationExisting: (token: string) => apiPost<any>(API_ENDPOINTS.ENTERPRISE.INVITATION_ACCEPT_EXISTING(token)),
-  updateDriver: (id: number, data: { active?: boolean; name?: string; phone?: string; permissions?: Partial<DriverPermissions> }) =>
+  updateDriver: (id: number, data: { active?: boolean; name?: string; phone?: string; permissions?: Partial<DriverPermissions>; assignmentProfile?: Partial<DriverProfile['assignmentProfile']> }) =>
     apiPatch<{ driver: DriverProfile }>(API_ENDPOINTS.ENTERPRISE.DRIVER(id), data),
   removeDriver: (id: number) => apiDelete(API_ENDPOINTS.ENTERPRISE.DRIVER(id)),
   getDriverHistory: (id: number) => apiGet<any>(API_ENDPOINTS.ENTERPRISE.DRIVER_HISTORY(id)),
   getMyAssignments: () => apiGet<{ routes: DriverAssignment[] }>(API_ENDPOINTS.ENTERPRISE.MY_ASSIGNMENTS),
+  generateAssignmentRecommendations: (routeIds: number[], criteria: string) =>
+    apiPost<{ recommendation: AssignmentRecommendation }>(API_ENDPOINTS.ENTERPRISE.ASSIGNMENT_RECOMMENDATIONS, { routeIds, criteria }),
+  confirmAssignmentRecommendations: (
+    recommendationRunId: number,
+    assignments?: { routeId: number; driverId: number }[],
+  ) => apiPost<{ status: 'confirmed'; assignments: { routeId: number; driverId: number; assignmentVersion: number }[] }>(
+    API_ENDPOINTS.ENTERPRISE.ASSIGNMENT_RECOMMENDATION_CONFIRM(recommendationRunId),
+    assignments ? { assignments } : {},
+  ),
   assignRoute: (routeId: number, driverId: number, expectedVersion?: number) =>
     apiPost(API_ENDPOINTS.ENTERPRISE.ROUTE_ASSIGN(routeId), { driverId, expectedVersion }),
   acceptRoute: (routeId: number) => apiPost(API_ENDPOINTS.ENTERPRISE.ROUTE_ACCEPT(routeId)),

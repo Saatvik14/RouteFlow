@@ -10,6 +10,7 @@ The enterprise delivery schema is split by table responsibility and must be appl
 | 4 | `20260823_004_extend_orders_and_create_proof_of_delivery_files.sql` | Extends `orders`; creates `proof_of_delivery_files` |
 | 5 | `20260823_005_create_route_locations.sql` | Creates `route_locations` and its latest-location index |
 | 6 | `20260823_006_backfill_independent_driver_workspaces.sql` | Backfills private owner workspaces for independent drivers so existing route, order and driver tables remain usable after tenant scoping |
+| 7 | `20260824_007_create_ai_assignment_recommendations.sql` | Adds driver assignment profiles and expiring, dispatcher-confirmed recommendation drafts |
 
 Apply the complete set with:
 

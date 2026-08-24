@@ -147,6 +147,8 @@ export const API_ENDPOINTS = {
     DRIVER: (id: number) => `/api/enterprise/team/drivers/${id}`,
     DRIVER_HISTORY: (id: number) => `/api/enterprise/team/drivers/${id}/history`,
     MY_ASSIGNMENTS: '/api/enterprise/assignments/mine',
+    ASSIGNMENT_RECOMMENDATIONS: '/api/enterprise/assignment-recommendations',
+    ASSIGNMENT_RECOMMENDATION_CONFIRM: (id: number) => `/api/enterprise/assignment-recommendations/${id}/confirm`,
     ROUTE_ASSIGN: (id: number) => `/api/enterprise/routes/${id}/assign`,
     ROUTE_ACCEPT: (id: number) => `/api/enterprise/routes/${id}/accept`,
     ROUTE_REJECT: (id: number) => `/api/enterprise/routes/${id}/reject`,

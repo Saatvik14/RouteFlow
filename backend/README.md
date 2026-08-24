@@ -11,6 +11,7 @@ Express/PostgreSQL API for RouteFloww authentication, route planning and enterpr
 - Route optimisation through the existing optimisation integration
 - Protected proof files in PostgreSQL by default, or a private Supabase Storage bucket
 - Foreground location updates stored in PostgreSQL and read by an efficient polling API
+- Gemini-assisted driver recommendations with deterministic qualification, schedule and workload checks
 
 The enterprise routes are mounted at `/api/enterprise`. Legacy route, order, driver and manifest routes remain available but now require authentication and tenant-aware access checks.
 
@@ -32,6 +33,15 @@ The ordered migrations are additive and backfill organizations, memberships, rou
 ## Required environment
 
 At minimum configure `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `APP_BASE_URL` and `CORS_ORIGINS`. Configure the Gmail variables before sending invitations. `APP_BASE_URL` must be the user-visible frontend origin so invitation links open `/invite?token=...` correctly.
+
+Set the server-only `GEMINI_API_KEY` to enable natural-language assignment criteria and AI explanations. `GEMINI_MODEL` defaults to `gemini-2.5-flash`. Without a Gemini key, the endpoint still produces a deterministic balanced recommendation and clearly labels it as a fallback. Never expose the Gemini key through an `EXPO_PUBLIC_` variable.
+
+Driver recommendation workflow:
+
+- `POST /api/enterprise/assignment-recommendations` accepts `routeIds` (1–25) and an optional `criteria` string.
+- The server queries active drivers, accepted memberships, route schedules, last known locations, delivery performance and route history.
+- Recommendations are drafts that expire after 30 minutes; no route is changed by generation.
+- `POST /api/enterprise/assignment-recommendations/:recommendationRunId/confirm` rechecks versions and schedule conflicts, then assigns every selected route in one transaction.
 
 Invitation links default to 48 hours through `INVITATION_EXPIRES_HOURS`. No invitation secret or driver password is included in logs or stored in plaintext.
 

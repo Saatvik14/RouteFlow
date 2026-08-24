@@ -20,6 +20,7 @@ import {
   StatePanel,
   StatusBadge,
 } from '../components/operations/operations-ui';
+import { AiAssignmentModal } from '../components/operations/ai-assignment-modal';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { DashboardRoute, DriverProfile, enterpriseService } from '../services/api/enterprise';
 
@@ -68,9 +69,11 @@ export default function DashboardScreen() {
   const [assigningRoute, setAssigningRoute] = useState<DashboardRoute | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [aiAssignmentOpen, setAiAssignmentOpen] = useState(false);
 
   const load = useCallback(async (background = false) => {
-    background ? setRefreshing(true) : setLoading(true);
+    if (background) setRefreshing(true);
+    else setLoading(true);
     setError('');
     const [dashboard, team] = await Promise.all([
       enterpriseService.getDashboard({ date, status: status || undefined, driverId, search: search.trim() || undefined }),
@@ -131,6 +134,7 @@ export default function DashboardScreen() {
       actions={(
         <>
           <ActionButton compact variant="secondary" icon="refresh-cw" label={refreshing ? 'Refreshing' : 'Refresh'} disabled={refreshing} onPress={() => load(true)} />
+          <ActionButton compact variant="secondary" icon="zap" label="AI assign" onPress={() => setAiAssignmentOpen(true)} />
           <ActionButton compact icon="plus" label="Create route" onPress={() => router.push('/setup-locations')} />
         </>
       )}
@@ -242,6 +246,13 @@ export default function DashboardScreen() {
           <ChoiceRow key={driver.driverId} label={driver.name} detail={driver.currentAssignment ? `Currently on ${driver.currentAssignment.name}` : 'Available'} selected={assigningRoute?.driver?.id === driver.driverId} disabled={assigning} onPress={() => assign(driver)} />
         ))}
       </ChoiceModal>
+
+      <AiAssignmentModal
+        visible={aiAssignmentOpen}
+        routes={routes}
+        onClose={() => setAiAssignmentOpen(false)}
+        onConfirmed={() => load(true)}
+      />
     </OperationsShell>
   );
 }
@@ -378,4 +389,3 @@ const styles = StyleSheet.create({
   choiceLabel: { color: C.ink, fontSize: 14, fontWeight: '600' },
   choiceDetail: { color: C.inkMuted, fontSize: 12, marginTop: 2 },
 });
-

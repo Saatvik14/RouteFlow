@@ -7,3 +7,4 @@
 \ir 20260823_004_extend_orders_and_create_proof_of_delivery_files.sql
 \ir 20260823_005_create_route_locations.sql
 \ir 20260823_006_backfill_independent_driver_workspaces.sql
+\ir 20260824_007_create_ai_assignment_recommendations.sql

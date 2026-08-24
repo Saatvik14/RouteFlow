@@ -264,6 +264,11 @@ export default function TeamScreen() {
               <View style={styles.modalHeader}><View style={{ flex: 1 }}><Text style={styles.modalTitle}>{selectedDriver.name}</Text><Text style={styles.modalSubtitle}>{selectedDriver.email}</Text></View><Pressable accessibilityLabel="Close" onPress={() => setSelectedDriver(null)} style={styles.close}><Feather name="x" size={21} color={C.inkMuted} /></Pressable></View>
               <ScrollView contentContainerStyle={{ gap: S.xl, paddingBottom: S.xl }}>
                 <View style={styles.detailSummary}><StatusBadge status={selectedDriver.active ? 'active' : 'inactive'} /><Text style={styles.detailSummaryText}>{selectedDriver.currentAssignment ? `Assigned to ${selectedDriver.currentAssignment.name}` : 'No active assignment'}</Text></View>
+                <AssignmentProfileEditor
+                  driver={selectedDriver}
+                  busy={busyId === selectedDriver.driverId}
+                  onSave={(assignmentProfile) => updateDriver(selectedDriver, { assignmentProfile })}
+                />
                 <View><Text style={styles.detailSectionTitle}>Driver permissions</Text><Text style={styles.detailSectionHint}>Permissions are enforced by the server for every assigned route.</Text><View style={styles.permissionList}>{permissionLabels.map((permission) => <View key={permission.key} style={styles.permissionRow}><View style={{ flex: 1 }}><Text style={styles.permissionLabel}>{permission.label}</Text><Text style={styles.permissionDetail}>{permission.detail}</Text></View><Switch accessibilityLabel={permission.label} value={selectedDriver.permissions[permission.key]} disabled={busyId === selectedDriver.driverId || !selectedDriver.active} onValueChange={(value) => { void updateDriver(selectedDriver, { permissions: { [permission.key]: value } }); }} trackColor={{ false: '#CCD5E2', true: '#AFCBFF' }} thumbColor={selectedDriver.permissions[permission.key] ? C.primary : '#FFFFFF'} /></View>)}</View></View>
                 <View><Text style={styles.detailSectionTitle}>Recent route history</Text>{historyLoading ? <SkeletonRows count={2} /> : history.length ? <View style={styles.historyList}>{history.slice(0, 8).map((route) => <View key={route.route_id} style={styles.historyRow}><View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.historyName}>{route.name}</Text><Text style={styles.historyMeta}>{new Date(route.start_datetime).toLocaleDateString()} · {route.total_stops} stops</Text></View><StatusBadge compact status={route.status} /></View>)}</View> : <Text style={styles.detailSectionHint}>Completed and cancelled routes will appear here.</Text>}</View>
                 <View style={styles.destructiveActions}><ActionButton variant="secondary" icon={selectedDriver.active ? 'pause-circle' : 'play-circle'} label={selectedDriver.active ? 'Deactivate driver' : 'Activate driver'} onPress={() => setConfirm({ type: 'active', driver: selectedDriver })} /><ActionButton variant="danger" icon="user-minus" label="Remove from team" onPress={() => setConfirm({ type: 'remove', driver: selectedDriver })} /></View>
@@ -275,6 +280,52 @@ export default function TeamScreen() {
 
       <ConfirmationModal confirm={confirm} busy={busyId !== null} onCancel={() => setConfirm(null)} onConfirm={performConfirmation} />
     </OperationsShell>
+  );
+}
+
+function AssignmentProfileEditor({ driver, busy, onSave }: {
+  driver: DriverProfile;
+  busy: boolean;
+  onSave: (profile: Partial<DriverProfile['assignmentProfile']>) => Promise<boolean>;
+}) {
+  const [skills, setSkills] = useState(driver.assignmentProfile.skills.join(', '));
+  const [licenses, setLicenses] = useState(driver.assignmentProfile.licenseCategories.join(', '));
+  const [maxHours, setMaxHours] = useState(String(driver.assignmentProfile.maxHoursPerDay));
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setSkills(driver.assignmentProfile.skills.join(', '));
+    setLicenses(driver.assignmentProfile.licenseCategories.join(', '));
+    setMaxHours(String(driver.assignmentProfile.maxHoursPerDay));
+    setError('');
+  }, [driver.assignmentProfile, driver.driverId]);
+
+  const values = (input: string) => [...new Set(input.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean))];
+  const save = async () => {
+    const parsedHours = Number(maxHours);
+    if (!Number.isFinite(parsedHours) || parsedHours < 1 || parsedHours > 24) {
+      setError('Daily hours must be between 1 and 24.');
+      return;
+    }
+    setError('');
+    await onSave({
+      skills: values(skills),
+      licenseCategories: values(licenses),
+      maxHoursPerDay: parsedHours,
+    });
+  };
+
+  return (
+    <View>
+      <Text style={styles.detailSectionTitle}>Assignment profile</Text>
+      <Text style={styles.detailSectionHint}>Gemini criteria and the assignment engine use these qualifications and limits.</Text>
+      <View style={styles.profileFields}>
+        <FormField label="Skills" value={skills} onChangeText={setSkills} placeholder="refrigerated, fragile goods" hint="Separate multiple skills with commas." />
+        <FormField label="Licence categories" value={licenses} onChangeText={setLicenses} autoCapitalize="characters" placeholder="b, c, c+e" hint="Use the categories recorded on the driver’s licence." />
+        <FormField label="Maximum driving hours per day" value={maxHours} onChangeText={setMaxHours} keyboardType="decimal-pad" placeholder="10" error={error || undefined} />
+        <ActionButton compact variant="secondary" icon="save" label="Save assignment profile" loading={busy} onPress={save} style={{ alignSelf: 'flex-start' }} />
+      </View>
+    </View>
   );
 }
 
@@ -364,6 +415,7 @@ const styles = StyleSheet.create({
   detailSummaryText: { color: C.inkMuted, fontSize: 13, flex: 1 },
   detailSectionTitle: { color: C.ink, fontSize: 15, fontWeight: '600' },
   detailSectionHint: { color: C.inkMuted, fontSize: 12, lineHeight: 18, marginTop: 4, marginBottom: S.md },
+  profileFields: { gap: S.md },
   permissionList: { borderWidth: 1, borderColor: C.line, borderRadius: R.md, overflow: 'hidden' },
   permissionRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: S.md, paddingHorizontal: S.lg, paddingVertical: S.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.line },
   permissionLabel: { color: C.ink, fontSize: 13, fontWeight: '600' },
@@ -378,4 +430,3 @@ const styles = StyleSheet.create({
   confirmTitle: { color: C.ink, fontSize: 19, fontWeight: '600', textAlign: 'center' },
   confirmMessage: { color: C.inkMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: S.sm, marginBottom: S.xl },
 });
-

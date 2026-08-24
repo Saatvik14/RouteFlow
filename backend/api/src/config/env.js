@@ -14,4 +14,6 @@ module.exports = {
     LOCATION_MIN_UPDATE_SECONDS: Number(process.env.LOCATION_MIN_UPDATE_SECONDS || 10),
     PROOF_STORAGE_BUCKET: process.env.PROOF_STORAGE_BUCKET || '',
     MAX_PROOF_FILE_BYTES: Number(process.env.MAX_PROOF_FILE_BYTES || 8 * 1024 * 1024),
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+    GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 };

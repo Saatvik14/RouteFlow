@@ -13,6 +13,13 @@ const serializeDriver = (row) => ({
   active: Boolean(row.is_active) && row.membership_status !== 'inactive' && row.membership_status !== 'removed',
   membershipStatus: row.membership_status || (row.is_active ? 'active' : 'inactive'),
   permissions: { ...DEFAULT_DRIVER_PERMISSIONS, ...(row.permissions || {}) },
+  assignmentProfile: {
+    skills: [],
+    licenseCategories: [],
+    maxHoursPerDay: 10,
+    homeBase: null,
+    ...(row.assignment_profile || {}),
+  },
   currentAssignment: row.current_route_id
     ? {
         routeId: Number(row.current_route_id),
@@ -159,6 +166,7 @@ const updateDriver = async (req, res) => {
   const driverId = positiveInteger(req.params.driverId, 'driverId');
   const allowedPermissions = new Set(Object.keys(DEFAULT_DRIVER_PERMISSIONS));
   const permissionPatch = req.body.permissions;
+  const assignmentProfilePatch = req.body.assignmentProfile;
   const hasActivePatch = typeof req.body.active === 'boolean';
   const name = req.body.name === undefined ? undefined : requireString(req.body.name, 'Name', { min: 2, max: 160 });
   const phone = req.body.phone === undefined ? undefined : String(req.body.phone || '').trim().slice(0, 50);
@@ -173,7 +181,35 @@ const updateDriver = async (req, res) => {
       }
     }
   }
-  if (!hasActivePatch && permissionPatch === undefined && name === undefined && phone === undefined) {
+  if (assignmentProfilePatch !== undefined) {
+    if (!assignmentProfilePatch || typeof assignmentProfilePatch !== 'object' || Array.isArray(assignmentProfilePatch)) {
+      throw new HttpError(400, 'VALIDATION_ERROR', 'assignmentProfile must be an object.');
+    }
+    const allowedFields = new Set(['skills', 'licenseCategories', 'maxHoursPerDay', 'homeBase']);
+    for (const key of Object.keys(assignmentProfilePatch)) {
+      if (!allowedFields.has(key)) throw new HttpError(400, 'VALIDATION_ERROR', `Invalid assignment profile field: ${key}.`);
+    }
+    for (const key of ['skills', 'licenseCategories']) {
+      if (assignmentProfilePatch[key] !== undefined) {
+        if (!Array.isArray(assignmentProfilePatch[key]) || assignmentProfilePatch[key].length > 20 || assignmentProfilePatch[key].some((value) => typeof value !== 'string' || !value.trim() || value.length > 80)) {
+          throw new HttpError(400, 'VALIDATION_ERROR', `${key} must contain up to 20 short text values.`);
+        }
+      }
+    }
+    if (assignmentProfilePatch.maxHoursPerDay !== undefined) {
+      const hours = Number(assignmentProfilePatch.maxHoursPerDay);
+      if (!Number.isFinite(hours) || hours < 1 || hours > 24) {
+        throw new HttpError(400, 'VALIDATION_ERROR', 'maxHoursPerDay must be between 1 and 24.');
+      }
+    }
+    if (assignmentProfilePatch.homeBase !== undefined && assignmentProfilePatch.homeBase !== null) {
+      const { latitude, longitude } = assignmentProfilePatch.homeBase || {};
+      if (!Number.isFinite(Number(latitude)) || Number(latitude) < -90 || Number(latitude) > 90 || !Number.isFinite(Number(longitude)) || Number(longitude) < -180 || Number(longitude) > 180) {
+        throw new HttpError(400, 'VALIDATION_ERROR', 'homeBase must contain valid latitude and longitude.');
+      }
+    }
+  }
+  if (!hasActivePatch && permissionPatch === undefined && assignmentProfilePatch === undefined && name === undefined && phone === undefined) {
     throw new HttpError(400, 'VALIDATION_ERROR', 'Provide a driver field to update.');
   }
 
@@ -210,22 +246,35 @@ const updateDriver = async (req, res) => {
     const nextPermissions = permissionPatch
       ? { ...DEFAULT_DRIVER_PERMISSIONS, ...(existing.permissions || {}), ...permissionPatch }
       : existing.permissions;
+    const nextAssignmentProfile = assignmentProfilePatch
+      ? {
+          skills: [],
+          licenseCategories: [],
+          maxHoursPerDay: 10,
+          homeBase: null,
+          ...(existing.assignment_profile || {}),
+          ...assignmentProfilePatch,
+          ...(assignmentProfilePatch.skills ? { skills: [...new Set(assignmentProfilePatch.skills.map((value) => value.trim().toLowerCase()))] } : {}),
+          ...(assignmentProfilePatch.licenseCategories ? { licenseCategories: [...new Set(assignmentProfilePatch.licenseCategories.map((value) => value.trim().toLowerCase()))] } : {}),
+        }
+      : existing.assignment_profile;
     const updated = await client.query(
       `UPDATE drivers
        SET
          name = COALESCE($1, name),
          phone = CASE WHEN $2::boolean THEN $3 ELSE phone END,
          permissions = $4,
-         is_active = CASE WHEN $5::boolean THEN $6 ELSE is_active END,
+         assignment_profile = $5,
+         is_active = CASE WHEN $6::boolean THEN $7 ELSE is_active END,
          deactivated_at = CASE
-           WHEN $5::boolean AND $6 = FALSE THEN NOW()
-           WHEN $5::boolean AND $6 = TRUE THEN NULL
+           WHEN $6::boolean AND $7 = FALSE THEN NOW()
+           WHEN $6::boolean AND $7 = TRUE THEN NULL
            ELSE deactivated_at
          END,
          updated_at = NOW()
-       WHERE driver_id = $7
+       WHERE driver_id = $8
        RETURNING *`,
-      [name || null, phone !== undefined, phone || null, nextPermissions, hasActivePatch, hasActivePatch ? req.body.active : existing.is_active, driverId]
+      [name || null, phone !== undefined, phone || null, nextPermissions, nextAssignmentProfile, hasActivePatch, hasActivePatch ? req.body.active : existing.is_active, driverId]
     );
 
     if (existing.membership_id && hasActivePatch) {
