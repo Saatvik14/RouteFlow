@@ -76,10 +76,10 @@ const requireOrganizationRoles = (...allowedRoles) => (req, _res, next) => {
 const requireBusinessRole = requireOrganizationRoles(...BUSINESS_ROLES);
 
 const requirePlatformAdmin = (req, _res, next) => {
-  // Temporary bypass for admin check:
-  // if (String(req.user?.role || '').toUpperCase() !== 'PLATFORM_ADMIN') {
-  //   return next(new HttpError(403, 'PLATFORM_ADMIN_REQUIRED', 'Platform administrator access is required.'));
-  // }
+  Temporary bypass for admin check:
+    if (String(req.user?.role || '').toUpperCase() !== 'PLATFORM_ADMIN') {
+      return next(new HttpError(403, 'PLATFORM_ADMIN_REQUIRED', 'Platform administrator access is required.'));
+    }
   return next();
 };
 
