@@ -17,6 +17,7 @@ import { driversService, Driver } from '../services/api/drivers';
 import { routesService } from '../services/api/routes';
 import { ordersService } from '../services/api/orders';
 import { Sidebar } from '../components/sidebar';
+import { useUserRole } from '../hooks/useUserRole';
 
 type RouteItem = {
   id: string;
@@ -74,6 +75,8 @@ const formatDuration = (dur?: number | string) => {
 export default function DriverRoutesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const { isFleetDriver } = useUserRole();
 
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
@@ -242,7 +245,9 @@ export default function DriverRoutesScreen() {
         >
           <Feather name="menu" size={22} color="#101828" />
         </Pressable>
-        <Text style={styles.headerTitle}>Routes per Driver</Text>
+        <Text style={styles.headerTitle}>
+          {isFleetDriver ? 'My Assigned Routes' : 'Routes per Driver'}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -252,21 +257,23 @@ export default function DriverRoutesScreen() {
         <View style={styles.sheetHandle} />
 
         {/* Driver Selector Section */}
-        <View style={styles.selectorContainer}>
-        <Text style={styles.selectorLabel}>Select Driver</Text>
-        <Pressable
-          style={styles.dropdownButton}
-          onPress={() => setShowDriverDropdown(true)}
-        >
-          <View style={styles.dropdownButtonContent}>
-            <Feather name="user" size={18} color="#2F76F6" style={{ marginRight: 10 }} />
-            <Text numberOfLines={1} style={styles.dropdownButtonText}>
-              {selectedDriver ? selectedDriver.name : 'All Drivers'}
-            </Text>
+        {!isFleetDriver ? (
+          <View style={styles.selectorContainer}>
+            <Text style={styles.selectorLabel}>Select Driver</Text>
+            <Pressable
+              style={styles.dropdownButton}
+              onPress={() => setShowDriverDropdown(true)}
+            >
+              <View style={styles.dropdownButtonContent}>
+                <Feather name="user" size={18} color="#2F76F6" style={{ marginRight: 10 }} />
+                <Text numberOfLines={1} style={styles.dropdownButtonText}>
+                  {selectedDriver ? selectedDriver.name : 'All Drivers'}
+                </Text>
+              </View>
+              <Feather name="chevron-down" size={20} color="#64748B" />
+            </Pressable>
           </View>
-          <Feather name="chevron-down" size={20} color="#64748B" />
-        </Pressable>
-        </View>
+        ) : null}
 
         {/* Routes List */}
         <View style={styles.content}>

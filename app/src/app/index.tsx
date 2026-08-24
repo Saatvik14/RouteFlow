@@ -21,10 +21,6 @@ export default function Index() {
 
   useEffect(() => {
     if (isRoleLoading) return;
-    if (isFleetDriver) {
-      router.replace('/fleet-routes' as any);
-      return;
-    }
     if (isBusinessOwner || workspace === 'map') {
       setIsLoading(false);
       return;
@@ -32,26 +28,33 @@ export default function Index() {
 
     async function checkUserRoute() {
       try {
-        const resp: any = await routesService.getRoutes(1, 0);
+        const resp: any = await routesService.getRoutes(10, 0);
         const rawData = resp?.data ?? resp;
         const routesList = Array.isArray(rawData) ? rawData : (rawData?.routes || []);
-        
+
         if (routesList && routesList.length > 0) {
           const latest = routesList[0];
           const routeId = latest.route_id || latest.id || latest.routeId;
-          
-          // Redirect to the last created route's preview page
+
+          // Redirect to the latest route's preview page
           router.replace({
             pathname: '/route-preview',
             params: { id: String(routeId) }
           } as any);
         } else {
-          // No routes found, stop loading and show onboarding on Home
-          setIsLoading(false);
+          if (isFleetDriver) {
+            router.replace('/driver-routes' as any);
+          } else {
+            setIsLoading(false);
+          }
         }
       } catch (error) {
         console.error("Home initialization route check failed:", error);
-        setIsLoading(false);
+        if (isFleetDriver) {
+          router.replace('/driver-routes' as any);
+        } else {
+          setIsLoading(false);
+        }
       }
     }
 

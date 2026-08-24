@@ -563,7 +563,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const handleAssignedRoutes = () => {
     onClose();
-    router.replace("/fleet-routes" as never);
+    router.push("/driver-routes" as never);
   };
 
   const handleLiveDispatch = () => {
@@ -591,7 +591,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     onClose();
 
     router.push({
-      pathname: isFleetDriver ? "/driver-route" : "/route-preview",
+      pathname: "/route-preview",
       params: {
         id: String(routeId),
         routeId: String(routeId),
@@ -1143,7 +1143,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               "navigation",
               "Assigned routes",
               handleAssignedRoutes,
-              pathname?.includes("fleet-routes") || pathname?.includes("driver-route"),
+              pathname?.includes("driver-routes"),
             ) : null}
             {!isFleetDriver ? renderQuickAction(
               "map",

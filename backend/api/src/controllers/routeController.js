@@ -857,10 +857,9 @@ const optimizeRoute = async (req, res) => {
   };
 
   try {
-    if (String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER') {
-      return res.status(403).json({ message: 'Only dispatchers can optimize or significantly change an assigned route.' });
-    }
-    await assertRouteMutable({ routeId: route_id, user: req.user });
+    const user_id = req.user?.user_id;
+    const user_email = req.user?.email || '';
+
     /*
      * 1. Fetch route
      */
@@ -868,10 +867,10 @@ const optimizeRoute = async (req, res) => {
       `
         SELECT *
         FROM routes
-        WHERE route_id = $1 AND organization_id = $2
+        WHERE route_id = $1 AND (user_id = $2 OR driver_id IN (SELECT driver_id FROM drivers WHERE LOWER(email) = LOWER($3)))
         LIMIT 1
       `,
-      [route_id, req.organization.id]
+      [route_id, user_id, user_email]
     );
 
     if (routeResult.rows.length === 0) {
