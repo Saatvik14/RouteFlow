@@ -37,6 +37,8 @@ export interface SignupRequest {
   password: string;
   name: string;
   role: string;
+  company_name?: string;
+  address?: string;
 }
 
 /**

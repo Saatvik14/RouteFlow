@@ -20,10 +20,13 @@ const generateAccessToken = (id, email, role, name) => {
 // @route   POST /api/v1/auth/signup
 // @access  Public
 const signup = async (req, res) => {
-  const { name, phone_no, password, role } = req.body;
+  const { name, phone_no, password, role, company_name, companyName, address } = req.body;
   const email = req.body.email?.trim().toLowerCase() || null;
   const cleanName = String(name || '').trim();
   const cleanPhone = String(phone_no || '').trim();
+  const cleanCompanyName = String(company_name || companyName || '').trim();
+  const cleanAddress = String(address || '').trim();
+
   // Basic validation 
   if (!cleanName || !cleanPhone || !password) {
     return res.status(400).json({ message: 'Please enter all required fields: name, phone_no, password' });
@@ -35,6 +38,10 @@ const signup = async (req, res) => {
 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ message: 'Please enter a valid email address.' });
+  }
+
+  if (role === 'BUSINESS_OWNER' && (!cleanCompanyName || !cleanAddress)) {
+    return res.status(400).json({ message: 'Company name and address are required for Business Owner registration.' });
   }
 
   if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
@@ -82,11 +89,15 @@ const signup = async (req, res) => {
       // keep the independent app experience while retaining the full legacy
       // route, stop and driver-management workflow inside their own tenant.
       if (['BUSINESS_OWNER', 'INDEPENDENT_DRIVER'].includes(userRole)) {
+        const orgName = (userRole === 'BUSINESS_OWNER' && cleanCompanyName)
+          ? cleanCompanyName
+          : (userRole === 'BUSINESS_OWNER' ? `${cleanName}'s business` : `${cleanName}'s workspace`);
+
         const organizationResult = await client.query(
-          `INSERT INTO organizations (name, legacy_owner_user_id)
-           VALUES ($1, $2)
+          `INSERT INTO organizations (name, address, legacy_owner_user_id)
+           VALUES ($1, $2, $3)
            RETURNING organization_id`,
-          [userRole === 'BUSINESS_OWNER' ? `${cleanName}'s business` : `${cleanName}'s workspace`, user.user_id]
+          [orgName, cleanAddress || null, user.user_id]
         );
         await client.query(
           `INSERT INTO organization_memberships (organization_id, user_id, role, status)

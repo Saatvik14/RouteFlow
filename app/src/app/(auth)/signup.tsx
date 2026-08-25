@@ -45,6 +45,9 @@ function GoogleMark() {
 }
 
 export default function SignupScreen() {
+  const [selectedRole, setSelectedRole] = useState<'INDEPENDENT_DRIVER' | 'FLEET_DRIVER' | 'BUSINESS_OWNER'>('INDEPENDENT_DRIVER');
+  const [companyName, setCompanyName] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -75,18 +78,24 @@ export default function SignupScreen() {
   const documentModalHeight = Math.min(Math.max(height - 40, 260), 720);
   const documentScrollHeight = Math.max(documentModalHeight - 156, 104);
 
-  // Role selection modal state
-  const [showRoleModal, setShowRoleModal] = useState(false);
-
   const handleSignup = async () => {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     const trimmedPhone = phone.trim();
     const trimmedPassword = password.trim();
+    const trimmedCompanyName = companyName.trim();
+    const trimmedCompanyAddress = companyAddress.trim();
 
     if (!trimmedName || !trimmedEmail || !trimmedPhone || !trimmedPassword) {
-      setError('Please fill in all fields.');
+      setError('Please fill in all required fields.');
       return;
+    }
+
+    if (selectedRole === 'BUSINESS_OWNER') {
+      if (!trimmedCompanyName || !trimmedCompanyAddress) {
+        setError('Please enter your Company Name and Company Address.');
+        return;
+      }
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -107,16 +116,9 @@ export default function SignupScreen() {
 
     setError('');
 
-    // Open Role Selection modal dialog
-    setShowRoleModal(true);
-  };
-
-  const handleRoleSelectedProceed = async () => {
-    setShowRoleModal(false);
-
-    const trimmedEmail = email.trim();
-    if (!(otpVerified && verifiedEmail === trimmedEmail)) {
-      await handleSendOtp(trimmedEmail);
+    const targetEmail = trimmedEmail;
+    if (!(otpVerified && verifiedEmail === targetEmail)) {
+      await handleSendOtp(targetEmail);
       return;
     }
 
@@ -186,8 +188,6 @@ export default function SignupScreen() {
     }
   };
 
-  const [selectedRole, setSelectedRole] = useState<'INDEPENDENT_DRIVER' | 'FLEET_DRIVER' | 'BUSINESS_OWNER'>('INDEPENDENT_DRIVER');
-
   const executeSignup = async () => {
     setLoading(true);
     try {
@@ -197,6 +197,8 @@ export default function SignupScreen() {
         phone_no: phone.trim(),
         password,
         role: selectedRole,
+        company_name: selectedRole === 'BUSINESS_OWNER' ? companyName.trim() : undefined,
+        address: selectedRole === 'BUSINESS_OWNER' ? companyAddress.trim() : undefined,
       });
 
       if (response.success && response.data?.accessToken) {
@@ -266,6 +268,100 @@ export default function SignupScreen() {
               </View>
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              <Text style={[styles.label, isMobile && styles.labelMobile]}>Account Type</Text>
+              <View style={roleStyles.roleCardsContainer}>
+                <Pressable
+                  style={[
+                    roleStyles.roleCard,
+                    selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleCardActive,
+                  ]}
+                  onPress={() => setSelectedRole('INDEPENDENT_DRIVER')}
+                >
+                  <Text style={roleStyles.roleIcon}>🚗</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[roleStyles.roleTitle, selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleTitleActive]}>
+                      Independent Driver
+                    </Text>
+                    <Text style={roleStyles.roleSubtitle}>
+                      Plan & navigate my own routes
+                    </Text>
+                  </View>
+                  {selectedRole === 'INDEPENDENT_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    roleStyles.roleCard,
+                    selectedRole === 'FLEET_DRIVER' && roleStyles.roleCardActive,
+                  ]}
+                  onPress={() => setSelectedRole('FLEET_DRIVER')}
+                >
+                  <Text style={roleStyles.roleIcon}>🚚</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[roleStyles.roleTitle, selectedRole === 'FLEET_DRIVER' && roleStyles.roleTitleActive]}>
+                      Fleet Driver
+                    </Text>
+                    <Text style={roleStyles.roleSubtitle}>
+                      Drive routes assigned to me
+                    </Text>
+                  </View>
+                  {selectedRole === 'FLEET_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    roleStyles.roleCard,
+                    selectedRole === 'BUSINESS_OWNER' && roleStyles.roleCardActive,
+                  ]}
+                  onPress={() => setSelectedRole('BUSINESS_OWNER')}
+                >
+                  <Text style={roleStyles.roleIcon}>🏢</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[roleStyles.roleTitle, selectedRole === 'BUSINESS_OWNER' && roleStyles.roleTitleActive]}>
+                      Business Owner
+                    </Text>
+                    <Text style={roleStyles.roleSubtitle}>
+                      Manage drivers & dispatch routes
+                    </Text>
+                  </View>
+                  {selectedRole === 'BUSINESS_OWNER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
+                </Pressable>
+              </View>
+
+              {selectedRole === 'BUSINESS_OWNER' && (
+                <>
+                  <Text style={[styles.label, isMobile && styles.labelMobile]}>Company / Business Name</Text>
+                  <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
+                    <TextInput
+                      value={companyName}
+                      onChangeText={setCompanyName}
+                      placeholder="e.g. Acme Express Logistics"
+                      placeholderTextColor="#98A6BA"
+                      returnKeyType="next"
+                      autoCapitalize="words"
+                      editable={!loading}
+                      style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
+                    />
+                  </View>
+
+                  <Text style={[styles.label, isMobile && styles.labelMobile]}>Company Address</Text>
+                  <View style={[styles.inputBox, isMobile && styles.inputBoxMobile, { height: 'auto', minHeight: 48, paddingVertical: 8 }]}>
+                    <TextInput
+                      value={companyAddress}
+                      onChangeText={setCompanyAddress}
+                      placeholder="e.g. 123 Logistics Way, Suite 400, New York, NY"
+                      placeholderTextColor="#98A6BA"
+                      returnKeyType="next"
+                      multiline
+                      numberOfLines={2}
+                      autoCapitalize="words"
+                      editable={!loading}
+                      style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput, { height: 'auto', textAlignVertical: 'top' }]}
+                    />
+                  </View>
+                </>
+              )}
 
               <Text style={[styles.label, isMobile && styles.labelMobile]}>Full Name</Text>
               <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
@@ -439,96 +535,7 @@ export default function SignupScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Role Selection Modal */}
-      <Modal
-        visible={showRoleModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowRoleModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: 420 }]}>
-            <Pressable
-              onPress={() => setShowRoleModal(false)}
-              hitSlop={10}
-              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </Pressable>
 
-            <Text style={styles.modalTitle}>Who are you?</Text>
-            <Text style={[styles.modalSubtitle, { marginBottom: 20 }]}>
-              Select your role to customize your RouteFloww experience.
-            </Text>
-
-            <View style={roleStyles.roleCardsContainer}>
-              <Pressable
-                style={[
-                  roleStyles.roleCard,
-                  selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleCardActive,
-                ]}
-                onPress={() => setSelectedRole('INDEPENDENT_DRIVER')}
-              >
-                <Text style={roleStyles.roleIcon}>🚗</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[roleStyles.roleTitle, selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleTitleActive]}>
-                    Independent Driver
-                  </Text>
-                  <Text style={roleStyles.roleSubtitle}>
-                    Plan & navigate my own routes
-                  </Text>
-                </View>
-                {selectedRole === 'INDEPENDENT_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
-              </Pressable>
-
-              <Pressable
-                style={[
-                  roleStyles.roleCard,
-                  selectedRole === 'FLEET_DRIVER' && roleStyles.roleCardActive,
-                ]}
-                onPress={() => setSelectedRole('FLEET_DRIVER')}
-              >
-                <Text style={roleStyles.roleIcon}>🚚</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[roleStyles.roleTitle, selectedRole === 'FLEET_DRIVER' && roleStyles.roleTitleActive]}>
-                    Fleet Driver
-                  </Text>
-                  <Text style={roleStyles.roleSubtitle}>
-                    Drive routes assigned to me
-                  </Text>
-                </View>
-                {selectedRole === 'FLEET_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
-              </Pressable>
-
-              <Pressable
-                style={[
-                  roleStyles.roleCard,
-                  selectedRole === 'BUSINESS_OWNER' && roleStyles.roleCardActive,
-                ]}
-                onPress={() => setSelectedRole('BUSINESS_OWNER')}
-              >
-                <Text style={roleStyles.roleIcon}>🏢</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[roleStyles.roleTitle, selectedRole === 'BUSINESS_OWNER' && roleStyles.roleTitleActive]}>
-                    Business Owner
-                  </Text>
-                  <Text style={roleStyles.roleSubtitle}>
-                    Manage drivers & dispatch routes
-                  </Text>
-                </View>
-                {selectedRole === 'BUSINESS_OWNER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
-              </Pressable>
-            </View>
-
-            <Pressable
-              onPress={handleRoleSelectedProceed}
-              style={[styles.primaryButton, { width: '100%', marginTop: 8 }]}
-            >
-              <Text style={styles.primaryButtonText}>Continue</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
 
       <Modal
         visible={showOtpModal}
