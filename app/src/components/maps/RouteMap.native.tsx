@@ -1,13 +1,15 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Map, Camera, CameraRef, Marker, UserLocation, GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import { useAuth } from '../../app/_layout';
 import { restoreAuthToken } from '../../services/api';
 import { isTokenValid } from '../../services/auth/jwtUtils';
 import { getActiveRouteCoordinates } from '../../utils/routePolyline';
+import GoogleRouteMap from './RouteMapGoogle.native';
 
 export type RouteMapType = 'standard' | 'satellite' | 'hybrid';
 
@@ -55,7 +57,19 @@ type MapScreenProps = {
 
 const DEFAULT_CENTER_COORDINATE: [number, number] = [77.209, 28.6139]; // Delhi [lng, lat]
 
-// Custom OpenStreetMap style JSON object for keyless maps
+const GOOGLE_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED || '').toLowerCase(),
+) && Boolean(
+  Platform.OS === 'ios'
+    ? Constants.expoConfig?.extra?.googleMapsIosConfigured
+    : Constants.expoConfig?.extra?.googleMapsAndroidConfigured,
+);
+const TOMTOM_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.EXPO_PUBLIC_TOMTOM_MAPS_ENABLED || '').toLowerCase(),
+);
+const TOMTOM_MAPS_API_KEY = process.env.EXPO_PUBLIC_TOMTOM_MAPS_API_KEY || '';
+
+// Keyless final fallback. Public OSM tiles are suitable for light fallback usage.
 const OSM_STYLE = {
   version: 8 as const,
   sources: {
@@ -73,6 +87,29 @@ const OSM_STYLE = {
       source: 'osm',
       minzoom: 0,
       maxzoom: 19,
+    },
+  ],
+};
+
+const TOMTOM_STYLE = {
+  version: 8 as const,
+  sources: {
+    tomtom: {
+      type: 'raster' as const,
+      tiles: [
+        `https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${encodeURIComponent(TOMTOM_MAPS_API_KEY)}`,
+      ],
+      tileSize: 256,
+      attribution: '© TomTom',
+    },
+  },
+  layers: [
+    {
+      id: 'tomtom',
+      type: 'raster' as const,
+      source: 'tomtom',
+      minzoom: 0,
+      maxzoom: 22,
     },
   ],
 };
@@ -258,7 +295,7 @@ function calculateRouteBearing(
   return calculateBearing(userLat, userLng, Number(nextTarget.latitude), Number(nextTarget.longitude));
 }
 
-export default function MapScreen({
+function MapLibreMapScreen({
   mapType = 'standard',
   centerSignal = 0,
   confirmedRoute = null,
@@ -268,6 +305,7 @@ export default function MapScreen({
   const cameraRef = useRef<CameraRef | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const [isTokenChecked, setIsTokenChecked] = useState(false);
+  const [tomTomUnavailable, setTomTomUnavailable] = useState(false);
   const { logout } = useAuth();
   const router = useRouter();
 
@@ -441,9 +479,14 @@ export default function MapScreen({
     <View style={styles.container}>
       <Map
         style={styles.map}
-        mapStyle={OSM_STYLE}
+        mapStyle={
+          TOMTOM_MAPS_ENABLED && TOMTOM_MAPS_API_KEY && !tomTomUnavailable
+            ? TOMTOM_STYLE
+            : OSM_STYLE
+        }
         logo={false}
         attribution={false}
+        onDidFailLoadingMap={() => setTomTomUnavailable(true)}
       >
         <Camera
           ref={cameraRef}
@@ -507,6 +550,17 @@ export default function MapScreen({
       </Map>
     </View>
   );
+}
+
+export default function MapScreen(props: MapScreenProps) {
+  const [useFallbackMap, setUseFallbackMap] = useState(!GOOGLE_MAPS_ENABLED);
+  const handleGoogleUnavailable = useCallback(() => setUseFallbackMap(true), []);
+
+  if (!useFallbackMap) {
+    return <GoogleRouteMap {...props} onUnavailable={handleGoogleUnavailable} />;
+  }
+
+  return <MapLibreMapScreen {...props} />;
 }
 
 const styles = StyleSheet.create({

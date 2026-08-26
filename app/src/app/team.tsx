@@ -70,6 +70,7 @@ export default function TeamScreen() {
   const [confirm, setConfirm] = useState<{ type: 'revoke'; invitation: Invitation } | { type: 'active' | 'remove'; driver: DriverProfile } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
+  const [fleetCredential, setFleetCredential] = useState<{ name: string; identifier: string; accessCode: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -149,8 +150,8 @@ export default function TeamScreen() {
     <OperationsShell
       active="team"
       title="Team"
-      subtitle="Invite drivers, manage access and see current assignments."
-      actions={<ActionButton compact icon="user-plus" label="Invite team member" onPress={() => setInviteOpen(true)} />}
+      subtitle="Create fleet-driver access, invite business teammates and manage assignments."
+      actions={<ActionButton compact icon="user-plus" label="Add team member" onPress={() => setInviteOpen(true)} />}
     >
       {notice ? (
         <View accessibilityRole="alert" style={[styles.notice, /could not|before|unable/i.test(notice) && styles.noticeError]}>
@@ -236,7 +237,7 @@ export default function TeamScreen() {
             </View>
 
             {visibleDrivers.length === 0 ? (
-              <StatePanel icon="user-plus" title={drivers.length ? 'No drivers match' : 'Invite your first driver'} message={drivers.length ? 'Clear the search or choose another status.' : 'Send a secure invitation. The driver will create their own password and join this business.'} actionLabel={drivers.length ? 'Clear filters' : 'Invite driver'} onAction={() => drivers.length ? (setSearch(''), setStatus('all')) : setInviteOpen(true)} />
+              <StatePanel icon="user-plus" title={drivers.length ? 'No drivers match' : 'Create your first fleet driver'} message={drivers.length ? 'Clear the search or choose another status.' : 'Create the driver account here, then share its private access code securely.'} actionLabel={drivers.length ? 'Clear filters' : 'Create driver'} onAction={() => drivers.length ? (setSearch(''), setStatus('all')) : setInviteOpen(true)} />
             ) : (
               <View style={styles.driverList}>
                 {visibleDrivers.map((driver) => (
@@ -254,7 +255,7 @@ export default function TeamScreen() {
         </>
       )}
 
-      <InviteModal visible={inviteOpen} onClose={() => setInviteOpen(false)} onSent={async (message) => { setInviteOpen(false); setNotice(message); await load(); }} />
+      <InviteModal visible={inviteOpen} onClose={() => setInviteOpen(false)} onSent={async (message, credential) => { setInviteOpen(false); setNotice(message); if (credential) setFleetCredential(credential); await load(); }} />
 
       <Modal visible={Boolean(selectedDriver)} transparent animationType="fade" onRequestClose={() => setSelectedDriver(null)}>
         <View style={styles.modalOverlay}>
@@ -271,7 +272,7 @@ export default function TeamScreen() {
                 />
                 <View><Text style={styles.detailSectionTitle}>Driver permissions</Text><Text style={styles.detailSectionHint}>Permissions are enforced by the server for every assigned route.</Text><View style={styles.permissionList}>{permissionLabels.map((permission) => <View key={permission.key} style={styles.permissionRow}><View style={{ flex: 1 }}><Text style={styles.permissionLabel}>{permission.label}</Text><Text style={styles.permissionDetail}>{permission.detail}</Text></View><Switch accessibilityLabel={permission.label} value={selectedDriver.permissions[permission.key]} disabled={busyId === selectedDriver.driverId || !selectedDriver.active} onValueChange={(value) => { void updateDriver(selectedDriver, { permissions: { [permission.key]: value } }); }} trackColor={{ false: '#CCD5E2', true: '#AFCBFF' }} thumbColor={selectedDriver.permissions[permission.key] ? C.primary : '#FFFFFF'} /></View>)}</View></View>
                 <View><Text style={styles.detailSectionTitle}>Recent route history</Text>{historyLoading ? <SkeletonRows count={2} /> : history.length ? <View style={styles.historyList}>{history.slice(0, 8).map((route) => <View key={route.route_id} style={styles.historyRow}><View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.historyName}>{route.name}</Text><Text style={styles.historyMeta}>{new Date(route.start_datetime).toLocaleDateString()} · {route.total_stops} stops</Text></View><StatusBadge compact status={route.status} /></View>)}</View> : <Text style={styles.detailSectionHint}>Completed and cancelled routes will appear here.</Text>}</View>
-                <View style={styles.destructiveActions}><ActionButton variant="secondary" icon={selectedDriver.active ? 'pause-circle' : 'play-circle'} label={selectedDriver.active ? 'Deactivate driver' : 'Activate driver'} onPress={() => setConfirm({ type: 'active', driver: selectedDriver })} /><ActionButton variant="danger" icon="user-minus" label="Remove from team" onPress={() => setConfirm({ type: 'remove', driver: selectedDriver })} /></View>
+                <View style={styles.destructiveActions}><ActionButton variant="secondary" icon="key" label="Reset access code" disabled={!selectedDriver.active} loading={busyId === selectedDriver.driverId} onPress={async () => { setBusyId(selectedDriver.driverId); const response = await enterpriseService.resetFleetDriverAccessCode(selectedDriver.driverId); setBusyId(null); if (!response.success || !response.data?.accessCode) setNotice(response.error || 'Access code could not be reset.'); else setFleetCredential({ name: selectedDriver.name, identifier: selectedDriver.email || selectedDriver.phone || 'the driver identifier', accessCode: response.data.accessCode }); }} /><ActionButton variant="secondary" icon={selectedDriver.active ? 'pause-circle' : 'play-circle'} label={selectedDriver.active ? 'Deactivate driver' : 'Activate driver'} onPress={() => setConfirm({ type: 'active', driver: selectedDriver })} /><ActionButton variant="danger" icon="user-minus" label="Remove from team" onPress={() => setConfirm({ type: 'remove', driver: selectedDriver })} /></View>
               </ScrollView>
             </View>
           ) : null}
@@ -279,6 +280,7 @@ export default function TeamScreen() {
       </Modal>
 
       <ConfirmationModal confirm={confirm} busy={busyId !== null} onCancel={() => setConfirm(null)} onConfirm={performConfirmation} />
+      <AccessCodeModal credential={fleetCredential} onClose={() => setFleetCredential(null)} />
     </OperationsShell>
   );
 }
@@ -329,24 +331,98 @@ function AssignmentProfileEditor({ driver, busy, onSave }: {
   );
 }
 
-function InviteModal({ visible, onClose, onSent }: { visible: boolean; onClose: () => void; onSent: (message: string) => void }) {
+function InviteModal({ visible, onClose, onSent }: {
+  visible: boolean;
+  onClose: () => void;
+  onSent: (message: string, credential?: { name: string; identifier: string; accessCode: string }) => void;
+}) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [role, setRole] = useState<OrganizationRole>('driver');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const submit = async () => {
     if (name.trim().length < 2) return setError('Enter the team member’s full name.');
-    if (!validEmail) return setError('Enter a valid email address.');
+    if (role === 'driver' && !email.trim() && !phone.trim()) return setError('Enter an email address or phone number for the driver.');
+    if (email.trim() && !validEmail) return setError('Enter a valid email address.');
+    if (role !== 'driver' && !validEmail) return setError('Enter a valid email address.');
     setSubmitting(true); setError('');
+    if (role === 'driver') {
+      const response = await enterpriseService.createFleetDriver({
+        name: name.trim(),
+        email: email.trim().toLowerCase() || undefined,
+        phone: phone.trim() || undefined,
+      });
+      setSubmitting(false);
+      if (!response.success || !response.data?.accessCode) return setError(response.error || 'The fleet driver could not be created.');
+      const credential = {
+        name: name.trim(),
+        identifier: email.trim().toLowerCase() || phone.trim(),
+        accessCode: response.data.accessCode,
+      };
+      setName(''); setEmail(''); setPhone(''); setRole('driver');
+      onSent(response.message || 'Fleet driver created.', credential);
+      return;
+    }
+
     const response = await enterpriseService.invite({ name: name.trim(), email: email.trim().toLowerCase(), role });
     setSubmitting(false);
     if (!response.success) return setError(response.error || 'The invitation could not be sent.');
-    setName(''); setEmail(''); setRole('driver');
+    setName(''); setEmail(''); setPhone(''); setRole('driver');
     onSent(response.message || `Invitation sent to ${email.trim().toLowerCase()}.`);
   };
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}><View style={styles.modalOverlay}><Pressable onPress={onClose} style={StyleSheet.absoluteFill} /><View accessibilityViewIsModal style={styles.inviteModal}><View style={styles.modalHeader}><View><Text style={styles.modalTitle}>Invite team member</Text><Text style={styles.modalSubtitle}>They’ll create their own password from a secure link.</Text></View><Pressable accessibilityLabel="Close" onPress={onClose} style={styles.close}><Feather name="x" size={21} color={C.inkMuted} /></Pressable></View><ScrollView contentContainerStyle={{ gap: S.lg }} keyboardShouldPersistTaps="handled"><FormField label="Full name" value={name} onChangeText={setName} autoCapitalize="words" placeholder="e.g. Aisha Khan" /><FormField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="aisha@company.com" error={email.length > 3 && !validEmail ? 'Enter a valid email address.' : undefined} /><View><Text style={styles.permissionLabel}>Team role</Text><View style={styles.roleList}>{roles.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ selected: role === item.value }} onPress={() => setRole(item.value)} style={[styles.roleChoice, role === item.value && styles.roleChoiceSelected]}><View style={{ flex: 1 }}><Text style={styles.roleLabel}>{item.label}</Text><Text style={styles.roleDetail}>{item.detail}</Text></View>{role === item.value ? <Feather name="check-circle" size={19} color={C.primaryDark} /> : null}</Pressable>)}</View></View>{error ? <Text accessibilityRole="alert" style={styles.formError}>{error}</Text> : null}<View style={styles.modalActions}><ActionButton variant="secondary" label="Cancel" onPress={onClose} /><ActionButton icon="send" label="Send invitation" loading={submitting} onPress={submit} /></View></ScrollView></View></View></Modal>;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <Pressable onPress={onClose} style={StyleSheet.absoluteFill} />
+        <View accessibilityViewIsModal style={styles.inviteModal}>
+          <View style={styles.modalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>{role === 'driver' ? 'Create fleet driver' : 'Invite business teammate'}</Text>
+              <Text style={styles.modalSubtitle}>{role === 'driver' ? 'We’ll create their account and show you a private access code.' : 'They’ll create a password from a secure invitation link.'}</Text>
+            </View>
+            <Pressable accessibilityLabel="Close" onPress={onClose} style={styles.close}><Feather name="x" size={21} color={C.inkMuted} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ gap: S.lg }} keyboardShouldPersistTaps="handled">
+            <View><Text style={styles.permissionLabel}>Account type</Text><View style={styles.roleList}>{roles.map((item) => <Pressable key={item.value} accessibilityRole="radio" accessibilityState={{ selected: role === item.value }} onPress={() => { setRole(item.value); setError(''); }} style={[styles.roleChoice, role === item.value && styles.roleChoiceSelected]}><View style={{ flex: 1 }}><Text style={styles.roleLabel}>{item.label}</Text><Text style={styles.roleDetail}>{item.detail}</Text></View>{role === item.value ? <Feather name="check-circle" size={19} color={C.primaryDark} /> : null}</Pressable>)}</View></View>
+            <FormField label="Full name" value={name} onChangeText={setName} autoCapitalize="words" placeholder="e.g. Aisha Khan" />
+            <FormField label={role === 'driver' ? 'Email (email or phone required)' : 'Email'} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="aisha@company.com" error={email.length > 3 && !validEmail ? 'Enter a valid email address.' : undefined} />
+            {role === 'driver' ? <FormField label="Phone (email or phone required)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="Driver’s mobile number" hint="This can be used to sign in instead of email." /> : null}
+            {error ? <Text accessibilityRole="alert" style={styles.formError}>{error}</Text> : null}
+            <View style={styles.modalActions}><ActionButton variant="secondary" label="Cancel" onPress={onClose} /><ActionButton icon={role === 'driver' ? 'key' : 'send'} label={role === 'driver' ? 'Create driver' : 'Send invitation'} loading={submitting} onPress={submit} /></View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function AccessCodeModal({ credential, onClose }: {
+  credential: { name: string; identifier: string; accessCode: string } | null;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={Boolean(credential)} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        {credential ? <View accessibilityViewIsModal style={styles.accessCodeCard}>
+          <View style={styles.accessCodeIcon}><Feather name="key" size={25} color={C.primaryDark} /></View>
+          <Text style={styles.accessCodeTitle}>Access code for {credential.name}</Text>
+          <Text style={styles.accessCodeMessage}>Share this code securely. For safety, it is shown only now; you can reset it from the driver profile if needed.</Text>
+          <View style={styles.credentialBlock}>
+            <Text style={styles.credentialLabel}>Sign-in ID</Text>
+            <Text selectable style={styles.credentialIdentifier}>{credential.identifier}</Text>
+            <View style={styles.credentialDivider} />
+            <Text style={styles.credentialLabel}>Access code</Text>
+            <Text selectable style={styles.accessCodeValue}>{credential.accessCode}</Text>
+          </View>
+          <View style={styles.accessCodeWarning}><Feather name="shield" size={16} color={C.warning} /><Text style={styles.accessCodeWarningText}>Anyone with this code and sign-in ID can access the driver account.</Text></View>
+          <ActionButton icon="check" label="I’ve saved the code" onPress={onClose} />
+        </View> : null}
+      </View>
+    </Modal>
+  );
 }
 
 function ConfirmationModal({ confirm, busy, onCancel, onConfirm }: { confirm: TeamScreenConfirm; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
@@ -399,6 +475,17 @@ const styles = StyleSheet.create({
   cellValue: { color: C.ink, fontSize: 12, fontWeight: '600', marginTop: 3 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(23,32,51,0.54)', alignItems: 'center', justifyContent: 'center', padding: S.lg },
   inviteModal: { width: '100%', maxWidth: 560, maxHeight: '90%', backgroundColor: C.surface, borderRadius: R.lg, padding: S.xl },
+  accessCodeCard: { width: '100%', maxWidth: 480, backgroundColor: C.surface, borderRadius: 22, padding: S.xl, alignItems: 'center' },
+  accessCodeIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: S.lg },
+  accessCodeTitle: { color: C.ink, fontSize: 21, fontWeight: '700', textAlign: 'center' },
+  accessCodeMessage: { color: C.inkMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: S.sm },
+  credentialBlock: { width: '100%', borderRadius: R.lg, borderWidth: 1, borderColor: '#C6D9F5', backgroundColor: C.primarySoft, padding: S.lg, marginVertical: S.xl },
+  credentialLabel: { color: C.inkSubtle, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
+  credentialIdentifier: { color: C.ink, fontSize: 14, fontWeight: '600', marginTop: 5 },
+  credentialDivider: { height: 1, backgroundColor: '#C6D9F5', marginVertical: S.lg },
+  accessCodeValue: { color: C.primaryDark, fontSize: 27, fontWeight: '800', letterSpacing: 2, marginTop: 5 },
+  accessCodeWarning: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: S.sm, padding: S.md, borderRadius: R.md, backgroundColor: C.warningSoft, marginBottom: S.xl },
+  accessCodeWarningText: { flex: 1, color: C.warning, fontSize: 11, lineHeight: 17 },
   detailPanel: { width: '100%', maxWidth: 660, maxHeight: '92%', backgroundColor: C.surface, borderRadius: R.lg, padding: S.xl },
   modalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: S.md, marginBottom: S.xl },
   modalTitle: { color: C.ink, fontSize: 20, fontWeight: '600' },

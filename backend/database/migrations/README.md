@@ -11,6 +11,8 @@ The enterprise delivery schema is split by table responsibility and must be appl
 | 5 | `20260823_005_create_route_locations.sql` | Creates `route_locations` and its latest-location index |
 | 6 | `20260823_006_backfill_independent_driver_workspaces.sql` | Backfills private owner workspaces for independent drivers so existing route, order and driver tables remain usable after tenant scoping |
 | 7 | `20260824_007_create_ai_assignment_recommendations.sql` | Adds driver assignment profiles and expiring, dispatcher-confirmed recommendation drafts |
+| 8 | `20260825_008_add_address_to_organizations.sql` | Adds the optional operating address used during business onboarding |
+| 9 | `20260826_009_add_role_aware_authentication.sql` | Adds independent-driver vehicle type and hashed fleet-driver access-code credentials |
 
 Apply the complete set with:
 

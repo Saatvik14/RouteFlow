@@ -8,8 +8,9 @@ import { addManifestStopsToBackend } from '../(route-preview)/route-preview-inpu
 import { ROUTE_STATUS_PENDING } from './../(route-preview)/route-preview.helpers';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useConfigStore } from './../../store/useConfigStore';
+import { createLocationSessionToken } from './../../utils/locationSession';
 import {
   isLocationAllowedForUser,
   isIndiaAllowedForEmail,
@@ -68,6 +69,8 @@ type PlaceSuggestion = {
   latitude: number | null;
   longitude: number | null;
   details: AddressDetails;
+  provider?: string;
+  sessionToken?: string;
 };
 
 
@@ -142,7 +145,12 @@ function toNumberOrNull(value: unknown): number | null {
   return Number.isFinite(parsedValue) ? parsedValue : null;
 }
 
-function parseSuggestion(item: any, index: number, fallbackQuery: string): PlaceSuggestion {
+function parseSuggestion(
+  item: any,
+  index: number,
+  fallbackQuery: string,
+  sessionToken?: string,
+): PlaceSuggestion {
   const properties = item?.properties || item || {};
   const geometryCoordinates = item?.geometry?.coordinates || [];
 
@@ -222,6 +230,8 @@ function parseSuggestion(item: any, index: number, fallbackQuery: string): Place
     latitude,
     longitude,
     details,
+    provider: String(properties.provider || item?.provider || ''),
+    sessionToken,
   };
 }
 
@@ -364,13 +374,16 @@ function buildDateFromISO(dateISO: string) {
   return date;
 }
 
-async function fetchPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> {
+async function fetchPlaceSuggestions(
+  query: string,
+  sessionToken: string,
+): Promise<PlaceSuggestion[]> {
   const cleanQuery = query.trim();
 
   if (cleanQuery.length < 2) return [];
 
   try {
-    const response = await routesService.getAutocompleteAddress(cleanQuery, 7);
+    const response = await routesService.getAutocompleteAddress(cleanQuery, 7, sessionToken);
 
     if (response.success && response.data) {
       const rawList = Array.isArray(response.data) 
@@ -378,7 +391,7 @@ async function fetchPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> 
         : (response.data.suggestions || response.data.results || response.data.features || []);
 
       return rawList.map((item: any, index: number) =>
-        parseSuggestion(item, index, cleanQuery)
+        parseSuggestion(item, index, cleanQuery, sessionToken)
       );
     }
     
@@ -402,6 +415,33 @@ async function fetchPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> 
       },
     }));
   }
+}
+
+async function resolveSelectedSuggestion(suggestion: PlaceSuggestion): Promise<PlaceSuggestion> {
+  if (
+    suggestion.latitude !== null &&
+    suggestion.longitude !== null &&
+    Number.isFinite(suggestion.latitude) &&
+    Number.isFinite(suggestion.longitude)
+  ) {
+    return suggestion;
+  }
+
+  const response = await routesService.getPlaceDetails(
+    suggestion.id,
+    suggestion.provider || 'google',
+    suggestion.fullAddress,
+    suggestion.sessionToken,
+  );
+  const rawData = response?.data ?? response;
+  const rawResult = rawData?.results?.[0] || rawData?.suggestions?.[0];
+  if (!rawResult) throw new Error('Unable to resolve the selected address.');
+
+  const resolved = parseSuggestion(rawResult, 0, suggestion.fullAddress);
+  if (resolved.latitude === null || resolved.longitude === null) {
+    throw new Error('The selected address does not have valid coordinates.');
+  }
+  return resolved;
 }
 
 export default function RoutePointsScreen() {
@@ -565,6 +605,8 @@ export default function RoutePointsScreen() {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [activeSearch, setActiveSearch] = useState<'start' | 'end' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const autocompleteSessionTokenRef = useRef(createLocationSessionToken());
+  const previousSearchTargetRef = useRef<'start' | 'end' | null>(null);
 
   const isStartValid =
     startLocation.mode === 'current_location'
@@ -617,6 +659,13 @@ export default function RoutePointsScreen() {
   }, [endLocation.address, endMode, startLocation.address]);
 
   useEffect(() => {
+    if (activeSearch && previousSearchTargetRef.current !== activeSearch) {
+      autocompleteSessionTokenRef.current = createLocationSessionToken();
+    }
+    previousSearchTargetRef.current = activeSearch;
+  }, [activeSearch]);
+
+  useEffect(() => {
     let mounted = true;
     const query = activeSearch === 'start' ? startLocation.address : endLocation.address;
 
@@ -628,7 +677,10 @@ export default function RoutePointsScreen() {
     const timer = setTimeout(async () => {
       setIsFetchingSuggestions(true);
       try {
-        const data = await fetchPlaceSuggestions(query);
+        const data = await fetchPlaceSuggestions(
+          query,
+          autocompleteSessionTokenRef.current,
+        );
 
         if (mounted) {
           setSuggestions(data);
@@ -725,10 +777,10 @@ export default function RoutePointsScreen() {
           };
         }
       } catch (err) {
-        console.warn('Native device reverse geocode failed, falling back to Geoapify:', err);
+        console.warn('Native device reverse geocode failed, using provider fallback:', err);
       }
 
-      // 2. Fallback to Geoapify if native reverse geocoding did not return an address
+      // 2. Use the configured backend provider chain if native reverse geocoding has no address.
       if (!addressString) {
         try {
           const response = await routesService.reverseGeocode(lat, lon);
@@ -754,7 +806,7 @@ export default function RoutePointsScreen() {
               .trim();
           }
         } catch (error) {
-          console.error('Geoapify reverse geocoding failed:', error);
+          console.error('Provider reverse geocoding failed:', error);
         }
       }
 
@@ -855,33 +907,43 @@ export default function RoutePointsScreen() {
     setShowEndSheet(false);
   };
 
-  const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
+  const handleSelectSuggestion = async (suggestion: PlaceSuggestion) => {
     setErrorMessage(null);
-    if (activeSearch === 'start') {
+    setIsFetchingSuggestions(true);
+
+    try {
+      const resolvedSuggestion = await resolveSelectedSuggestion(suggestion);
+      if (activeSearch === 'start') {
       const selectedStart: LocationValue = {
         mode: 'manual_address',
-        address: suggestion.fullAddress,
-        latitude: suggestion.latitude,
-        longitude: suggestion.longitude,
+        address: resolvedSuggestion.fullAddress,
+        latitude: resolvedSuggestion.latitude,
+        longitude: resolvedSuggestion.longitude,
         selectedFromSuggestion: true,
-        details: suggestion.details,
+        details: resolvedSuggestion.details,
       };
       setStartLocation(selectedStart);
       if (endMode === 'round_trip') {
         setEndLocation(selectedStart);
       }
-    } else if (activeSearch === 'end') {
-      setEndLocation({
-        mode: 'manual_address',
-        address: suggestion.fullAddress,
-        latitude: suggestion.latitude,
-        longitude: suggestion.longitude,
-        selectedFromSuggestion: true,
-        details: suggestion.details,
-      });
+      } else if (activeSearch === 'end') {
+        setEndLocation({
+          mode: 'manual_address',
+          address: resolvedSuggestion.fullAddress,
+          latitude: resolvedSuggestion.latitude,
+          longitude: resolvedSuggestion.longitude,
+          selectedFromSuggestion: true,
+          details: resolvedSuggestion.details,
+        });
+      }
+      setSuggestions([]);
+      setActiveSearch(null);
+      autocompleteSessionTokenRef.current = createLocationSessionToken();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to resolve the selected address.');
+    } finally {
+      setIsFetchingSuggestions(false);
     }
-    setSuggestions([]);
-    setActiveSearch(null);
   };
 
   const buildPayload = () => {

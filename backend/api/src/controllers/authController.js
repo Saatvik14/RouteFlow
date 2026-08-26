@@ -16,32 +16,121 @@ const generateAccessToken = (id, email, role, name) => {
   return createAccessToken({ user_id: id, email, role, name });
 };
 
+const PUBLIC_SIGNUP_ROLES = new Set(['INDEPENDENT_DRIVER', 'BUSINESS_OWNER']);
+const VEHICLE_TYPES = new Set(['car', 'van', 'truck', 'motorbike']);
+const normalizeIdentifier = (value) => String(value || '').trim().toLowerCase();
+const normalizeAccessCode = (value) => String(value || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+
+const publicUser = (user) => ({
+  id: Number(user.user_id),
+  email: user.email,
+  name: user.name,
+  role: user.role,
+});
+
+// @desc    Resolve which credential an account uses
+// @route   POST /users/identify
+// @access  Public (rate limited by the router)
+const identify = async (req, res) => {
+  const identifier = normalizeIdentifier(req.body.identifier);
+  if (!identifier) {
+    return res.status(400).json({ message: 'Enter your email address or phone number.' });
+  }
+
+  try {
+    const result = await runQuery(
+      `SELECT u.user_id, u.name, u.role, u.status, u.fleet_access_code_hash,
+              EXISTS (
+                SELECT 1
+                FROM organization_memberships om
+                JOIN drivers d ON d.membership_id = om.membership_id
+                WHERE om.user_id = u.user_id
+                  AND om.role = 'driver'
+                  AND om.status = 'active'
+                  AND d.is_active = TRUE
+                  AND d.removed_at IS NULL
+              ) AS has_active_fleet_access
+       FROM users u
+       WHERE LOWER(u.email) = $1 OR u.phone_no = $1
+       LIMIT 1`,
+      [identifier]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: 'We could not find an account with those details.' });
+    }
+    if (String(user.status || '').toLowerCase() !== 'active') {
+      return res.status(403).json({ message: 'This account is inactive. Contact your administrator.' });
+    }
+
+    const role = String(user.role || '').toUpperCase();
+    if (role === 'FLEET_DRIVER' && !user.has_active_fleet_access) {
+      return res.status(403).json({ message: 'This driver account is inactive. Contact your business admin.' });
+    }
+    const usesAccessCode = role === 'FLEET_DRIVER' && Boolean(user.fleet_access_code_hash);
+    return res.json({
+      authMethod: usesAccessCode ? 'access_code' : 'password',
+      role,
+      roleLabel: role === 'BUSINESS_OWNER'
+        ? 'Business admin'
+        : role === 'FLEET_DRIVER'
+          ? 'Fleet driver'
+          : 'Independent driver',
+    });
+  } catch (error) {
+    console.error('Account identification error:', error);
+    return res.status(500).json({ message: 'Server error while checking this account.' });
+  }
+};
+
 // @desc    Register new user
 // @route   POST /api/v1/auth/signup
 // @access  Public
 const signup = async (req, res) => {
-  const { name, phone_no, password, role, company_name, companyName, address } = req.body;
+  const {
+    name,
+    phone_no,
+    password,
+    role,
+    company_name,
+    companyName,
+    address,
+    vehicle_type,
+    email_verification_token,
+    emailVerificationToken,
+  } = req.body;
   const email = req.body.email?.trim().toLowerCase() || null;
   const cleanName = String(name || '').trim();
   const cleanPhone = String(phone_no || '').trim();
+  const userRole = String(role || '').trim().toUpperCase();
   const cleanCompanyName = String(company_name || companyName || '').trim();
   const cleanAddress = String(address || '').trim();
+  const cleanVehicleType = String(vehicle_type || '').trim().toLowerCase();
+  const verificationToken = String(email_verification_token || emailVerificationToken || '').trim();
 
   // Basic validation 
-  if (!cleanName || !cleanPhone || !password) {
-    return res.status(400).json({ message: 'Please enter all required fields: name, phone_no, password' });
+  if (!cleanName || !cleanPhone || !email || !password) {
+    return res.status(400).json({ message: 'Name, email, phone number and password are required.' });
   }
 
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    return res.status(400).json({ message: 'Use at least 8 characters with a letter and a number.' });
   }
 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ message: 'Please enter a valid email address.' });
   }
 
-  if (role === 'BUSINESS_OWNER' && (!cleanCompanyName || !cleanAddress)) {
-    return res.status(400).json({ message: 'Company name and address are required for Business Owner registration.' });
+  if (!PUBLIC_SIGNUP_ROLES.has(userRole)) {
+    return res.status(400).json({ message: 'Choose Independent Driver or Business Admin to create an account.' });
+  }
+
+  if (userRole === 'BUSINESS_OWNER' && !cleanCompanyName) {
+    return res.status(400).json({ message: 'Business name is required for Business Admin registration.' });
+  }
+
+  if (userRole === 'INDEPENDENT_DRIVER' && !VEHICLE_TYPES.has(cleanVehicleType)) {
+    return res.status(400).json({ message: 'Choose the vehicle you use most often.' });
   }
 
   if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
@@ -49,13 +138,17 @@ const signup = async (req, res) => {
   }
 
   try {
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    let verified;
+    try {
+      verified = jwt.verify(verificationToken, JWT_ACCESS_SECRET);
+    } catch {
+      return res.status(400).json({ message: 'Email verification expired. Request a new code.' });
+    }
+    if (verified?.purpose !== 'signup_email' || normalizeIdentifier(verified.email) !== email) {
+      return res.status(400).json({ message: 'Verify the email address used for this account.' });
+    }
 
-    // Fleet-driver access can only be granted by accepting an organization
-    // invitation. Public signup may create a business or an independent driver.
-    const VALID_ROLES = ['INDEPENDENT_DRIVER', 'BUSINESS_OWNER'];
-    const userRole = VALID_ROLES.includes(role) ? role : 'INDEPENDENT_DRIVER';
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const newUser = await withTransaction(async (client) => {
       const existingResult = await client.query(
@@ -71,10 +164,10 @@ const signup = async (req, res) => {
       }
 
       const inserted = await client.query(
-        `INSERT INTO users (name, phone_no, email, password, role, status)
-         VALUES ($1, $2, $3, $4, $5, 'active')
-         RETURNING user_id, name, phone_no, email, role, status, created_at, updated_at`,
-        [cleanName, cleanPhone, email, hashedPassword, userRole]
+        `INSERT INTO users (name, phone_no, email, password, role, status, vehicle_type)
+         VALUES ($1, $2, $3, $4, $5, 'active', $6)
+         RETURNING user_id, name, phone_no, email, role, status, vehicle_type, created_at, updated_at`,
+        [cleanName, cleanPhone, email, hashedPassword, userRole, userRole === 'INDEPENDENT_DRIVER' ? cleanVehicleType : null]
       );
       const user = inserted.rows[0];
 
@@ -112,6 +205,7 @@ const signup = async (req, res) => {
     res.status(201).json({
       accessToken: generateAccessToken(newUser.user_id, newUser.email, newUser.role, newUser.name),
       refreshToken: generateRefreshToken(newUser.user_id),
+      user: publicUser(newUser),
     });
   } catch (error) {
     console.error('Signup Error Detailed:', error.message || error);
@@ -127,10 +221,12 @@ const signup = async (req, res) => {
 // @route   POST /api/v1/auth/login
 // @access  Public
 const login = async (req, res) => {
-  const { identifier, password } = req.body; // 'identifier' can be phone_no or email
+  const identifier = normalizeIdentifier(req.body.identifier);
+  const password = String(req.body.password || '');
+  const accessCode = normalizeAccessCode(req.body.accessCode);
 
-  if (!identifier || !password) {
-    return res.status(400).json({ message: 'Please enter identifier (phone number or email) and password' });
+  if (!identifier) {
+    return res.status(400).json({ message: 'Enter your email address or phone number.' });
   }
 
   if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
@@ -140,8 +236,21 @@ const login = async (req, res) => {
   try {
     // Find user by email OR phone number
     const userResult = await runQuery(
-      'SELECT * FROM users WHERE email = $1 OR phone_no = $1',
-      [String(identifier).trim().toLowerCase()]
+      `SELECT u.*,
+              EXISTS (
+                SELECT 1
+                FROM organization_memberships om
+                JOIN drivers d ON d.membership_id = om.membership_id
+                WHERE om.user_id = u.user_id
+                  AND om.role = 'driver'
+                  AND om.status = 'active'
+                  AND d.is_active = TRUE
+                  AND d.removed_at IS NULL
+              ) AS has_active_fleet_access
+       FROM users u
+       WHERE LOWER(u.email) = $1 OR u.phone_no = $1
+       LIMIT 1`,
+      [identifier]
     );
 
     const user = userResult.rows[0];
@@ -154,8 +263,21 @@ const login = async (req, res) => {
       return res.status(403).json({ message: 'This account is inactive. Contact your administrator.' });
     }
 
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
+    const role = String(user.role || '').toUpperCase();
+    if (role === 'FLEET_DRIVER' && !user.has_active_fleet_access) {
+      return res.status(403).json({ message: 'This driver account is inactive. Contact your business admin.' });
+    }
+    const usesAccessCode = role === 'FLEET_DRIVER' && Boolean(user.fleet_access_code_hash);
+    if (usesAccessCode && !accessCode) {
+      return res.status(400).json({ message: 'Enter the access code provided by your business.' });
+    }
+    if (!usesAccessCode && !password) {
+      return res.status(400).json({ message: 'Enter your password.' });
+    }
+
+    const isMatch = usesAccessCode
+      ? await bcrypt.compare(accessCode, user.fleet_access_code_hash)
+      : await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -163,6 +285,7 @@ const login = async (req, res) => {
     res.status(200).json({
       accessToken: generateAccessToken(user.user_id, user.email, user.role, user.name),
       refreshToken: generateRefreshToken(user.user_id),
+      user: publicUser(user),
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -656,10 +779,15 @@ RouteFloww Team`,
 // @route   POST /auth/verify-otp
 // @access  Public
 const verifyOtp = async (req, res) => {
-  const { email, otp } = req.body;
+  const email = normalizeIdentifier(req.body.email);
+  const otp = String(req.body.otp || '').trim();
 
   if (!email || !otp) {
     return res.status(400).json({ message: 'Email and OTP are required.' });
+  }
+
+  if (!JWT_ACCESS_SECRET) {
+    return res.status(503).json({ message: 'Authentication is temporarily unavailable.' });
   }
 
   try {
@@ -686,7 +814,16 @@ const verifyOtp = async (req, res) => {
     // Invalidate the record to prevent replay attacks
     await runQuery('UPDATE otps SET is_used = TRUE WHERE id = $1', [storedOtpData.id]);
 
-    res.status(200).json({ message: 'OTP verified successfully.' });
+    const verificationToken = jwt.sign(
+      { email, purpose: 'signup_email' },
+      JWT_ACCESS_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    res.status(200).json({
+      message: 'OTP verified successfully.',
+      verificationToken,
+    });
   } catch (error) {
     console.error('Database error during OTP verification:', error);
     return res.status(500).json({ message: 'Server error during OTP verification.' });
@@ -793,6 +930,7 @@ const adminChangeUserRole = async (req, res) => {
 
 module.exports = {
   signup,
+  identify,
   login,
   refresh,
   checkHealth,

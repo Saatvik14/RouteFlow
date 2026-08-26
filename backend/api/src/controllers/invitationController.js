@@ -8,7 +8,9 @@ const { HttpError } = require('../utils/httpError');
 const { normalizeEmail, positiveInteger, requireString } = require('../utils/validation');
 const { generateAccessToken, generateRefreshToken } = require('../services/tokenService');
 
-const INVITABLE_ROLES = new Set(['admin', 'dispatcher', 'driver', 'viewer']);
+// Fleet drivers are provisioned directly by the business so they receive an
+// access code. Invitations remain for password-based business team accounts.
+const INVITABLE_ROLES = new Set(['admin', 'dispatcher', 'viewer']);
 
 const createSecret = () => crypto.randomBytes(32).toString('base64url');
 const hashSecret = (secret) => crypto.createHash('sha256').update(secret).digest('hex');
@@ -200,8 +202,8 @@ const createInvitation = async (req, res) => {
   if (!INVITABLE_ROLES.has(role)) {
     throw new HttpError(400, 'VALIDATION_ERROR', 'Select a valid team role.', { field: 'role' });
   }
-  if (req.membership.role === 'dispatcher' && !['driver', 'viewer'].includes(role)) {
-    throw new HttpError(403, 'PERMISSION_DENIED', 'Dispatchers can invite drivers or view-only users.');
+  if (req.membership.role === 'dispatcher' && role !== 'viewer') {
+    throw new HttpError(403, 'PERMISSION_DENIED', 'Dispatchers can invite view-only users.');
   }
 
   let created;

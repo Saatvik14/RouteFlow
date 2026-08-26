@@ -6,26 +6,29 @@ const {
 } = require('../utils/approximateEta');
 const {
   isAllowedAddress,
-  getCountryCodeFilter,
+  getAllowedCountryCodes,
   isIndiaAllowedUser,
   isIndiaAddress,
 } = require('../utils/locationPermissions');
 const { assertRouteReadable, assertRouteMutable } = require('../services/accessControlService');
 const { normalizeRouteState } = require('../services/routeLifecycleService');
 const { HttpError } = require('../utils/httpError');
+const {
+  autocomplete: autocompleteLocation,
+  geocodeText,
+  reverseGeocode: reverseGeocodeLocation,
+  resolvePlaceDetails,
+} = require('../services/locationProviderService');
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 /**
- * Shared helper to fetch geocoding data from Geoapify.
+ * Shared helper to fetch normalized geocoding data from the configured providers.
  * Used by both Route and Order controllers.
  */
 const getGeocodingData = async (address, userEmail) => {
   const { name, street, housenumber, postcode, city, country } = address;
-  const apiKey = process.env.GEOAPIFY_API_KEY;
-
-  if (!apiKey) return null;
 
   // 1. Search in our database locations table first to avoid unnecessary API calls
   try {
@@ -46,28 +49,20 @@ const getGeocodingData = async (address, userEmail) => {
     console.error('Database Geocoding Lookup Error:', error);
   }
 
-  // 2. If not found in database, proceed with Geoapify API call
-  const url = new URL('https://api.geoapify.com/v1/geocode/search');
-  url.searchParams.append('housenumber', housenumber || '');
-  url.searchParams.append('street', street || '');
-  url.searchParams.append('name', name || '');
-  url.searchParams.append('postcode', postcode || '');
-  url.searchParams.append('city', city || '');
-  url.searchParams.append('country', country || '');
-  url.searchParams.append('format', 'json');
-  url.searchParams.append('filter', getCountryCodeFilter(userEmail));
-  url.searchParams.append('apiKey', apiKey);
-
   try {
-    // console.log('Geocoding Request URL:', url.toString());
-    const response = await fetch(url.toString());
-    const data = await response.json();
+    const query = [name, housenumber, street, city, postcode, country]
+      .filter(Boolean)
+      .join(', ');
+    const { results } = await geocodeText(query, {
+      countryCodes: getAllowedCountryCodes(userEmail),
+      limit: 5,
+    });
 
-    if (!data.results || data.results.length === 0) return null;
+    if (!results.length) return null;
 
-    return data.results.reduce((prev, current) => {
+    return results.reduce((prev, current) => {
       return (current.rank?.confidence || 0) > (prev.rank?.confidence || 0) ? current : prev;
-    }, data.results[0]);
+    }, results[0]);
   } catch (error) {
     console.error('Shared Geocoding Helper Error:', error);
     return null;
@@ -727,58 +722,54 @@ const geocodeAddress = async (req, res) => {
 // @route   GET /route/autocomplete
 // @access  Private
 const autocompleteAddress = async (req, res) => {
-  const { text, limit, lang } = req.query;
-  const apiKey = process.env.GEOAPIFY_API_KEY;
+  const { text, limit, lang, sessionToken } = req.query;
 
   if (!text) {
     return res.status(400).json({ message: 'Text query parameter is required for autocomplete' });
   }
 
-  if (!apiKey) {
-    return res.status(500).json({ message: 'Geoapify API key is missing' });
+  try {
+    const result = await autocompleteLocation(String(text).trim(), {
+      limit: Number(limit) || 5,
+      language: lang || 'en',
+      sessionToken,
+      countryCodes: getAllowedCountryCodes(req.user?.email),
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Autocomplete Error:', error);
+    res.status(503).json({ message: error.message || 'All autocomplete providers are unavailable' });
+  }
+};
+
+// @desc    Resolve a provider suggestion to coordinates and address details
+// @route   GET /route/place-details
+// @access  Private
+const getPlaceDetails = async (req, res) => {
+  const { placeId, provider, text, sessionToken } = req.query;
+
+  if (!placeId && !text) {
+    return res.status(400).json({ message: 'placeId or text query parameter is required' });
   }
 
   try {
-    const countryFilter = getCountryCodeFilter(req.user?.email);
-    const autocompleteUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
-    autocompleteUrl.searchParams.append('text', text);
-    autocompleteUrl.searchParams.append('limit', limit || '3');
-    autocompleteUrl.searchParams.append('lang', lang || 'en');
-    autocompleteUrl.searchParams.append('format', 'json');
-    autocompleteUrl.searchParams.append('filter', countryFilter);
-    autocompleteUrl.searchParams.append('apiKey', apiKey);
+    const result = await resolvePlaceDetails({
+      placeId,
+      provider: String(provider || '').toLowerCase(),
+      text: String(text || '').trim(),
+      sessionToken,
+      countryCodes: getAllowedCountryCodes(req.user?.email),
+    });
 
-    const autocompleteResponse = await fetch(autocompleteUrl.toString());
-    const autocompleteData = await autocompleteResponse.json();
-
-    if (!autocompleteData?.results || autocompleteData.results.length === 0) {
-      const geocodeUrl = new URL('https://api.geoapify.com/v1/geocode/search');
-      // console.log('No autocomplete results found, falling back to geocode search');
-      geocodeUrl.searchParams.append('text', text);
-      geocodeUrl.searchParams.append('limit', limit || '3');
-      geocodeUrl.searchParams.append('lang', lang || 'en');
-      geocodeUrl.searchParams.append('format', 'json');
-      geocodeUrl.searchParams.append('filter', countryFilter);
-      geocodeUrl.searchParams.append('apiKey', apiKey);
-
-      const geocodeResponse = await fetch(geocodeUrl.toString());
-      const geocodeData = await geocodeResponse.json();
-
-      if (geocodeData?.results?.length > 0) {
-        const bestResult = geocodeData.results.reduce((prev, current) => {
-          const prevConfidence = prev?.rank?.confidence || 0;
-          const currentConfidence = current?.rank?.confidence || 0;
-          return currentConfidence > prevConfidence ? current : prev;
-        }, geocodeData.results[0]);
-
-        return res.status(200).json({ results: [bestResult] });
-      }
+    if (!result.results.length) {
+      return res.status(404).json({ message: 'Place details were not found' });
     }
 
-    return res.status(200).json(autocompleteData);
+    return res.status(200).json(result);
   } catch (error) {
-    console.error('Autocomplete Error:', error);
-    res.status(500).json({ message: 'Server error during autocomplete' });
+    console.error('Place Details Error:', error);
+    return res.status(503).json({ message: error.message || 'All place detail providers are unavailable' });
   }
 };
 
@@ -787,27 +778,30 @@ const autocompleteAddress = async (req, res) => {
 // @access  Private
 const reverseGeocode = async (req, res) => {
   const { lat, lon } = req.query;
-  const apiKey = process.env.GEOAPIFY_API_KEY;
 
   if (!lat || !lon) {
     return res.status(400).json({ message: 'lat and lon query parameters are required' });
   }
 
-  if (!apiKey) {
-    return res.status(500).json({ message: 'Geoapify API key is missing' });
+  const latitude = Number(lat);
+  const longitude = Number(lon);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return res.status(400).json({ message: 'lat and lon must be valid coordinates' });
   }
 
   try {
-    const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&format=json&apiKey=${apiKey}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Geoapify responded with status: ${response.status}`);
-    }
-    const data = await response.json();
-    return res.status(200).json(data);
+    const result = await reverseGeocodeLocation(latitude, longitude, { limit: 1 });
+    return res.status(200).json(result);
   } catch (error) {
     console.error('Reverse Geocode Error:', error);
-    return res.status(500).json({ message: 'Server error during reverse geocoding', error: error.message });
+    return res.status(503).json({ message: 'All reverse geocoding providers are unavailable', error: error.message });
   }
 };
 
@@ -1503,4 +1497,4 @@ const cancelRoute = async (req, res) => {
 
 
 
-module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, optimizeRoute, cancelRoute, reverseGeocode };
+module.exports = { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, getGeocodingData, autocompleteAddress, getPlaceDetails, optimizeRoute, cancelRoute, reverseGeocode };

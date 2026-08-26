@@ -20,6 +20,7 @@ import {
   scanRouteManifestFromCamera,
 } from './route-preview-input.service';
 import type { RouteMapType } from '../../components/maps/RouteMap';
+import { createLocationSessionToken } from '../../utils/locationSession';
 import type {
   AppRoute,
   PanelMode,
@@ -39,6 +40,7 @@ import {
   DEFAULT_POINT,
   DEFAULT_STOP_DETAILS,
   fetchPlaceSuggestions,
+  resolvePlaceSuggestion,
   fetchRoutePath,
   formatDistance,
   formatMiles,
@@ -437,6 +439,7 @@ export function useRoutePreviewController(
   } | null>(null);
   const locationSubscriptionRef = useRef<any>(null);
   const isMockingLocationRef = useRef(false);
+  const autocompleteSessionTokenRef = useRef(createLocationSessionToken());
   const [subscriptionType, setSubscriptionType] = useState<string>('trial');
 
   useEffect(() => {
@@ -631,7 +634,10 @@ useEffect(() => {
       return;
     }
 
-    const data = await fetchPlaceSuggestions(searchText);
+    const data = await fetchPlaceSuggestions(
+      searchText,
+      autocompleteSessionTokenRef.current,
+    );
 
     if (mounted) {
       setSuggestions(data);
@@ -703,12 +709,14 @@ const handleBackFromEditStop = useCallback(() => {
 }, [panelMode, selectedStop, stopAddressReturnMode]);
 
 const handleOpenEditStartLocation = useCallback(() => {
+  autocompleteSessionTokenRef.current = createLocationSessionToken();
   setSearchText(route?.start?.description || route?.start?.title || '');
   setSuggestions([]);
   setPanelMode('edit_start_location');
 }, [route?.start]);
 
 const handleOpenEditEndLocation = useCallback(() => {
+  autocompleteSessionTokenRef.current = createLocationSessionToken();
   setSearchText(route?.end?.description || route?.end?.title || '');
   setSuggestions([]);
   setPanelMode('edit_end_location');
@@ -725,20 +733,21 @@ const handleSaveRouteLocation = useCallback(async (target: 'start' | 'end', sugg
   setErrorMessage('');
 
   try {
+    const resolvedSuggestion = await resolvePlaceSuggestion(suggestion);
     const payload: any = {
       route_id: effectiveRouteId,
       status: ROUTE_STATUS_PENDING,
     };
 
     payload[target === 'start' ? 'start_location' : 'end_location'] =
-      buildRouteLocationPayload(suggestion);
+      buildRouteLocationPayload(resolvedSuggestion);
 
     const response = await routesService.updateRoute(payload);
     if (!isSuccessResponse(response)) {
       throw new Error(getResponseErrorMessage(response, 'Unable to save location.'));
     }
 
-    const nextPoint = buildRoutePointFromSuggestion(suggestion, target === 'start' ? 'Start location' : 'End location');
+    const nextPoint = buildRoutePointFromSuggestion(resolvedSuggestion, target === 'start' ? 'Start location' : 'End location');
 
     setRoute({
       ...route,
@@ -1038,17 +1047,6 @@ const handleOpenEditStopAddress = useCallback((stop?: RouteStop) => {
 const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) => {
   if (!route || !selectedStop || !effectiveRouteId) return;
 
-  if (!isUnitedKingdomSuggestion(suggestion)) {
-    const userEmail = getCurrentUserEmailSync();
-    const isIndiaAllowed = isIndiaAllowedForEmail(userEmail);
-    setErrorMessage(
-      isIndiaAllowed
-        ? 'Only locations within the United Kingdom and India are supported.'
-        : 'Only locations within the United Kingdom are supported.'
-    );
-    return;
-  }
-
   const orderId = getStopBackendId(selectedStop);
   if (!orderId) {
     setErrorMessage('Order id is missing. Unable to save stop address.');
@@ -1059,18 +1057,30 @@ const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) =>
   setErrorMessage('');
 
   try {
+    const resolvedSuggestion = await resolvePlaceSuggestion(suggestion);
+
+    if (!isUnitedKingdomSuggestion(resolvedSuggestion)) {
+      const userEmail = getCurrentUserEmailSync();
+      const isIndiaAllowed = isIndiaAllowedForEmail(userEmail);
+      throw new Error(
+        isIndiaAllowed
+          ? 'Only locations within the United Kingdom and India are supported.'
+          : 'Only locations within the United Kingdom are supported.',
+      );
+    }
+
     const fullAddress = String(
-      suggestion.fullAddress || suggestion.subtitle || suggestion.title || '',
+      resolvedSuggestion.fullAddress || resolvedSuggestion.subtitle || resolvedSuggestion.title || '',
     ).trim();
 
     const response = await ordersService.editOrder({
       order_id: orderId,
-      location: buildRouteLocationPayload(suggestion),
+      location: buildRouteLocationPayload(resolvedSuggestion),
       address: fullAddress,
-      title: suggestion.title,
-      description: suggestion.subtitle || fullAddress,
-      latitude: suggestion.latitude,
-      longitude: suggestion.longitude,
+      title: resolvedSuggestion.title,
+      description: resolvedSuggestion.subtitle || fullAddress,
+      latitude: resolvedSuggestion.latitude,
+      longitude: resolvedSuggestion.longitude,
     });
 
     if (!isSuccessResponse(response)) {
@@ -1081,18 +1091,18 @@ const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) =>
 
     const selectedKey = getStopIdentity(selectedStop);
     const nextPoint = buildRoutePointFromSuggestion(
-      suggestion,
+      resolvedSuggestion,
       selectedStop.title || 'Stop',
     );
 
     const updatedStop = {
       ...selectedStop,
       ...nextPoint,
-      title: suggestion.title || selectedStop.title,
+      title: resolvedSuggestion.title || selectedStop.title,
       address: fullAddress,
-      description: suggestion.subtitle || fullAddress,
-      latitude: suggestion.latitude,
-      longitude: suggestion.longitude,
+      description: resolvedSuggestion.subtitle || fullAddress,
+      latitude: resolvedSuggestion.latitude,
+      longitude: resolvedSuggestion.longitude,
     } as RouteStop;
 
     const nextStops = route.stops.map((stop) =>
@@ -1111,8 +1121,8 @@ const handleSaveStopAddress = useCallback(async (suggestion: PlaceSuggestion) =>
     setStopDetails((current) => ({
       ...current,
       address: fullAddress,
-      latitude: suggestion.latitude,
-      longitude: suggestion.longitude,
+      latitude: resolvedSuggestion.latitude,
+      longitude: resolvedSuggestion.longitude,
     }) as StopDetails);
 
     await markRouteNeedsReOptimization();
@@ -1184,6 +1194,7 @@ const handleRemoveEditedStop = useCallback(async () => {
   }, []);
 
   const handleOpenSearch = useCallback(() => {
+    autocompleteSessionTokenRef.current = createLocationSessionToken();
     setSearchText('');
     setSuggestions([]);
     setSelectedSuggestion(null);
@@ -1201,13 +1212,21 @@ const handleRemoveEditedStop = useCallback(async () => {
     setPanelMode(getPanelModeFromStatus(routeStatus, route?.stops?.length || 0));
   }, [route?.stops?.length, routeStatus]);
 
-  const handleSelectSuggestion = useCallback((suggestion: PlaceSuggestion) => {
-    setStopDetailsReturnMode('setup');
-    setSelectedSuggestion(suggestion);
-    setSelectedStop(null);
-    setStopDetails({ ...DEFAULT_STOP_DETAILS });
+  const handleSelectSuggestion = useCallback(async (suggestion: PlaceSuggestion) => {
     setErrorMessage('');
-    setPanelMode('details');
+    try {
+      const resolvedSuggestion = await resolvePlaceSuggestion(suggestion);
+      setStopDetailsReturnMode('setup');
+      setSelectedSuggestion(resolvedSuggestion);
+      setSelectedStop(null);
+      setStopDetails({ ...DEFAULT_STOP_DETAILS });
+      setPanelMode('details');
+      autocompleteSessionTokenRef.current = createLocationSessionToken();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to resolve the selected address.',
+      );
+    }
   }, []);
 
   const handleOpenStopDetails = useCallback((stop: RouteStop) => {
@@ -1228,6 +1247,10 @@ const handleRemoveEditedStop = useCallback(async () => {
 
   const handleConfirmStopDetails = useCallback(async () => {
     if (!route || !selectedSuggestion || isAddingStop) return;
+    if (selectedSuggestion.latitude === null || selectedSuggestion.longitude === null) {
+      setErrorMessage('The selected address does not have valid coordinates.');
+      return;
+    }
 
     if (!selectedStop) {
       if (!isUnitedKingdomSuggestion(selectedSuggestion)) {

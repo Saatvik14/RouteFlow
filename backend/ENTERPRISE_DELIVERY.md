@@ -31,6 +31,8 @@ All paths below are prefixed by `/api/enterprise`.
 | `POST /invitations/accept/:token/new` | Create password and accept as a new user |
 | `POST /invitations/accept/:token/existing` | Accept with the matching signed-in account |
 | `GET/POST /invitations` | List or create tenant invitations |
+| `POST /team/drivers` | Create a fleet-driver account and return its private access code once |
+| `POST /team/drivers/:id/access-code` | Replace a fleet driver's access code and return the new code once |
 | `POST /invitations/:id/resend` | Revoke the old secret and issue a new invitation |
 | `POST /invitations/:id/revoke` | Revoke a pending invitation |
 | `GET /team` | Drivers, assignments and non-driver business members |

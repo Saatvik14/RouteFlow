@@ -71,11 +71,16 @@ const getCountryCodeFilter = (userEmail) => {
   return isIndiaAllowedUser(userEmail) ? 'countrycode:gb,in' : 'countrycode:gb';
 };
 
+const getAllowedCountryCodes = (userEmail) => {
+  return isIndiaAllowedUser(userEmail) ? ['GB', 'IN'] : ['GB'];
+};
+
 module.exports = {
   INDIA_ALLOWED_EMAILS,
   isIndiaAllowedUser,
   isUkAddress,
   isIndiaAddress,
   isAllowedAddress,
+  getAllowedCountryCodes,
   getCountryCodeFilter,
 };

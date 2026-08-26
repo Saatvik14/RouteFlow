@@ -1,1508 +1,438 @@
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
-  Image,
 } from 'react-native';
 
-import { authService, setAuthToken } from './../../services/api';
-import { useAuth } from './../_layout';
-import { IMAGES } from '@/src/constants/theme';
-import { openExternalUrl } from './../../hooks/open-external-url';
-import { LEGAL_URLS } from '@/src/constants/legal';
+import {
+  AuthButton,
+  AuthField,
+  AuthHeading,
+  AuthMessage,
+  AuthShell,
+  AUTH_FONT,
+  StepProgress,
+  TextLink,
+} from '../../components/auth/auth-ui';
+import { LEGAL_URLS } from '../../constants/legal';
+import { OperationsColors as C } from '../../constants/theme';
+import { openExternalUrl } from '../../hooks/open-external-url';
+import { authService, setAuthToken } from '../../services/api';
+import { useAuth } from '../_layout';
 
+type SignupRole = 'INDEPENDENT_DRIVER' | 'BUSINESS_OWNER' | 'FLEET_DRIVER';
+type VehicleType = 'car' | 'van' | 'truck' | 'motorbike';
 
-const APP_FONT = Platform.select({
-  ios: 'System',
-  android: 'sans-serif',
-  web: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  default: undefined,
-});
+const roleOptions: Array<{
+  value: SignupRole;
+  title: string;
+  description: string;
+  icon: keyof typeof Feather.glyphMap;
+  badge?: string;
+}> = [
+  {
+    value: 'INDEPENDENT_DRIVER',
+    title: 'Independent driver',
+    description: 'Plan and drive your own routes',
+    icon: 'navigation',
+  },
+  {
+    value: 'BUSINESS_OWNER',
+    title: 'Business admin',
+    description: 'Manage drivers and dispatch work',
+    icon: 'briefcase',
+  },
+  {
+    value: 'FLEET_DRIVER',
+    title: 'Fleet driver',
+    description: 'Drive routes assigned by a business',
+    icon: 'truck',
+    badge: 'Business setup',
+  },
+];
 
-function GoogleMark() {
-  return (
-    <View style={styles.googleMark}>
-      <View style={[styles.googleArc, styles.googleBlue]} />
-      <View style={[styles.googleArc, styles.googleRed]} />
-      <View style={[styles.googleArc, styles.googleYellow]} />
-      <View style={[styles.googleArc, styles.googleGreen]} />
-      <View style={styles.googleHole} />
-      <View style={styles.googleCut} />
-      <View style={styles.googleBar} />
-    </View>
-  );
-}
+const vehicles: Array<{ value: VehicleType; label: string; icon: keyof typeof Feather.glyphMap }> = [
+  { value: 'car', label: 'Car', icon: 'navigation' },
+  { value: 'van', label: 'Van', icon: 'box' },
+  { value: 'truck', label: 'Truck', icon: 'truck' },
+  { value: 'motorbike', label: 'Motorbike', icon: 'zap' },
+];
 
 export default function SignupScreen() {
-  const [selectedRole, setSelectedRole] = useState<'INDEPENDENT_DRIVER' | 'FLEET_DRIVER' | 'BUSINESS_OWNER'>('INDEPENDENT_DRIVER');
-  const [companyName, setCompanyName] = useState('');
-  const [companyAddress, setCompanyAddress] = useState('');
+  const [step, setStep] = useState(1);
+  const [role, setRole] = useState<SignupRole | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [companyName, setCompanyName] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [vehicleType, setVehicleType] = useState<VehicleType | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // OTP States
-  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [showOtp, setShowOtp] = useState(false);
   const [otp, setOtp] = useState('');
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [otpError, setOtpError] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
-  const [otpError, setOtpError] = useState(''); // New state for OTP modal errors
+  const [showTerms, setShowTerms] = useState(false);
 
-  // Terms and agreement state
-  const [agreeToTerms, setAgreeToTerms] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-
-  const { height, width } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const { login } = useAuth();
+  const narrow = width < 620;
 
-  const isWeb = Platform.OS === 'web';
-  const isWide = width >= 768;
-  const isMobile = width < 480;
-  const documentModalHeight = Math.min(Math.max(height - 40, 260), 720);
-  const documentScrollHeight = Math.max(documentModalHeight - 156, 104);
-
-  const handleSignup = async () => {
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
-    const trimmedPhone = phone.trim();
-    const trimmedPassword = password.trim();
-    const trimmedCompanyName = companyName.trim();
-    const trimmedCompanyAddress = companyAddress.trim();
-
-    if (!trimmedName || !trimmedEmail || !trimmedPhone || !trimmedPassword) {
-      setError('Please fill in all required fields.');
+  const validateAccount = () => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!name.trim() || !cleanEmail || !phone.trim() || !password) {
+      setError('Complete your name, email, phone number and password.');
       return;
     }
-
-    if (selectedRole === 'BUSINESS_OWNER') {
-      if (!trimmedCompanyName || !trimmedCompanyAddress) {
-        setError('Please enter your Company Name and Company Address.');
-        return;
-      }
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      setError('Please enter a valid email address.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setError('Enter a valid email address.');
       return;
     }
-
-    if (trimmedPassword.length < 6) {
-      setError('Password should be at least 6 characters.');
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      setError('Use at least 8 characters with a letter and a number.');
       return;
     }
-
     if (!agreeToTerms) {
-      setError('You must agree to the Terms of Service and Privacy Policy.');
+      setError('Agree to the Terms of Service and Privacy Policy to continue.');
       return;
     }
-
+    setEmail(cleanEmail);
     setError('');
+    setStep(2);
+  };
 
-    const targetEmail = trimmedEmail;
-    if (!(otpVerified && verifiedEmail === targetEmail)) {
-      await handleSendOtp(targetEmail);
+  const continueRole = () => {
+    if (!role) {
+      setError('Choose the option that best describes you.');
       return;
     }
-
-    await executeSignup();
+    setError('');
+    setStep(3);
   };
 
-  const handleSendOtp = async (targetEmail: string, isResend = false) => {
-    // Clear previous errors and OTP input before attempting to send OTP
-    setError(''); // Clear main form error
-    setOtpError(''); // Clear OTP modal error
-    setOtp(''); // Clear OTP input field
-
-    setLoading(true);
-    try {
-      const response = await authService.sendOtp({ email: targetEmail });
-
-      if (response.success) {
-        setShowOtpModal(true);
-        if (isResend) {
-          setOtpError('New OTP sent to your email.'); // Success message for resend
-        }
-      } else {
-        const errorMessage = response.error || response.message || 'Failed to send verification code.';
-        if (isResend) {
-          setOtpError(errorMessage); // Show error in modal for resend
-        } else {
-          setError(errorMessage); // Show error on main form for initial send
-        }
-      }
-    } catch (err) {
-      const networkErrorMessage = 'Network error. Please try again.';
-      if (isResend) {
-        setOtpError(networkErrorMessage);
-      } else {
-        setError(networkErrorMessage);
-      }
-    } finally {
-      setLoading(false);
+  const validateProfile = () => {
+    if (role === 'BUSINESS_OWNER' && !companyName.trim()) {
+      setError('Enter your business name.');
+      return false;
     }
+    if (role === 'INDEPENDENT_DRIVER' && !vehicleType) {
+      setError('Choose the vehicle you use most often.');
+      return false;
+    }
+    return true;
   };
 
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) {
-      setOtpError('Please enter a 6-digit OTP.'); // Set OTP specific error
+  const sendVerificationCode = async (resend = false) => {
+    if (!role || role === 'FLEET_DRIVER' || !validateProfile()) return;
+    setLoading(true);
+    setError('');
+    setOtpError('');
+    setOtp('');
+    const response = await authService.sendOtp({ email: email.trim().toLowerCase() });
+    setLoading(false);
+    if (!response.success) {
+      const message = response.error || 'We could not send the verification code.';
+      if (resend) setOtpError(message);
+      else setError(message);
+      return;
+    }
+    setShowOtp(true);
+    if (resend) setOtpError('A fresh code was sent.');
+  };
+
+  const createAccount = async (verificationToken: string) => {
+    if (!role || role === 'FLEET_DRIVER') return false;
+    const response = await authService.signup({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone_no: phone.trim(),
+      password,
+      role,
+      company_name: role === 'BUSINESS_OWNER' ? companyName.trim() : undefined,
+      address: role === 'BUSINESS_OWNER' ? companyAddress.trim() || undefined : undefined,
+      vehicle_type: role === 'INDEPENDENT_DRIVER' ? vehicleType || undefined : undefined,
+      email_verification_token: verificationToken,
+    });
+
+    if (!response.success || !response.data?.accessToken) {
+      setOtpError(response.error || 'Your account could not be created. Please try again.');
+      return false;
+    }
+
+    await setAuthToken(response.data.accessToken);
+    login();
+    setShowOtp(false);
+    router.replace('/');
+    return true;
+  };
+
+  const verifyCode = async () => {
+    if (!/^\d{6}$/.test(otp.trim())) {
+      setOtpError('Enter the 6-digit code from your email.');
       return;
     }
     setOtpLoading(true);
-    setOtpError(''); // Clear previous OTP errors
-    try {
-      const response = await authService.verifyOtp({ email: email.trim(), otp });
-
-      if (response.success) {
-        setOtpVerified(true);
-        setVerifiedEmail(email.trim());
-        setShowOtpModal(false);
-        setOtpError(''); // Clear OTP error on success
-        // Proceed to final signup now that it's verified
-        await executeSignup();
-      } else {
-        const errorMessage = response.error || response.message || 'Invalid OTP code.';
-        setOtpError(errorMessage); // Set OTP specific error
-      }
-    } catch (err) {
-      setOtpError('Verification failed. Please try again.'); // Set OTP specific error
-    } finally {
+    setOtpError('');
+    const response = await authService.verifyOtp({ email: email.trim().toLowerCase(), otp: otp.trim() });
+    if (!response.success || !response.data?.verificationToken) {
       setOtpLoading(false);
+      setOtpError(response.error || 'That code is invalid or has expired.');
+      return;
     }
+    await createAccount(response.data.verificationToken);
+    setOtpLoading(false);
   };
 
-  const executeSignup = async () => {
-    setLoading(true);
-    try {
-      const response = await authService.signup({
-        name: name.trim(),
-        email: email.trim(),
-        phone_no: phone.trim(),
-        password,
-        role: selectedRole,
-        company_name: selectedRole === 'BUSINESS_OWNER' ? companyName.trim() : undefined,
-        address: selectedRole === 'BUSINESS_OWNER' ? companyAddress.trim() : undefined,
-      });
-
-      if (response.success && response.data?.accessToken) {
-        await setAuthToken(response.data.accessToken);
-        login();
-        router.replace('/');
-      } else {
-        setError(response.error || 'Signup failed. Please try again.');
-      }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-      console.error('Signup error:', err);
-    } finally {
-      setLoading(false);
-    }
+  const back = () => {
+    setError('');
+    setStep((current) => Math.max(1, current - 1));
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.keyboardRoot}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-      >
-        <View style={styles.backgroundLayer} pointerEvents="none">
-          <View style={styles.bgGlowTop} />
-          <View style={styles.bgGlowBottom} />
-        </View>
+    <>
+      <AuthShell wide={step >= 2}>
+        <StepProgress current={step} total={3} />
 
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={[
-            styles.scrollContent,
-            { minHeight: height },
-            isWide && styles.scrollContentWide,
-          ]}
-        >
-          <View style={[styles.container, isWide && styles.containerWide]}>
-            <View style={[styles.card, isMobile && styles.cardMobile]}>
-              <View style={styles.brandRow}>
-                <Image
-                  source={IMAGES.LOGO}
-                  style={[styles.logoImage, isMobile && styles.logoImageMobile]}
-                />
-
-                <Text style={[styles.brandText, isMobile && styles.brandTextMobile]}>
-                  Route<Text style={styles.brandBlue}>Floww</Text>
-                </Text>
+        {step === 1 ? (
+          <>
+            <AuthHeading
+              eyebrow="Create account · Step 1"
+              title="Start with the essentials"
+              subtitle="One secure account for your routes. We’ll tailor the workspace after this step."
+            />
+            {error ? <AuthMessage message={error} /> : null}
+            <View style={[styles.twoColumns, narrow && styles.oneColumn]}>
+              <View style={styles.column}>
+                <AuthField label="Full name" icon="user" value={name} onChangeText={(value) => { setName(value); setError(''); }} placeholder="Your full name" autoCapitalize="words" textContentType="name" />
+                <AuthField label="Email address" icon="mail" value={email} onChangeText={(value) => { setEmail(value); setError(''); }} placeholder="you@example.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" />
               </View>
-
-              <View style={[styles.routeIntroBlock, isMobile && styles.routeIntroBlockMobile]}>
-                <Text style={[styles.routeIntroTitle, isMobile && styles.routeIntroTitleMobile]}>
-                  Smart Route Navigation
-                </Text>
-                <Text style={[styles.routeIntroSubtitle, isMobile && styles.routeIntroSubtitleMobile]}>
-                  Plan routes, track deliveries and finish faster.
-                </Text>
-              </View>
-
-              <View style={[styles.headerBlock, isMobile && styles.headerBlockMobile]}>
-                <Text style={[styles.title, isMobile && styles.titleMobile]}>Create account</Text>
-                <Text style={[styles.subtitle, isMobile && styles.subtitleMobile]}>
-                  Start managing routes and deliveries in minutes.
-                </Text>
-              </View>
-
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              <Text style={[styles.label, isMobile && styles.labelMobile]}>Account Type</Text>
-              <View style={roleStyles.roleCardsContainer}>
-                <Pressable
-                  style={[
-                    roleStyles.roleCard,
-                    selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleCardActive,
-                  ]}
-                  onPress={() => setSelectedRole('INDEPENDENT_DRIVER')}
-                >
-                  <Text style={roleStyles.roleIcon}>🚗</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[roleStyles.roleTitle, selectedRole === 'INDEPENDENT_DRIVER' && roleStyles.roleTitleActive]}>
-                      Independent Driver
-                    </Text>
-                    <Text style={roleStyles.roleSubtitle}>
-                      Plan & navigate my own routes
-                    </Text>
-                  </View>
-                  {selectedRole === 'INDEPENDENT_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
-                </Pressable>
-
-                <Pressable
-                  style={[
-                    roleStyles.roleCard,
-                    selectedRole === 'FLEET_DRIVER' && roleStyles.roleCardActive,
-                  ]}
-                  onPress={() => setSelectedRole('FLEET_DRIVER')}
-                >
-                  <Text style={roleStyles.roleIcon}>🚚</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[roleStyles.roleTitle, selectedRole === 'FLEET_DRIVER' && roleStyles.roleTitleActive]}>
-                      Fleet Driver
-                    </Text>
-                    <Text style={roleStyles.roleSubtitle}>
-                      Drive routes assigned to me
-                    </Text>
-                  </View>
-                  {selectedRole === 'FLEET_DRIVER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
-                </Pressable>
-
-                <Pressable
-                  style={[
-                    roleStyles.roleCard,
-                    selectedRole === 'BUSINESS_OWNER' && roleStyles.roleCardActive,
-                  ]}
-                  onPress={() => setSelectedRole('BUSINESS_OWNER')}
-                >
-                  <Text style={roleStyles.roleIcon}>🏢</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[roleStyles.roleTitle, selectedRole === 'BUSINESS_OWNER' && roleStyles.roleTitleActive]}>
-                      Business Owner
-                    </Text>
-                    <Text style={roleStyles.roleSubtitle}>
-                      Manage drivers & dispatch routes
-                    </Text>
-                  </View>
-                  {selectedRole === 'BUSINESS_OWNER' ? <Text style={roleStyles.roleCheck}>✓</Text> : null}
-                </Pressable>
-              </View>
-
-              {selectedRole === 'BUSINESS_OWNER' && (
-                <>
-                  <Text style={[styles.label, isMobile && styles.labelMobile]}>Company / Business Name</Text>
-                  <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
-                    <TextInput
-                      value={companyName}
-                      onChangeText={setCompanyName}
-                      placeholder="e.g. Acme Express Logistics"
-                      placeholderTextColor="#98A6BA"
-                      returnKeyType="next"
-                      autoCapitalize="words"
-                      editable={!loading}
-                      style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
-                    />
-                  </View>
-
-                  <Text style={[styles.label, isMobile && styles.labelMobile]}>Company Address</Text>
-                  <View style={[styles.inputBox, isMobile && styles.inputBoxMobile, { height: 'auto', minHeight: 48, paddingVertical: 8 }]}>
-                    <TextInput
-                      value={companyAddress}
-                      onChangeText={setCompanyAddress}
-                      placeholder="e.g. 123 Logistics Way, Suite 400, New York, NY"
-                      placeholderTextColor="#98A6BA"
-                      returnKeyType="next"
-                      multiline
-                      numberOfLines={2}
-                      autoCapitalize="words"
-                      editable={!loading}
-                      style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput, { height: 'auto', textAlignVertical: 'top' }]}
-                    />
-                  </View>
-                </>
-              )}
-
-              <Text style={[styles.label, isMobile && styles.labelMobile]}>Full Name</Text>
-              <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
-                <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Enter your full name"
-                  placeholderTextColor="#98A6BA"
-                  returnKeyType="next"
-                  textContentType="name"
-                  autoCapitalize="words"
-                  editable={!loading}
-                  style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
-                />
-              </View>
-
-              <Text style={[styles.label, isMobile && styles.labelMobile]}>Email Address</Text>
-              <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
-                <TextInput
-                  value={email}
-                  onChangeText={(val) => {
-                    setEmail(val);
-                    // If the user changes the email, clear OTP verification for safety
-                    if (val.trim() !== verifiedEmail) {
-                      setOtpVerified(false);
-                      setOtpError('');
-                    }
-                  }}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#98A6BA"
-                  keyboardType="email-address"
-                  returnKeyType="next"
-                  textContentType="emailAddress"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!loading}
-                  style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
-                />
-              </View>
-
-              <Text style={[styles.label, isMobile && styles.labelMobile]}>Phone Number</Text>
-              <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
-                <TextInput
-                  value={phone}
-                  onChangeText={setPhone}
-                  placeholder="Enter phone number"
-                  placeholderTextColor="#98A6BA"
-                  keyboardType="phone-pad"
-                  returnKeyType="next"
-                  textContentType="telephoneNumber"
-                  editable={!loading}
-                  style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
-                />
-              </View>
-
-              <Text style={[styles.label, isMobile && styles.labelMobile]}>Password</Text>
-              <View style={[styles.inputBox, isMobile && styles.inputBoxMobile]}>
-                <TextInput
+              <View style={styles.column}>
+                <AuthField label="Phone number" icon="phone" value={phone} onChangeText={(value) => { setPhone(value); setError(''); }} placeholder="Your mobile number" keyboardType="phone-pad" textContentType="telephoneNumber" />
+                <AuthField
+                  label="Create password"
+                  icon="lock"
                   value={password}
-                  onChangeText={setPassword}
-                  placeholder="Create password"
-                  placeholderTextColor="#98A6BA"
+                  onChangeText={(value) => { setPassword(value); setError(''); }}
+                  placeholder="At least 8 characters"
                   secureTextEntry={!showPassword}
-                  returnKeyType="done"
-                  textContentType="newPassword"
                   autoCapitalize="none"
-                  editable={!loading}
-                  onSubmitEditing={handleSignup}
-                  style={[styles.input, isMobile && styles.inputMobile, isWeb && styles.webInput]}
+                  textContentType="newPassword"
+                  hint="Use at least one letter and one number."
+                  trailing={<Pressable accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} onPress={() => setShowPassword((value) => !value)} style={styles.eyeButton}><Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color={C.inkMuted} /></Pressable>}
                 />
-
-                <Pressable
-                  hitSlop={12}
-                  onPress={() => setShowPassword(prev => !prev)}
-                  disabled={loading}
-                  style={({ pressed }) => [
-                    styles.showButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.showButtonText}>
-                    {showPassword ? 'Hide' : 'Show'}
-                  </Text>
-                </Pressable>
               </View>
+            </View>
 
-              <View style={styles.agreeRow}>
-                <Pressable
-                  onPress={() => setAgreeToTerms(prev => !prev)}
-                  disabled={loading}
-                  style={styles.checkboxTouch}
-                >
-                  <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
-                    {agreeToTerms && <Text style={styles.checkboxCheckmark}>✓</Text>}
-                  </View>
-                </Pressable>
-                <View style={styles.agreeTextContainer}>
-                  <Text style={styles.agreeNormalText}>I agree to the </Text>
-                  <Pressable onPress={() => setShowTermsModal(true)} hitSlop={12}>
-                    <Text style={styles.agreeLinkText}>Terms of Service</Text>
-                  </Pressable>
-                  <Text style={styles.agreeNormalText}> and </Text>
+            <View style={styles.termsRow}>
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agreeToTerms }} onPress={() => { setAgreeToTerms((value) => !value); setError(''); }} style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
+                {agreeToTerms ? <Feather name="check" size={15} color="#FFFFFF" /> : null}
+              </Pressable>
+              <View style={styles.termsCopy}>
+                <Text style={styles.termsText}>I agree to the </Text>
+                <TextLink label="Terms of Service" onPress={() => setShowTerms(true)} />
+                <Text style={styles.termsText}> and </Text>
+                <TextLink label="Privacy Policy" onPress={() => void openExternalUrl(LEGAL_URLS.PRIVACY_POLICY)} />
+              </View>
+            </View>
+            <AuthButton label="Choose how you’ll use RouteFloww" onPress={validateAccount} />
+          </>
+        ) : null}
+
+        {step === 2 ? (
+          <>
+            <AuthHeading
+              eyebrow="Choose your workspace · Step 2"
+              title="What are you looking for?"
+              subtitle="Choose one role. This controls the tools and sign-in experience you’ll see."
+            />
+            {error ? <AuthMessage message={error} /> : null}
+            <ScrollView horizontal={narrow} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleGrid}>
+              {roleOptions.map((option) => {
+                const selected = role === option.value;
+                return (
                   <Pressable
-                    onPress={() => void openExternalUrl(LEGAL_URLS.PRIVACY_POLICY)}
-                    hitSlop={12}
-                    accessibilityRole="link"
-                    accessibilityLabel="Open RouteFloww Privacy Policy"
+                    key={option.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    onPress={() => { setRole(option.value); setError(''); }}
+                    style={({ pressed, focused }: any) => [styles.roleCard, selected && styles.roleCardSelected, focused && styles.roleCardFocused, pressed && styles.cardPressed]}
                   >
-                    <Text style={styles.agreeLinkText}>Privacy Policy</Text>
+                    {option.badge ? <Text style={styles.roleBadge}>{option.badge}</Text> : null}
+                    {selected ? <View style={styles.selectedMark}><Feather name="check" size={13} color="#FFFFFF" /></View> : null}
+                    <View style={[styles.roleIcon, selected && styles.roleIconSelected]}><Feather name={option.icon} size={28} color={selected ? '#FFFFFF' : C.primaryDark} /></View>
+                    <Text style={[styles.roleTitle, selected && styles.roleTitleSelected]}>{option.title}</Text>
+                    <Text style={styles.roleDescription}>{option.description}</Text>
                   </Pressable>
-                </View>
-              </View>
-
-              <Pressable
-                onPress={handleSignup}
-                disabled={loading}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  isMobile && styles.primaryButtonMobile,
-                  loading && styles.buttonDisabled,
-                  pressed && !loading && styles.primaryButtonPressed,
-                ]}
-              >
-                {loading ? (
-                  <>
-                    <ActivityIndicator color="#FFFFFF" size="small" />
-                    <Text style={[styles.primaryButtonText, isMobile && styles.primaryButtonTextMobile, styles.loadingText]}>
-                      Creating...
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={[styles.primaryButtonText, isMobile && styles.primaryButtonTextMobile]}>Create Account</Text>
-                )}
-              </Pressable>
-
-              {/* <View style={styles.dividerRow}>
-                <View style={styles.divider} />
-                <Text style={styles.orText}>OR</Text>
-                <View style={styles.divider} />
-              </View> */}
-
-              {/* <Pressable
-                disabled={loading}
-                style={({ pressed }) => [
-                  styles.googleButton,
-                  isMobile && styles.googleButtonMobile,
-                  pressed && !loading && styles.googleButtonPressed,
-                ]}
-              >
-                <GoogleMark />
-                <Text style={[styles.googleText, isMobile && styles.googleTextMobile]}>Sign up with Google</Text>
-              </Pressable> */}
-
-              <View style={styles.loginRow}>
-                <Text style={styles.loginText}>Already have an account?</Text>
-
-                <Pressable
-                  hitSlop={18}
-                  onPress={() => router.push('/login')}
-                  disabled={loading}
-                  style={({ pressed }) => [
-                    styles.loginPressable,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.loginLink}>Login</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-
-
-      <Modal
-        visible={showOtpModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => {
-          setShowOtpModal(false);
-          setOtpError(''); // Clear OTP error when modal is closed
-          setOtp(''); // Clear OTP input when modal is closed
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Pressable
-              onPress={() => {
-                setShowOtpModal(false);
-                setOtpError(''); // Clear any OTP errors
-                setOtp(''); // Clear OTP input
-              }}
-              hitSlop={10}
-              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </Pressable>
-            <Text style={styles.modalTitle}>Verify Email</Text>
-            <Text style={styles.modalSubtitle}>
-              Enter the 6-digit code sent to{"\n"}
-              <Text style={{ fontWeight: '600', color: '#17243B' }}>{email.trim()}</Text>
-            </Text>
-
-            <Text style={styles.modalHelper}>
-              Please check your Spam or Junk folder if you don't see the email.
-            </Text>
-
-            {otpError ? <Text style={styles.otpErrorText}>{otpError}</Text> : null}
-
-            <View style={styles.otpInputBox}>
-              <TextInput
-                value={otp}
-                onChangeText={setOtp}
-                placeholder="000000"
-                placeholderTextColor="#98A6BA"
-                keyboardType="number-pad"
-                maxLength={6}
-                style={styles.otpInput}
-                autoFocus
-              />
-            </View>
-
-            <Pressable
-              onPress={handleVerifyOtp}
-              disabled={otpLoading || otp.length < 6}
-              style={[styles.primaryButton, (otpLoading || otp.length < 6) && styles.buttonDisabled, { width: '100%' }]}
-            >
-              {otpLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Verify & Create Account</Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleSendOtp(email.trim(), true)} // Pass true for isResend
-              style={styles.resendButton}
-            >
-              <Text style={styles.resendText}>Resend Code</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Terms of Service Modal */}
-      <Modal
-        visible={showTermsModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowTermsModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.documentModalContainer,
-              { height: documentModalHeight },
-            ]}
-          >
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalHeaderTitle}>Terms of Service</Text>
-              <Pressable onPress={() => setShowTermsModal(false)} hitSlop={10}>
-                <Text style={styles.modalCloseText}>✕</Text>
-              </Pressable>
-            </View>
-            <ScrollView
-              style={[
-                styles.documentScroll,
-                { height: documentScrollHeight },
-              ]}
-              contentContainerStyle={styles.documentScrollContent}
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled
-              removeClippedSubviews={false}
-            >
-              <Text style={styles.documentBodyTitle}>RouteFloww Terms of Service</Text>
-              <Text style={styles.documentLastUpdated}>Last Updated: July 2026</Text>
-
-              <Text style={styles.documentSectionTitle}>Overview</Text>
-              <Text style={styles.documentParagraph}>
-                These Terms govern worldwide use of RouteFloww. By creating an account or using the app, users agree to these Terms. The app is jointly owned by Vaibhav Garg and Uttam Chand Rawat and is governed by the laws of India.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Eligibility</Text>
-              <Text style={styles.documentParagraph}>
-                Users must be at least 18 years old or use the Service with legally required parental/guardian consent.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Accounts</Text>
-              <Text style={styles.documentParagraph}>
-                Users register using email OTP and provide name, email, phone number and password. Users are responsible for maintaining account security.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Services</Text>
-              <Text style={styles.documentParagraph}>
-                Route creation, stop management, navigation, saved routes, route history and future related services.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Subscriptions</Text>
-              <Text style={styles.documentParagraph}>
-                Lite and Standard plans are available with a 7-day free trial. Charges renew unless cancelled according to the store policies.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Refunds</Text>
-              <Text style={styles.documentParagraph}>
-                Refund requests are reviewed individually. Approved refunds may be reduced by non-recoverable taxes or platform fees.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>User Content</Text>
-              <Text style={styles.documentParagraph}>
-                Users retain ownership of route information they create while granting RouteFloww a limited licence to host, process and display that content for providing the Service.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Prohibited Conduct</Text>
-              <Text style={styles.documentParagraph}>
-                No reverse engineering, scraping, bots, abuse, malware, illegal use or infringement of intellectual property.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Navigation Disclaimer</Text>
-              <Text style={styles.documentParagraph}>
-                Navigation is provided for convenience only. Users remain responsible for obeying traffic laws and exercising independent judgment.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Liability</Text>
-              <Text style={styles.documentParagraph}>
-                Service is provided 'as is'. Liability is limited to the maximum extent permitted by applicable law.
-              </Text>
-
-              <Text style={styles.documentSectionTitle}>Disputes</Text>
-              <Text style={styles.documentParagraph}>
-                Governed by Indian law. Arbitration seat: Muzaffarnagar, Uttar Pradesh, India.
-              </Text>
+                );
+              })}
             </ScrollView>
-            <Pressable style={styles.modalButton} onPress={() => setShowTermsModal(false)}>
-              <Text style={styles.modalButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+            <View style={styles.roleNote}><Feather name="shield" size={17} color={C.info} /><Text style={styles.roleNoteText}>Fleet driver accounts are created by a business admin—drivers never need to register themselves.</Text></View>
+            <View style={styles.actions}>
+              <AuthButton label="Back" icon="arrow-left" variant="secondary" onPress={back} style={styles.actionButton} />
+              <AuthButton label="Continue" onPress={continueRole} style={styles.actionButton} />
+            </View>
+          </>
+        ) : null}
 
-    </SafeAreaView>
+        {step === 3 && role === 'INDEPENDENT_DRIVER' ? (
+          <>
+            <AuthHeading eyebrow="Driver setup · Step 3" title="One last detail" subtitle="Your primary vehicle helps RouteFloww prepare the right starting workspace." />
+            {error ? <AuthMessage message={error} /> : null}
+            <Text style={styles.sectionLabel}>Primary vehicle</Text>
+            <View style={styles.vehicleGrid}>
+              {vehicles.map((vehicle) => {
+                const selected = vehicleType === vehicle.value;
+                return <Pressable key={vehicle.value} accessibilityRole="radio" accessibilityState={{ selected }} onPress={() => { setVehicleType(vehicle.value); setError(''); }} style={[styles.vehicleCard, selected && styles.vehicleCardSelected]}><Feather name={vehicle.icon} size={22} color={selected ? C.primaryDark : C.inkMuted} /><Text style={[styles.vehicleText, selected && styles.vehicleTextSelected]}>{vehicle.label}</Text>{selected ? <Feather name="check-circle" size={17} color={C.primary} /> : null}</Pressable>;
+              })}
+            </View>
+            <AuthMessage tone="info" message="That’s all we need. Route addresses and delivery details are added only when you create a route." />
+            <View style={styles.actions}><AuthButton label="Back" icon="arrow-left" variant="secondary" onPress={back} style={styles.actionButton} /><AuthButton label="Create driver account" icon="check" loading={loading} onPress={() => void sendVerificationCode()} style={styles.actionButton} /></View>
+          </>
+        ) : null}
+
+        {step === 3 && role === 'BUSINESS_OWNER' ? (
+          <>
+            <AuthHeading eyebrow="Business setup · Step 3" title="Name your workspace" subtitle="We only need the business name. An operating address is optional." />
+            {error ? <AuthMessage message={error} /> : null}
+            <View style={[styles.twoColumns, narrow && styles.oneColumn]}>
+              <View style={styles.column}><AuthField label="Business name" icon="briefcase" value={companyName} onChangeText={(value) => { setCompanyName(value); setError(''); }} placeholder="e.g. Acme Express Logistics" autoCapitalize="words" /></View>
+              <View style={styles.column}><AuthField label="Operating address (optional)" icon="map-pin" value={companyAddress} onChangeText={setCompanyAddress} placeholder="City, depot or main office" autoCapitalize="words" hint="Useful as a reference only; it does not limit your routes." /></View>
+            </View>
+            <View style={styles.summaryCard}><View style={styles.summaryIcon}><Feather name="users" size={21} color={C.primaryDark} /></View><View style={{ flex: 1 }}><Text style={styles.summaryTitle}>Your admin workspace includes</Text><Text style={styles.summaryText}>Driver accounts, access codes, route assignment and live delivery oversight.</Text></View></View>
+            <View style={styles.actions}><AuthButton label="Back" icon="arrow-left" variant="secondary" onPress={back} style={styles.actionButton} /><AuthButton label="Create business account" icon="check" loading={loading} onPress={() => void sendVerificationCode()} style={styles.actionButton} /></View>
+          </>
+        ) : null}
+
+        {step === 3 && role === 'FLEET_DRIVER' ? (
+          <View style={styles.fleetPanel}>
+            <View style={styles.fleetIcon}><Feather name="key" size={30} color={C.primaryDark} /></View>
+            <Text style={styles.fleetTitle}>Your business creates this account</Text>
+            <Text style={styles.fleetText}>Ask your business admin to add you in RouteFloww. They’ll give you a private access code to use with your email or phone number.</Text>
+            <View style={styles.fleetSteps}><View style={styles.fleetStep}><Text style={styles.fleetStepNumber}>1</Text><Text style={styles.fleetStepText}>Business creates your driver profile</Text></View><View style={styles.fleetStep}><Text style={styles.fleetStepNumber}>2</Text><Text style={styles.fleetStepText}>They share your private code securely</Text></View><View style={styles.fleetStep}><Text style={styles.fleetStepNumber}>3</Text><Text style={styles.fleetStepText}>Sign in and see assigned routes</Text></View></View>
+            <View style={styles.actions}><AuthButton label="Choose another role" icon="arrow-left" variant="secondary" onPress={back} style={styles.actionButton} /><AuthButton label="I have an access code" icon="log-in" onPress={() => router.replace('/login')} style={styles.actionButton} /></View>
+          </View>
+        ) : null}
+
+        <View style={styles.signinRow}><Text style={styles.signinText}>Already have an account?</Text><TextLink label="Sign in" onPress={() => router.replace('/login')} /></View>
+      </AuthShell>
+
+      <OtpModal visible={showOtp} email={email} otp={otp} setOtp={setOtp} error={otpError} loading={otpLoading} onClose={() => !otpLoading && setShowOtp(false)} onVerify={verifyCode} onResend={() => void sendVerificationCode(true)} />
+      <TermsModal visible={showTerms} onClose={() => setShowTerms(false)} />
+    </>
   );
 }
 
+function OtpModal({ visible, email, otp, setOtp, error, loading, onClose, onVerify, onResend }: { visible: boolean; email: string; otp: string; setOtp: (value: string) => void; error: string; loading: boolean; onClose: () => void; onVerify: () => void; onResend: () => void }) {
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}><View style={styles.modalOverlay}><View accessibilityViewIsModal style={styles.otpCard}><Pressable accessibilityLabel="Close verification" onPress={onClose} style={styles.modalClose}><Feather name="x" size={20} color={C.inkMuted} /></Pressable><View style={styles.otpIcon}><Feather name="mail" size={24} color={C.primaryDark} /></View><Text style={styles.otpTitle}>Check your email</Text><Text style={styles.otpText}>Enter the 6-digit code sent to <Text style={styles.otpEmail}>{email}</Text>.</Text>{error ? <AuthMessage tone={/fresh code/i.test(error) ? 'success' : 'error'} message={error} /> : null}<TextInput accessibilityLabel="Six digit verification code" value={otp} onChangeText={(value) => setOtp(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={6} placeholder="000000" placeholderTextColor={C.inkSubtle} style={styles.otpInput} onSubmitEditing={onVerify} /><AuthButton label="Verify and create account" icon="check-circle" loading={loading} onPress={onVerify} /><Pressable disabled={loading} onPress={onResend} style={styles.resend}><Text style={styles.resendText}>Send a new code</Text></Pressable></View></View></Modal>;
+}
+
+function TermsModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View accessibilityViewIsModal style={styles.termsModal}>
+          <View style={styles.termsHeader}>
+            <Text style={styles.termsTitle}>Terms of Service</Text>
+            <Pressable accessibilityLabel="Close terms" onPress={onClose}><Feather name="x" size={21} color={C.inkMuted} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.termsDocument}>
+            <Text style={styles.documentDate}>Last updated: July 2026</Text>
+            <Term title="Overview">These Terms govern worldwide use of RouteFloww. By creating an account or using the app, you agree to these Terms. The app is jointly owned by Vaibhav Garg and Uttam Chand Rawat and governed by the laws of India.</Term>
+            <Term title="Eligibility">You must be at least 18 years old or use the service with any legally required parent or guardian consent.</Term>
+            <Term title="Accounts">Keep your sign-in credentials private and provide accurate account information. Business admins are responsible for sharing fleet-driver access codes securely.</Term>
+            <Term title="Services">RouteFloww provides route creation, stop management, navigation, saved routes, route history and related delivery tools.</Term>
+            <Term title="Subscriptions and refunds">Paid plans may renew unless cancelled according to the applicable app-store policy. Refund requests are reviewed individually and may exclude non-recoverable taxes or platform fees.</Term>
+            <Term title="User content">You retain ownership of route information you create and grant RouteFloww a limited licence to process it only to provide the service.</Term>
+            <Term title="Navigation disclaimer">Navigation is provided for convenience. Drivers remain responsible for traffic laws, road conditions and independent judgment.</Term>
+            <Term title="Acceptable use">Do not reverse engineer, scrape, abuse, introduce malware, use the service illegally or infringe intellectual property.</Term>
+            <Term title="Liability and disputes">The service is provided “as is” to the extent permitted by law. Indian law applies; the arbitration seat is Muzaffarnagar, Uttar Pradesh, India.</Term>
+          </ScrollView>
+          <AuthButton label="Close" icon="check" onPress={onClose} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function Term({ title, children }: { title: string; children: string }) {
+  return <View><Text style={styles.documentTitle}>{title}</Text><Text style={styles.documentText}>{children}</Text></View>;
+}
+
 const styles = StyleSheet.create({
-
-  cardMobile: {
-    paddingHorizontal: 28,
-    paddingTop: 34,
-    paddingBottom: 26,
-    borderRadius: 28,
-  },
-
-  logoBoxMobile: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    marginRight: 11,
-  },
-
-  brandTextMobile: {
-    fontSize: 27,
-    lineHeight: 34,
-    fontWeight: '700',
-    letterSpacing: -0.45,
-  },
-
-  routeIntroBlockMobile: {
-    marginTop: 32,
-    marginBottom: 30,
-  },
-
-  routeIntroTitleMobile: {
-    fontSize: 26,
-    lineHeight: 33,
-    fontWeight: '700',
-    letterSpacing: -0.45,
-  },
-
-  routeIntroSubtitleMobile: {
-    marginTop: 9,
-    maxWidth: 320,
-    fontSize: 16,
-    lineHeight: 24,
-  },
-
-  headerBlockMobile: {
-    marginBottom: 25,
-  },
-
-  titleMobile: {
-    fontSize: 31,
-    lineHeight: 38,
-    fontWeight: '700',
-    letterSpacing: -0.55,
-  },
-
-  subtitleMobile: {
-    marginTop: 9,
-    fontSize: 16,
-    lineHeight: 24,
-  },
-
-  labelMobile: {
-    marginBottom: 9,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '600',
-  },
-
-  inputBoxMobile: {
-    height: 58,
-    borderRadius: 17,
-    marginBottom: 19,
-  },
-
-  inputMobile: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-
-  primaryButtonMobile: {
-    height: 58,
-    borderRadius: 17,
-    marginTop: 2,
-  },
-
-  primaryButtonTextMobile: {
-    fontSize: 17,
-    lineHeight: 23,
-    fontWeight: '600',
-  },
-
-  googleButtonMobile: {
-    height: 54,
-    borderRadius: 17,
-  },
-
-  googleTextMobile: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '600',
-  },
-
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F4F8FC',
-  },
-
-  keyboardRoot: {
-    flex: 1,
-  },
-
-  backgroundLayer: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-  },
-
-  bgGlowTop: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    top: -150,
-    right: -110,
-    backgroundColor: '#DDEEFF',
-  },
-
-  bgGlowBottom: {
-    position: 'absolute',
-    width: 330,
-    height: 330,
-    borderRadius: 165,
-    left: -150,
-    bottom: -150,
-    backgroundColor: '#E9F4FF',
-  },
-
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 32,
-    justifyContent: 'center',
-  },
-
-  scrollContentWide: {
-    paddingVertical: 40,
-  },
-
-  container: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-  },
-
-  containerWide: {
-    maxWidth: 430,
-  },
-
-  card: {
-    width: '100%',
-    borderRadius: 26,
-    paddingHorizontal: 24,
-    paddingTop: 30,
-    paddingBottom: 24,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4ECF5',
-    shadowColor: '#6B8EB8',
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.12,
-    shadowRadius: 26,
-    elevation: 8,
-  },
-
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  logoImage: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    marginRight: 10,
-  },
-
-  logoImageMobile: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    marginRight: 8,
-  },
-
-  logoBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: '#176BFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-    shadowColor: '#176BFF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-
-  logoArrow: {
-    color: '#FFFFFF',
-    fontSize: 21,
-    lineHeight: 24,
-    fontWeight: '600',
-    fontFamily: APP_FONT,
-  },
-
-  brandText: {
-    color: '#0B1830',
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: '600',
-    letterSpacing: -0.35,
-    fontFamily: APP_FONT,
-  },
-
-  brandBlue: {
-    color: '#176BFF',
-  },
-
-  routeIntroBlock: {
-    marginTop: 28,
-    marginBottom: 28,
-    alignItems: 'center',
-  },
-
-  routeIntroTitle: {
-    color: '#0B1830',
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: '600',
-    textAlign: 'center',
-    letterSpacing: -0.35,
-    fontFamily: APP_FONT,
-  },
-
-  routeIntroSubtitle: {
-    marginTop: 8,
-    color: '#66758C',
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '400',
-    textAlign: 'center',
-    fontFamily: APP_FONT,
-  },
-
-  headerBlock: {
-    marginBottom: 22,
-  },
-
-  title: {
-    color: '#0B1830',
-    fontSize: 29,
-    lineHeight: 36,
-    fontWeight: '600',
-    letterSpacing: -0.45,
-    fontFamily: APP_FONT,
-  },
-
-  subtitle: {
-    marginTop: 8,
-    color: '#66758C',
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '400',
-    fontFamily: APP_FONT,
-  },
-
-  errorText: {
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 13,
-    backgroundColor: '#FEF2F2',
-    color: '#DC2626',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '400',
-    fontFamily: APP_FONT,
-  },
-
-  label: {
-    marginBottom: 8,
-    color: '#17243B',
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: '500',
-    fontFamily: APP_FONT,
-  },
-
-  inputBox: {
-    height: 56,
-    borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: '#D9E3EF',
-    backgroundColor: '#FBFDFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 18,
-  },
-
-  input: {
-    flex: 1,
-    height: '100%',
-    paddingVertical: 0,
-    color: '#0B1830',
-    fontSize: 16,
-    fontWeight: '400',
-    fontFamily: APP_FONT,
-  },
-
-  webInput: {
-    outlineStyle: 'none',
-    outlineWidth: 0,
-  } as any,
-
-  showButton: {
-    minWidth: 48,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-
-  showButtonText: {
-    color: '#64748B',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '500',
-    fontFamily: APP_FONT,
-  },
-
-  primaryButton: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#176BFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#176BFF',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-
-  primaryButtonPressed: {
-    transform: [{ translateY: 1 }],
-  },
-
-  buttonDisabled: {
-    opacity: 0.65,
-  },
-
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '600',
-    fontFamily: APP_FONT,
-  },
-
-  loadingText: {
-    marginLeft: 10,
-  },
-
-  dividerRow: {
-    marginVertical: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E1EAF3',
-  },
-
-  orText: {
-    marginHorizontal: 14,
-    color: '#8B98AA',
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '500',
-    fontFamily: APP_FONT,
-  },
-
-  googleButton: {
-    height: 54,
-    borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: '#D9E3EF',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  googleButtonPressed: {
-    backgroundColor: '#F8FAFC',
-  },
-
-  googleMark: {
-    width: 21,
-    height: 21,
-    position: 'relative',
-  },
-
-  googleArc: {
-    position: 'absolute',
-    width: 21,
-    height: 21,
-    borderRadius: 11,
-    borderWidth: 4,
-    borderColor: 'transparent',
-  },
-
-  googleBlue: {
-    borderTopColor: '#4285F4',
-    borderRightColor: '#4285F4',
-    transform: [{ rotate: '8deg' }],
-  },
-
-  googleRed: {
-    borderTopColor: '#EA4335',
-    borderLeftColor: '#EA4335',
-    transform: [{ rotate: '-18deg' }],
-  },
-
-  googleYellow: {
-    borderLeftColor: '#FBBC05',
-    borderBottomColor: '#FBBC05',
-    transform: [{ rotate: '-8deg' }],
-  },
-
-  googleGreen: {
-    borderBottomColor: '#34A853',
-    borderRightColor: '#34A853',
-    transform: [{ rotate: '-8deg' }],
-  },
-
-  googleHole: {
-    position: 'absolute',
-    width: 11,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: '#FFFFFF',
-    left: 5,
-    top: 5,
-  },
-
-  googleCut: {
-    position: 'absolute',
-    width: 9,
-    height: 9,
-    backgroundColor: '#FFFFFF',
-    right: -1,
-    top: 6,
-  },
-
-  googleBar: {
-    position: 'absolute',
-    width: 10,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: '#4285F4',
-    right: 0,
-    top: 9,
-  },
-
-  googleText: {
-    marginLeft: 12,
-    color: '#17243B',
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '500',
-    fontFamily: APP_FONT,
-  },
-
-  loginRow: {
-    marginTop: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  loginText: {
-    color: '#66758C',
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '400',
-    fontFamily: APP_FONT,
-  },
-
-  loginPressable: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    marginLeft: 3,
-    borderRadius: 10,
-  },
-
-  loginLink: {
-    color: '#176BFF',
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '600',
-    fontFamily: APP_FONT,
-  },
-
-  pressed: {
-    opacity: 0.72,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(11, 24, 48, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0B1830',
-    marginBottom: 8,
-    fontFamily: APP_FONT,
-  },
-  modalSubtitle: {
-    fontSize: 15,
-    color: '#66758C',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-    fontFamily: APP_FONT,
-  },
-  modalHelper: {
-    fontSize: 13,
-    color: '#66758C',
-    textAlign: 'center',
-    marginBottom: 12,
-    fontFamily: APP_FONT,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeButtonText: {
-    color: '#64748B',
-    fontSize: 18,
-    fontWeight: '600',
-    fontFamily: APP_FONT,
-  },
-  otpInputBox: {
-    width: '100%',
-    height: 60,
-    borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: '#D9E3EF',
-    backgroundColor: '#FBFDFF',
-    marginBottom: 20,
-    justifyContent: 'center',
-  },
-  otpInput: {
-    fontSize: 28,
-    textAlign: 'center',
-    letterSpacing: 8,
-    color: '#176BFF',
-    fontWeight: '700',
-    fontFamily: APP_FONT,
-  },
-  resendButton: {
-    marginTop: 20,
-    padding: 10,
-  },
-  resendText: {
-    color: '#176BFF',
-    fontSize: 14,
-    fontWeight: '600',
-    fontFamily: APP_FONT,
-  },
-  otpErrorText: {
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 13,
-    backgroundColor: '#FEF2F2',
-    color: '#DC2626',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '400',
-    fontFamily: APP_FONT,
-  },
-  agreeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-    marginBottom: 8,
-    paddingHorizontal: 4,
-    flexWrap: 'wrap',
-  },
-  checkboxTouch: {
-    padding: 6,
-    marginLeft: -6,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#98A6BA',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  checkboxChecked: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  checkboxCheckmark: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  agreeTextContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    flex: 1,
-    marginLeft: 4,
-  },
-  agreeNormalText: {
-    fontSize: 13,
-    color: '#64748B',
-    fontFamily: APP_FONT,
-    lineHeight: 20,
-  },
-  agreeLinkText: {
-    fontSize: 13,
-    color: '#2563EB',
-    fontFamily: APP_FONT,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-    lineHeight: 20,
-  },
-  documentModalContainer: {
-    width: '100%',
-    maxWidth: 540,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    maxHeight: '80%',
-    flexShrink: 1,
-    shadowColor: '#000000',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  modalHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingBottom: 12,
-    marginBottom: 16,
-  },
-  modalHeaderTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-    fontFamily: APP_FONT,
-  },
-  modalCloseText: {
-    fontSize: 18,
-    color: '#64748B',
-    padding: 4,
-  },
-  documentScroll: {
-    flexGrow: 1,
-    flexShrink: 1,
-    marginBottom: 16,
-  },
-  documentScrollContent: {
-    paddingBottom: 12,
-  },
-  documentBodyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
-    fontFamily: APP_FONT,
-  },
-  documentLastUpdated: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 16,
-    fontFamily: APP_FONT,
-  },
-  documentSectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 16,
-    marginBottom: 6,
-    fontFamily: APP_FONT,
-  },
-  documentParagraph: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 18,
-    fontFamily: APP_FONT,
-  },
-  modalButton: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#475569',
-    fontFamily: APP_FONT,
-  },
-});
-
-const roleStyles = StyleSheet.create({
-  roleCardsContainer: {
-    gap: 8,
-    marginBottom: 16,
-  },
-  roleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
-  roleCardActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#EFF6FF',
-  },
-  roleIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  roleTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0F172A',
-    fontFamily: APP_FONT,
-  },
-  roleTitleActive: {
-    color: '#2563EB',
-  },
-  roleSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-    fontFamily: APP_FONT,
-  },
-  roleCheck: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2563EB',
-    marginLeft: 8,
-  },
+  twoColumns: { flexDirection: 'row', gap: 18 },
+  oneColumn: { flexDirection: 'column', gap: 0 },
+  column: { flex: 1, minWidth: 0 },
+  eyeButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 20 },
+  checkbox: { width: 22, height: 22, borderRadius: 7, borderWidth: 1.4, borderColor: '#BAC8D9', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkboxChecked: { backgroundColor: C.primary, borderColor: C.primary },
+  termsCopy: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 3 },
+  termsText: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 13, lineHeight: 20 },
+  roleGrid: { flexGrow: 1, justifyContent: 'center', gap: 12, paddingVertical: 4, paddingHorizontal: 2 },
+  roleCard: { width: 190, height: 190, borderRadius: 20, padding: 16, backgroundColor: '#FBFDFF', borderWidth: 1.2, borderColor: '#D8E3EF', justifyContent: 'flex-end', position: 'relative' },
+  roleCardSelected: { borderColor: C.primary, backgroundColor: '#F3F7FF', shadowColor: C.primary, shadowOpacity: 0.13, shadowRadius: 14, elevation: 3 },
+  roleCardFocused: { borderWidth: 2 },
+  cardPressed: { transform: [{ scale: 0.985 }] },
+  roleBadge: { position: 'absolute', top: 13, left: 13, color: C.info, fontFamily: AUTH_FONT, fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.45 },
+  selectedMark: { position: 'absolute', right: 12, top: 12, width: 23, height: 23, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  roleIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft, marginBottom: 14 },
+  roleIconSelected: { backgroundColor: C.primary },
+  roleTitle: { color: C.ink, fontFamily: AUTH_FONT, fontSize: 14, lineHeight: 19, fontWeight: '600' },
+  roleTitleSelected: { color: C.primaryDark },
+  roleDescription: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 12, lineHeight: 17, marginTop: 5 },
+  roleNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 12, borderRadius: 13, backgroundColor: C.infoSoft, marginTop: 16, marginBottom: 20 },
+  roleNoteText: { flex: 1, color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 12, lineHeight: 18 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
+  actionButton: { flex: 1, minWidth: 190 },
+  sectionLabel: { color: C.ink, fontFamily: AUTH_FONT, fontSize: 13, fontWeight: '600', marginBottom: 10 },
+  vehicleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  vehicleCard: { flex: 1, minWidth: 135, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 15, borderWidth: 1.2, borderColor: '#D8E3EF', backgroundColor: '#FBFDFF' },
+  vehicleCardSelected: { borderColor: C.primary, backgroundColor: C.primarySoft },
+  vehicleText: { flex: 1, color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 13, fontWeight: '500' },
+  vehicleTextSelected: { color: C.primaryDark },
+  summaryCard: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#C9DBF5', backgroundColor: C.primarySoft, marginBottom: 20 },
+  summaryIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  summaryTitle: { color: C.ink, fontFamily: AUTH_FONT, fontSize: 13, fontWeight: '600' },
+  summaryText: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  fleetPanel: { alignItems: 'center', paddingVertical: 8 },
+  fleetIcon: { width: 70, height: 70, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft, marginBottom: 18 },
+  fleetTitle: { color: C.ink, fontFamily: AUTH_FONT, fontSize: 23, lineHeight: 30, fontWeight: '600', textAlign: 'center' },
+  fleetText: { maxWidth: 540, color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 9 },
+  fleetSteps: { width: '100%', maxWidth: 560, gap: 9, marginVertical: 22 },
+  fleetStep: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12, borderRadius: 14, backgroundColor: '#F8FAFD', borderWidth: 1, borderColor: '#E2E9F2' },
+  fleetStepNumber: { width: 26, height: 26, borderRadius: 13, color: C.primaryDark, backgroundColor: C.primarySoft, textAlign: 'center', lineHeight: 26, fontFamily: AUTH_FONT, fontSize: 12, fontWeight: '600' },
+  fleetStepText: { flex: 1, color: C.ink, fontFamily: AUTH_FONT, fontSize: 12, fontWeight: '500' },
+  signinRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 22 },
+  signinText: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 13 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(10, 24, 44, 0.58)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  otpCard: { width: '100%', maxWidth: 430, borderRadius: 24, backgroundColor: '#FFFFFF', padding: 26, position: 'relative' },
+  modalClose: { position: 'absolute', right: 14, top: 14, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  otpIcon: { width: 54, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft, marginBottom: 15 },
+  otpTitle: { color: C.ink, fontFamily: AUTH_FONT, fontSize: 21, fontWeight: '600' },
+  otpText: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 13, lineHeight: 20, marginTop: 6, marginBottom: 18 },
+  otpEmail: { color: C.ink, fontFamily: AUTH_FONT, fontWeight: '600' },
+  otpInput: { height: 58, borderRadius: 15, borderWidth: 1.2, borderColor: '#C8D6E6', backgroundColor: '#FBFDFF', color: C.ink, textAlign: 'center', fontFamily: AUTH_FONT, fontSize: 22, fontWeight: '600', letterSpacing: 8, marginBottom: 16 },
+  resend: { minHeight: 42, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  resendText: { color: C.primaryDark, fontFamily: AUTH_FONT, fontSize: 12, fontWeight: '600' },
+  termsModal: { width: '100%', maxWidth: 650, maxHeight: '88%', borderRadius: 24, backgroundColor: '#FFFFFF', padding: 24 },
+  termsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: C.line },
+  termsTitle: { color: C.ink, fontFamily: AUTH_FONT, fontSize: 19, fontWeight: '600' },
+  termsDocument: { gap: 17, paddingVertical: 20 },
+  documentDate: { color: C.inkSubtle, fontFamily: AUTH_FONT, fontSize: 11 },
+  documentTitle: { color: C.ink, fontFamily: AUTH_FONT, fontSize: 14, fontWeight: '600', marginBottom: 5 },
+  documentText: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 13, lineHeight: 20 },
 });

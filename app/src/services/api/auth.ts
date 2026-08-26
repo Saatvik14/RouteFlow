@@ -11,7 +11,16 @@ import { apiPost } from './client';
  */
 export interface LoginRequest {
   identifier: string;
-  password: string;
+  password?: string;
+  accessCode?: string;
+}
+
+export type AuthMethod = 'password' | 'access_code';
+
+export interface IdentifyAccountResponse {
+  authMethod: AuthMethod;
+  role: 'INDEPENDENT_DRIVER' | 'BUSINESS_OWNER' | 'FLEET_DRIVER' | 'PLATFORM_ADMIN';
+  roleLabel: string;
 }
 
 /**
@@ -21,9 +30,10 @@ export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   user: {
-    id: string;
-    email: string;
+    id: number;
+    email: string | null;
     name: string;
+    role: string;
     avatar?: string;
   };
 }
@@ -39,6 +49,8 @@ export interface SignupRequest {
   role: string;
   company_name?: string;
   address?: string;
+  vehicle_type?: 'car' | 'van' | 'truck' | 'motorbike';
+  email_verification_token: string;
 }
 
 /**
@@ -54,6 +66,11 @@ export interface SendOtpRequest {
 export interface VerifyOtpRequest {
   email: string;
   otp: string;
+}
+
+export interface VerifyOtpResponse {
+  message: string;
+  verificationToken: string;
 }
 
 /**
@@ -75,6 +92,10 @@ export interface PasswordResetConfirm {
  * Auth Service functions
  */
 export const authService = {
+  /** Resolve the account role and credential type before asking for a secret. */
+  identify: (identifier: string) =>
+    apiPost<IdentifyAccountResponse>(API_ENDPOINTS.AUTH.IDENTIFY, { identifier }),
+
   /**
    * Login user
    */
@@ -97,7 +118,7 @@ export const authService = {
    * Verify OTP for email
    */
   verifyOtp: (data: VerifyOtpRequest) =>
-    apiPost(API_ENDPOINTS.AUTH.VERIFY_OTP, data),
+    apiPost<VerifyOtpResponse>(API_ENDPOINTS.AUTH.VERIFY_OTP, data),
 
   /**
    * Logout user

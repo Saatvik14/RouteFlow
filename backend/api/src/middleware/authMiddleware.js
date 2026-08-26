@@ -21,7 +21,17 @@ const protect = async (req, res, next) => {
       // Get user from the token with subscription_type from config_model
       const userResult = await runQuery(
         `SELECT u.user_id, u.name, u.phone_no, u.email, u.role, u.status, u.created_at,
-                COALESCE(cm.subscription_type, 'trial') AS subscription_type
+                COALESCE(cm.subscription_type, 'trial') AS subscription_type,
+                EXISTS (
+                  SELECT 1
+                  FROM organization_memberships om
+                  JOIN drivers d ON d.membership_id = om.membership_id
+                  WHERE om.user_id = u.user_id
+                    AND om.role = 'driver'
+                    AND om.status = 'active'
+                    AND d.is_active = TRUE
+                    AND d.removed_at IS NULL
+                ) AS has_active_fleet_access
          FROM users u
          LEFT JOIN config_model cm ON cm.user_id = u.user_id
          WHERE u.user_id = $1`,
@@ -35,6 +45,10 @@ const protect = async (req, res, next) => {
 
       if (String(user.status || '').toLowerCase() !== 'active') {
         return res.status(403).json({ message: 'This account is inactive.' });
+      }
+
+      if (String(user.role || '').toUpperCase() === 'FLEET_DRIVER' && !user.has_active_fleet_access) {
+        return res.status(403).json({ message: 'This driver account is inactive.' });
       }
 
       req.user = user; // Attach user object to the request

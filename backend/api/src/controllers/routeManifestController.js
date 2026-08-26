@@ -1,6 +1,7 @@
 const multer = require('multer');
 const xlsx = require('xlsx');
 const Tesseract = require('tesseract.js');
+const { geocodeText: geocodeWithFallback } = require('../services/locationProviderService');
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
@@ -11,7 +12,7 @@ const upload = multer({
   },
 });
 
-const normalizeGeoapifyResult = result => {
+const normalizeLocationResult = result => {
   if (!result) return null;
 
   const address =
@@ -56,23 +57,10 @@ const normalizeGeoapifyResult = result => {
 };
 
 const geocodeText = async text => {
-  const apiKey = process.env.GEOAPIFY_API_KEY;
+  const { results } = await geocodeWithFallback(text, { limit: 5 });
 
-  if (!apiKey) {
-    throw new Error('GEOAPIFY_API_KEY is missing');
-  }
-
-  const url = new URL('https://api.geoapify.com/v1/geocode/search');
-  url.searchParams.append('text', text);
-  url.searchParams.append('limit', '5');
-  url.searchParams.append('format', 'json');
-  url.searchParams.append('apiKey', apiKey);
-
-  const response = await fetch(url.toString());
-  const data = await response.json();
-
-  return (data.results || [])
-    .map(normalizeGeoapifyResult)
+  return results
+    .map(normalizeLocationResult)
     .filter(Boolean);
 };
 

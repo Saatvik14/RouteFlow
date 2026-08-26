@@ -8,3 +8,5 @@
 \ir 20260823_005_create_route_locations.sql
 \ir 20260823_006_backfill_independent_driver_workspaces.sql
 \ir 20260824_007_create_ai_assignment_recommendations.sql
+\ir 20260825_008_add_address_to_organizations.sql
+\ir 20260826_009_add_role_aware_authentication.sql

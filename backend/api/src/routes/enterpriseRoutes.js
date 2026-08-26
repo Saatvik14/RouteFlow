@@ -12,6 +12,7 @@ const team = require('../controllers/teamController');
 const operations = require('../controllers/operationsController');
 const dispatch = require('../controllers/dispatchController');
 const assignmentRecommendations = require('../controllers/assignmentRecommendationController');
+const fleetAccess = require('../controllers/fleetAccessController');
 
 const router = express.Router();
 
@@ -33,6 +34,12 @@ const assignmentRecommendationLimit = createRateLimiter({
   code: 'ASSIGNMENT_RECOMMENDATION_RATE_LIMITED',
   keyGenerator: (req) => `${req.organization?.id || 'none'}:${req.user?.user_id || req.ip}:assignment-recommendation`,
 });
+const fleetProvisionLimit = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  code: 'FLEET_PROVISION_RATE_LIMITED',
+  keyGenerator: (req) => `${req.organization?.id || 'none'}:${req.user?.user_id || req.ip}:fleet-provision`,
+});
 
 router.get('/invitations/accept/:token', publicInvitationLimit, asyncHandler(invitations.previewInvitation));
 router.post('/invitations/accept/:token/new', publicInvitationLimit, asyncHandler(invitations.acceptNewInvitation));
@@ -48,7 +55,9 @@ router.post('/invitations/:invitationId/resend', requireBusinessRole, invitation
 router.post('/invitations/:invitationId/revoke', requireBusinessRole, asyncHandler(invitations.revokeInvitation));
 
 router.get('/team', requireOrganizationRoles('owner', 'admin', 'dispatcher', 'viewer'), asyncHandler(team.listTeam));
+router.post('/team/drivers', requireBusinessRole, fleetProvisionLimit, asyncHandler(fleetAccess.provisionFleetDriver));
 router.get('/team/drivers/:driverId/history', requireOrganizationRoles('owner', 'admin', 'dispatcher', 'viewer'), asyncHandler(team.getDriverHistory));
+router.post('/team/drivers/:driverId/access-code', requireBusinessRole, fleetProvisionLimit, asyncHandler(fleetAccess.resetFleetDriverAccessCode));
 router.patch('/team/drivers/:driverId', requireBusinessRole, asyncHandler(team.updateDriver));
 router.delete('/team/drivers/:driverId', requireOrganizationRoles('owner', 'admin'), asyncHandler(team.removeDriver));
 router.post('/routes/:routeId/change-requests', asyncHandler(team.requestRouteChange));

@@ -43,7 +43,7 @@ export interface DriverProfile {
   membershipId: number | null;
   accountUserId: number | null;
   name: string;
-  email: string;
+  email: string | null;
   phone?: string | null;
   active: boolean;
   membershipStatus: 'active' | 'inactive' | 'removed';
@@ -198,6 +198,13 @@ export const enterpriseService = {
   getInvitations: () => apiGet<{ invitations: Invitation[] }>(API_ENDPOINTS.ENTERPRISE.INVITATIONS),
   invite: (data: { name: string; email: string; role: OrganizationRole }) =>
     apiPost<{ invitation: Invitation }>(API_ENDPOINTS.ENTERPRISE.INVITATIONS, data),
+  createFleetDriver: (data: { name: string; email?: string; phone?: string }) =>
+    apiPost<{ driver: Pick<DriverProfile, 'driverId' | 'name' | 'email' | 'phone'>; accessCode: string }>(
+      API_ENDPOINTS.ENTERPRISE.CREATE_FLEET_DRIVER,
+      data,
+    ),
+  resetFleetDriverAccessCode: (id: number) =>
+    apiPost<{ accessCode: string }>(API_ENDPOINTS.ENTERPRISE.DRIVER_ACCESS_CODE(id)),
   resendInvitation: (id: number) => apiPost(API_ENDPOINTS.ENTERPRISE.INVITATION_RESEND(id)),
   revokeInvitation: (id: number) => apiPost(API_ENDPOINTS.ENTERPRISE.INVITATION_REVOKE(id)),
   previewInvitation: (token: string) => apiGet<any>(API_ENDPOINTS.ENTERPRISE.INVITATION_PREVIEW(token)),

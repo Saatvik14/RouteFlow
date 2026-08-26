@@ -119,9 +119,20 @@ export const routesService = {
   /**
    * Get address autocomplete suggestions based on user input
    */
-  getAutocompleteAddress: (text: string, limit = 10) =>
+  getAutocompleteAddress: (text: string, limit = 10, sessionToken?: string) =>
     apiGet<any>(
-      `${API_ENDPOINTS.ROUTES.AUTOCOMPLETE_ADDRESS}?text=${encodeURIComponent(text)}&limit=${limit}`
+      `${API_ENDPOINTS.ROUTES.AUTOCOMPLETE_ADDRESS}?text=${encodeURIComponent(text)}&limit=${limit}${sessionToken ? `&sessionToken=${encodeURIComponent(sessionToken)}` : ''}`
+    ),
+
+  /** Resolve an autocomplete prediction only after the user selects it. */
+  getPlaceDetails: (
+    placeId: string,
+    provider: string,
+    text: string,
+    sessionToken?: string,
+  ) =>
+    apiGet<any>(
+      `${API_ENDPOINTS.ROUTES.PLACE_DETAILS}?placeId=${encodeURIComponent(placeId)}&provider=${encodeURIComponent(provider)}&text=${encodeURIComponent(text)}${sessionToken ? `&sessionToken=${encodeURIComponent(sessionToken)}` : ''}`,
     ),
 
     /**

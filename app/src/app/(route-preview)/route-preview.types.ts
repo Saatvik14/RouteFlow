@@ -11,9 +11,11 @@ export type PlaceSuggestion = {
   title: string;
   subtitle: string;
   fullAddress: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   details?: any;
+  provider?: string;
+  sessionToken?: string;
 };
 
 export type StopDetails = {

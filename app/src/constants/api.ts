@@ -51,8 +51,8 @@ function getDevelopmentBaseUrl() {
 }
 
 // Default backend host (use your Render URL)
-const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
-// const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
+// const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
+const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_BACKEND_URL;
 
@@ -69,6 +69,7 @@ export const API_BASE_URL = API_CONFIG.BASE_URL;
 export const API_ENDPOINTS = {
   // Authentication endpoints
   AUTH: {
+    IDENTIFY: '/users/identify',
     LOGIN: '/users/login',
     SIGNUP: '/users/signup',
     SEND_OTP: '/users/send-otp',
@@ -101,6 +102,7 @@ export const API_ENDPOINTS = {
     GET_USER_ROUTES: '/route/user/all',
     SEARCH_ROUTES: '/route/search',
     AUTOCOMPLETE_ADDRESS: '/route/autocomplete',
+    PLACE_DETAILS: '/route/place-details',
     OPTIMIZE: '/route/optimize',
     CANCEL_ROUTE: (id: string) => `/route/cancel?route_id=${id}`,
     REVERSE_GEOCODE: (lat: number, lon: number) => `/route/reverse-geocode?lat=${lat}&lon=${lon}`,
@@ -145,6 +147,8 @@ export const API_ENDPOINTS = {
     INVITATION_RESEND: (id: number) => `/api/enterprise/invitations/${id}/resend`,
     INVITATION_REVOKE: (id: number) => `/api/enterprise/invitations/${id}/revoke`,
     DRIVER: (id: number) => `/api/enterprise/team/drivers/${id}`,
+    CREATE_FLEET_DRIVER: '/api/enterprise/team/drivers',
+    DRIVER_ACCESS_CODE: (id: number) => `/api/enterprise/team/drivers/${id}/access-code`,
     DRIVER_HISTORY: (id: number) => `/api/enterprise/team/drivers/${id}/history`,
     MY_ASSIGNMENTS: '/api/enterprise/assignments/mine',
     ASSIGNMENT_RECOMMENDATIONS: '/api/enterprise/assignment-recommendations',

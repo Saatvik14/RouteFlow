@@ -1,7 +1,16 @@
 import * as Location from 'expo-location';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { getActiveRouteCoordinates } from '../../utils/routePolyline';
+import GoogleRouteMap from './RouteMapGoogle.web';
+
+const GOOGLE_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED || '').toLowerCase(),
+);
+const TOMTOM_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.EXPO_PUBLIC_TOMTOM_MAPS_ENABLED || '').toLowerCase(),
+);
+const TOMTOM_MAPS_API_KEY = process.env.EXPO_PUBLIC_TOMTOM_MAPS_API_KEY || '';
 
 let MapContainer: any;
 let TileLayer: any;
@@ -378,7 +387,7 @@ function calculateRouteBearing(
   return calculateBearing(userLat, userLng, Number(nextTarget.latitude), Number(nextTarget.longitude));
 }
 
-export default function MapScreen({
+function LeafletMapScreen({
   mapType = 'standard',
   centerSignal = 0,
   confirmedRoute = null,
@@ -389,6 +398,8 @@ export default function MapScreen({
     lat: FALLBACK_REGION.latitude,
     lng: FALLBACK_REGION.longitude,
   });
+  const [tomTomUnavailable, setTomTomUnavailable] = useState(false);
+  const tomTomTileErrorCountRef = useRef(0);
 
   const currentLocationIcon = useMemo(() => {
     if (!L) return undefined;
@@ -489,10 +500,13 @@ export default function MapScreen({
     }
   }, []);
 
-  const tileUrl =
-    mapType === 'satellite'
+  const useTomTom =
+    TOMTOM_MAPS_ENABLED && Boolean(TOMTOM_MAPS_API_KEY) && !tomTomUnavailable;
+  const tileUrl = useTomTom
+    ? `https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=${encodeURIComponent(TOMTOM_MAPS_API_KEY)}`
+    : mapType === 'satellite'
       ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
   if (!MapContainer) {
     return <View style={styles.container} />;
@@ -506,14 +520,30 @@ export default function MapScreen({
         maxZoom={18}
         style={styles.leafletMap}
         zoomControl={false}>
-        <TileLayer
+        {/* <TileLayer
+          key={useTomTom ? 'tomtom' : `fallback-${mapType}`}
           url={tileUrl}
           attribution={
-            mapType === 'satellite'
+            useTomTom
+              ? '&copy; TomTom'
+              : mapType === 'satellite'
               ? '&copy; Esri'
               : '&copy; OpenStreetMap contributors'
           }
-        />
+          subdomains={useTomTom ? ['a', 'b', 'c', 'd'] : undefined}
+          eventHandlers={
+            useTomTom
+              ? {
+                  tileerror: () => {
+                    tomTomTileErrorCountRef.current += 1;
+                    if (tomTomTileErrorCountRef.current >= 3) {
+                      setTomTomUnavailable(true);
+                    }
+                  },
+                }
+              : undefined
+          }
+        /> */}
 
         {confirmedRoute ? (
           <>
@@ -572,6 +602,17 @@ export default function MapScreen({
       </MapContainer>
     </View>
   );
+}
+
+export default function MapScreen(props: MapScreenProps) {
+  const [useFallbackMap, setUseFallbackMap] = useState(!GOOGLE_MAPS_ENABLED);
+  const handleGoogleUnavailable = useCallback(() => setUseFallbackMap(true), []);
+
+  if (!useFallbackMap) {
+    return <GoogleRouteMap {...props} onUnavailable={handleGoogleUnavailable} />;
+  }
+
+  return <LeafletMapScreen {...props} />;
 }
 
 const styles = StyleSheet.create({

@@ -747,6 +747,7 @@ function parsePlaceSuggestion(
   item: any,
   index: number,
   fallbackQuery: string,
+  sessionToken?: string,
 ): PlaceSuggestion | null {
   const properties = item?.properties || item || {};
   const geometryCoordinates = item?.geometry?.coordinates || [];
@@ -766,8 +767,6 @@ function parsePlaceSuggestion(
       item?.longitude ??
       (Array.isArray(geometryCoordinates) ? geometryCoordinates[0] : undefined),
   );
-
-  if (!isValidCoordinate(latitude, longitude)) return null;
 
   const fullAddress = String(
     properties.fullAddress ??
@@ -812,18 +811,36 @@ function parsePlaceSuggestion(
     title,
     subtitle,
     fullAddress,
-    latitude: latitude as number,
-    longitude: longitude as number,
+    latitude,
+    longitude,
+    details: {
+      placeId: String(properties.place_id || properties.placeId || item?.place_id || item?.id || index),
+      addressLine1: String(properties.address_line1 || title || ''),
+      addressLine2: String(properties.address_line2 || subtitle || ''),
+      city: String(properties.city || properties.county || ''),
+      district: String(properties.district || properties.county || ''),
+      state: String(properties.state || ''),
+      country: String(properties.country || ''),
+      countryCode: String(properties.country_code || properties.countryCode || '').toUpperCase(),
+      postalCode: String(properties.postcode || properties.postalCode || ''),
+      latitude,
+      longitude,
+    },
+    provider: String(properties.provider || item?.provider || ''),
+    sessionToken,
   };
 }
 
-export async function fetchPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> {
+export async function fetchPlaceSuggestions(
+  query: string,
+  sessionToken: string,
+): Promise<PlaceSuggestion[]> {
   const cleanQuery = query.trim();
 
   if (cleanQuery.length < 2) return [];
 
   try {
-    const response = await routesService.getAutocompleteAddress(cleanQuery, 7);
+    const response = await routesService.getAutocompleteAddress(cleanQuery, 7, sessionToken);
     const rawData = response?.data ?? response;
     const rawList = Array.isArray(rawData)
       ? rawData
@@ -831,12 +848,38 @@ export async function fetchPlaceSuggestions(query: string): Promise<PlaceSuggest
 
     return rawList
       .map((item: any, index: number) =>
-        parsePlaceSuggestion(item, index, cleanQuery),
+        parsePlaceSuggestion(item, index, cleanQuery, sessionToken),
       )
       .filter(Boolean) as PlaceSuggestion[];
   } catch {
     return [];
   }
+}
+
+export async function resolvePlaceSuggestion(
+  suggestion: PlaceSuggestion,
+): Promise<PlaceSuggestion> {
+  if (isValidCoordinate(suggestion.latitude, suggestion.longitude)) {
+    return suggestion;
+  }
+
+  const response = await routesService.getPlaceDetails(
+    suggestion.id,
+    suggestion.provider || 'google',
+    suggestion.fullAddress,
+    suggestion.sessionToken,
+  );
+  const rawData = response?.data ?? response;
+  const rawResult = rawData?.results?.[0] || rawData?.suggestions?.[0];
+  const resolved = rawResult
+    ? parsePlaceSuggestion(rawResult, 0, suggestion.fullAddress)
+    : null;
+
+  if (!resolved || !isValidCoordinate(resolved.latitude, resolved.longitude)) {
+    throw new Error('Unable to resolve the selected address.');
+  }
+
+  return resolved;
 }
 
 

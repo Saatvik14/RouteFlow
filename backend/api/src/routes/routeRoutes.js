@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, autocompleteAddress, optimizeRoute, cancelRoute, reverseGeocode } = require('../controllers/routeController');
+const { createRoute, fetchAllRoutes, fetchRouteById, editRoute, geocodeAddress, autocompleteAddress, getPlaceDetails, optimizeRoute, cancelRoute, reverseGeocode } = require('../controllers/routeController');
 const { protect } = require('../middleware/authMiddleware'); // Assuming this exists to verify JWT
 const { loadOrganizationContext } = require('../middleware/rbacMiddleware');
 
@@ -13,6 +13,7 @@ router.get('/fetch', fetchRouteById);
 router.put('/edit', editRoute);
 router.post('/geocode', geocodeAddress);
 router.get('/autocomplete', autocompleteAddress);
+router.get('/place-details', getPlaceDetails);
 router.post('/optimize', optimizeRoute);
 router.patch('/cancel', cancelRoute);
 router.get('/reverse-geocode', reverseGeocode);
