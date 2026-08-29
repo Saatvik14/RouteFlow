@@ -68,7 +68,7 @@ export function isStatus(status: unknown, expectedStatus: unknown) {
 }
 
 export function isOptimizedStatus(status: unknown) {
-  return isStatus(status, ROUTE_STATUS_OPTIMIZED);
+  return normalizeRouteStatus(status) === 'optimized';
 }
 
 export function isInTransitStatus(status: unknown) {
@@ -78,7 +78,14 @@ export function isInTransitStatus(status: unknown) {
 export function getPanelModeFromStatus(
   status: unknown,
   stopsCount: number,
+  distance = 0,
 ): PanelMode {
+  // 1. If there are no stops added yet, always route to Add More Stops (search)
+  if (stopsCount === 0) {
+    return 'search';
+  }
+
+  // 2. Terminal or in-transit route states
   if (isCancelledRouteStatus(status)) {
     return 'cancelled';
   }
@@ -87,11 +94,15 @@ export function getPanelModeFromStatus(
     return 'transit';
   }
 
-  if (isOptimizedStatus(status)) {
+  // 3. If the route has stops AND has been optimized, route to confirmed panel
+  const normalized = normalizeRouteStatus(status);
+  const isOptimized = normalized === 'optimized' || (['assigned', 'accepted'].includes(normalized) && distance > 0);
+  if (isOptimized) {
     return 'confirmed';
   }
 
-  return stopsCount > 0 ? 'setup' : 'empty';
+  // 4. If stops are present but route is not yet optimized, go to the optimize route panel (setup)
+  return 'setup';
 }
 
 export function isFinishedStopStatus(status: unknown) {
@@ -585,6 +596,12 @@ export async function buildRouteFromBackendResponse(
   const distance = Number(rawRoute.distance || rawRoute.total_distance || 0);
   const duration = Number(rawRoute.duration || rawRoute.total_duration || 0);
 
+  // A route is only considered already-optimized if it has stops AND is marked optimized (or has non-zero distance metrics from optimization)
+  const isAlreadyOptimized = stops.length > 0 && (isOptimizedStatus(routeStatus) || (distance > 0 && duration > 0));
+  const effectiveRouteStatus = isAlreadyOptimized && (routeStatus === 'draft' || routeStatus === 'pending')
+    ? ROUTE_STATUS_OPTIMIZED
+    : routeStatus;
+
   return {
     route: {
       ...route,
@@ -601,8 +618,8 @@ export async function buildRouteFromBackendResponse(
       distanceLabel: formatMiles(distance),
       durationLabel: formatDuration(duration),
     },
-    panelMode: getPanelModeFromStatus(routeStatus, stops.length),
-    routeStatus,
+    panelMode: getPanelModeFromStatus(effectiveRouteStatus, stops.length, distance),
+    routeStatus: effectiveRouteStatus,
     routeId: resolvedRouteId,
   };
 }
@@ -863,23 +880,27 @@ export async function resolvePlaceSuggestion(
     return suggestion;
   }
 
-  const response = await routesService.getPlaceDetails(
-    suggestion.id,
-    suggestion.provider || 'google',
-    suggestion.fullAddress,
-    suggestion.sessionToken,
-  );
-  const rawData = response?.data ?? response;
-  const rawResult = rawData?.results?.[0] || rawData?.suggestions?.[0];
-  const resolved = rawResult
-    ? parsePlaceSuggestion(rawResult, 0, suggestion.fullAddress)
-    : null;
+  try {
+    const response = await routesService.getPlaceDetails(
+      suggestion.id,
+      suggestion.provider || 'google',
+      suggestion.fullAddress,
+      suggestion.sessionToken,
+    );
+    const rawData = response?.data ?? response;
+    const rawResult = rawData?.results?.[0] || rawData?.suggestions?.[0];
+    const resolved = rawResult
+      ? parsePlaceSuggestion(rawResult, 0, suggestion.fullAddress)
+      : null;
 
-  if (!resolved || !isValidCoordinate(resolved.latitude, resolved.longitude)) {
-    throw new Error('Unable to resolve the selected address.');
+    if (resolved && isValidCoordinate(resolved.latitude, resolved.longitude)) {
+      return resolved;
+    }
+  } catch (err) {
+    console.warn('Unable to get place details, falling back to suggestion:', err);
   }
 
-  return resolved;
+  return suggestion;
 }
 
 

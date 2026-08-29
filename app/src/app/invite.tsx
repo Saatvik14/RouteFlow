@@ -19,6 +19,8 @@ import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } 
 import { useAuth } from './_layout';
 import { getAuthToken, setAuthToken } from '../services/api/client';
 import { enterpriseService } from '../services/api/enterprise';
+import { LEGAL_URLS } from '../constants/legal';
+import { openExternalUrl } from '../hooks/open-external-url';
 
 type ScreenState = 'loading' | 'ready' | 'invalid' | 'expired' | 'accepted' | 'inactive' | 'success';
 
@@ -106,16 +108,28 @@ export default function InvitationScreen() {
             {state === 'expired' ? <InvitationState icon="clock" title="This invitation expired" message="For security, invitation links expire after a limited time. Ask the business dispatcher to resend your invitation." actionLabel="Go to sign in" onAction={() => router.replace('/login')} /> : null}
             {state === 'accepted' ? <InvitationState icon="check-circle" title="Invitation already accepted" message="This single-use link has already been used. Sign in to open your RouteFloww account." actionLabel="Sign in" onAction={() => router.replace('/login')} success /> : null}
             {state === 'inactive' ? <InvitationState icon="slash" title="Invitation no longer active" message="This invitation was revoked or replaced by a newer link. Ask the business to send a new invitation." actionLabel="Go to sign in" onAction={() => router.replace('/login')} /> : null}
-            {state === 'success' ? <InvitationState
-              icon="user-check"
-              title={`Welcome to ${invitation?.organizationName || 'the team'}`}
-              message={invitation?.role === 'driver'
-                ? 'Your membership is active. Assigned routes will now appear in your driver workspace.'
-                : 'Your membership is active. You can now open the business operations workspace.'}
-              actionLabel={invitation?.role === 'driver' ? 'Open my routes' : 'Open dashboard'}
-              onAction={() => router.replace((invitation?.role === 'driver' ? '/fleet-routes' : '/driver-routes') as any)}
-              success
-            /> : null}
+            {state === 'success' ? (
+              <InvitationState
+                icon="user-check"
+                title={`Welcome to ${invitation?.organizationName || 'the team'}`}
+                message={invitation?.role === 'driver'
+                  ? (Platform.OS === 'web'
+                      ? 'Your driver account is active! Download the RouteFloww Android app on Google Play to log in and access your assigned routes.'
+                      : 'Your membership is active. Assigned routes will now appear in your driver workspace.')
+                  : 'Your membership is active. You can now open the business operations workspace.'}
+                actionLabel={invitation?.role === 'driver'
+                  ? (Platform.OS === 'web' ? 'Install App on Google Play' : 'Open my routes')
+                  : 'Open dashboard'}
+                onAction={() => {
+                  if (invitation?.role === 'driver' && Platform.OS === 'web') {
+                    openExternalUrl(LEGAL_URLS.PLAY_STORE_APP);
+                  } else {
+                    router.replace((invitation?.role === 'driver' ? '/fleet-routes' : '/driver-routes') as any);
+                  }
+                }}
+                success
+              />
+            ) : null}
 
             {state === 'ready' && invitation ? (
               <View>

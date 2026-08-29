@@ -148,6 +148,7 @@ export default function GoogleRouteMap({
           fullscreenControl: false,
           zoomControl: false,
           clickableIcons: false,
+          gestureHandling: 'greedy',
         });
       })
       .catch(error => {
@@ -283,7 +284,20 @@ export default function GoogleRouteMap({
 
   return (
     <View style={styles.container}>
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div
+        ref={containerRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          // Ensure the map div itself does NOT absorb events that
+          // belong to elements stacked above it in the React tree.
+          // The panel (DraggableRouteSheet) has zIndex: 50 and sits
+          // in the same stacking context; Google Maps JS however adds
+          // its own document-level listeners. We combine this with
+          // stopPropagation in the panel to fully isolate both layers.
+          pointerEvents: 'auto',
+        }}
+      />
     </View>
   );
 }

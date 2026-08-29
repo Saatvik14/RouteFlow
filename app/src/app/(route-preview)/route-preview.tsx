@@ -373,6 +373,11 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
               {
                 top: insets.top + 16,
               },
+              isWide && {
+                right: undefined,
+                left: 24,
+                top: insets.top + 88,
+              },
             ]}
           >
             <Pressable style={styles.mapControlButton} onPress={handleToggleMapType}>

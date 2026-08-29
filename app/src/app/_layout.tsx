@@ -24,7 +24,7 @@ const AuthContext = createContext({
 export const useAuth = () => useContext(AuthContext);
 
 const AUTH_ONLY_ROUTES = ['login', 'signup', 'forgot-password'];
-const PUBLIC_ROUTES = [...AUTH_ONLY_ROUTES, 'invite'];
+const PUBLIC_ROUTES = [...AUTH_ONLY_ROUTES, 'invite', 'landing', 'dispatch', 'driver-showcase', 'index', ''];
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -152,20 +152,29 @@ export default function RootLayout() {
   }, [isLoggedIn, segments, checkTrial]);
 
   useEffect(() => {
-    // Check if the current route is an auth screen
+    // Check if the current route is an auth screen or public landing page
     const currentRoute = String((segments as any)[segments.length - 1] ?? '').replace(/[()]/g, '');
     const inAuthGroup = PUBLIC_ROUTES.includes(currentRoute);
     const authOnlyRoute = AUTH_ONLY_ROUTES.includes(currentRoute);
 
-    if (!isLoading && !isLoggedIn && !inAuthGroup) {
-      // If not logged in and not on an auth screen, redirect to login
-      router.replace('/login');
+    if (!isLoading && !isLoggedIn) {
+      if (Platform.OS === 'web') {
+        if (!inAuthGroup) {
+          // On Web: Non-public routes redirect to home root '/'
+          router.replace('/');
+        }
+      } else {
+        if (!inAuthGroup) {
+          // On Mobile Native App (iOS/Android): Redirect directly to login screen
+          router.replace('/login');
+        }
+      }
     } else if (!isLoading && isLoggedIn) {
       if (isTrialExpired) {
         // Trial has expired; a blocking modal dialog box is shown on top of the app.
         // No automatic redirect to /subscription here.
-      } else if (authOnlyRoute) {
-        // If logged in and on an auth screen, redirect to home
+      } else if (authOnlyRoute || (Platform.OS === 'web' && (currentRoute === 'landing' || currentRoute === 'dispatch'))) {
+        // If logged in and on an auth or public landing screen, redirect to home
         router.replace('/');
       }
     }
@@ -187,10 +196,16 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         {isLoggedIn && isAppLocked && Platform.OS !== 'web' ? (
           <SecurityLockScreen onUnlocked={handleUnlocked} />
-        ) : isLoggedIn ? (
+        ) : (
           <>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
+              <Stack.Screen name="landing" />
+              <Stack.Screen name="dispatch" />
+              <Stack.Screen name="driver-showcase" />
+              <Stack.Screen name="(auth)/login" />
+              <Stack.Screen name="(auth)/signup" />
+              <Stack.Screen name="(auth)/forgot-password" />
               <Stack.Screen name="(MapScreen)/MapScreen" />
               <Stack.Screen name="route-points" />
               <Stack.Screen name="route-preview" />
@@ -205,7 +220,7 @@ export default function RootLayout() {
             </Stack>
 
             <Modal
-              visible={isTrialExpired && !isSubscriptionPage && !inAuthGroup}
+              visible={isLoggedIn && isTrialExpired && !isSubscriptionPage && !inAuthGroup}
               transparent={true}
               animationType="fade"
             >
@@ -230,13 +245,6 @@ export default function RootLayout() {
               </View>
             </Modal>
           </>
-        ) : (
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)/login" />
-            <Stack.Screen name="(auth)/signup" />
-            <Stack.Screen name="(auth)/forgot-password" />
-            <Stack.Screen name="invite" />
-          </Stack>
         )}
       </ThemeProvider>
     </AuthContext.Provider>

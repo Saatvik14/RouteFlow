@@ -297,7 +297,11 @@ export function SearchPanel({
 
         {!hasSearch ? (
           <View style={localStyles.emptyWrapper}>
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="always"
+            >
               <View style={localStyles.emptyIconBox}>
                 <Text style={localStyles.emptyIcon}>▢</Text>
               </View>
@@ -372,7 +376,9 @@ export function SearchPanel({
           </View>
         ) : (
           <ScrollView
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
             contentContainerStyle={localStyles.resultsContent}
           >
             <Text style={localStyles.sectionTitle}>Add a new stop</Text>
@@ -380,7 +386,11 @@ export function SearchPanel({
             {suggestions.map(item => (
               <Pressable
                 key={item.id}
-                style={localStyles.suggestionRow}
+                style={({ pressed }) => [
+                  localStyles.suggestionRow,
+                  Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
+                  pressed && { opacity: 0.7, backgroundColor: '#F1F5F9' },
+                ]}
                 onPress={() => onSelectSuggestion(item)}
               >
                 <View style={localStyles.pinBox}>
@@ -398,7 +408,14 @@ export function SearchPanel({
               </Pressable>
             ))}
 
-            <Pressable style={localStyles.suggestionRow} onPress={onChooseOnMap}>
+            <Pressable
+              style={({ pressed }) => [
+                localStyles.suggestionRow,
+                Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
+                pressed && { opacity: 0.7, backgroundColor: '#F1F5F9' },
+              ]}
+              onPress={onChooseOnMap}
+            >
               <View style={localStyles.pinBox}>
                 <Text style={localStyles.pinIcon}>▱</Text>
               </View>

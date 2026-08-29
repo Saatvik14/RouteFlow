@@ -1,4 +1,5 @@
 import { useConfigStore } from '@/src/store/useConfigStore';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -136,122 +137,351 @@ export default function SetupLocationsScreen() {
     }
   };
 
+  const isWeb = Platform.OS === 'web';
+
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, isWeb && styles.webRoot]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.root}>
+      <View style={[styles.root, isWeb && styles.webRoot]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.container,
-            {
-              paddingTop: insets.top + 22,
-              paddingBottom: 130 + insets.bottom,
-            },
+            isWeb
+              ? styles.webScrollContainer
+              : {
+                  paddingTop: insets.top + 22,
+                  paddingBottom: 130 + insets.bottom,
+                },
           ]}
         >
-          <Pressable style={styles.closeButton} onPress={() => router.back()}>
-            <Text style={styles.closeText}>×</Text>
-          </Pressable>
-
-          <Text style={styles.title}>Create route</Text>
-
-          <View style={styles.fieldBlock}>
-            <Text style={styles.label}>Route name</Text>
-
-            <TextInput
-              style={styles.input}
-              placeholder="Sunday Route - 09 Jun"
-              placeholderTextColor="#98A2B3"
-              value={routeName}
-              onChangeText={setRouteName}
-            />
-
-            <Text style={styles.helperText}>
-              Route name is generated using selected date and day.
-            </Text>
-          </View>
-
-          <View style={styles.fieldBlock}>
-            <Text style={styles.label}>Select route date</Text>
-
-            <DateCard
-              title="Today"
-              date={formatDateLabel(today)}
-              selected={isSameDate(routeDate, today)}
-              onPress={() => handleSelectDate(today)}
-            />
-
-            <DateCard
-              title="Tomorrow"
-              date={formatDateLabel(tomorrow)}
-              selected={isSameDate(routeDate, tomorrow)}
-              onPress={() => handleSelectDate(tomorrow)}
-            />
-
-            <Pressable
-              style={styles.optionCard}
-              onPress={() => setShowCalendar(true)}
-            >
-              <View style={styles.optionLeft}>
-                <CalendarIcon />
-
-                <View style={styles.dateTextBox}>
-                  <Text style={styles.optionTitle}>Pick a date</Text>
-                  <Text style={styles.optionDate}>{formatDateLabel(routeDate)}</Text>
+          <View style={isWeb ? styles.webCard : null}>
+            {isWeb ? (
+              <View style={styles.webHeader}>
+                <View style={styles.webHeaderLeft}>
+                  <Pressable style={styles.webBackButton} onPress={() => router.back()}>
+                    <Feather name="arrow-left" size={15} color="#475569" />
+                    <Text style={styles.webBackText}>Back</Text>
+                  </Pressable>
+                  <View style={styles.webBadge}>
+                    <Feather name="map-pin" size={12} color="#2563EB" />
+                    <Text style={styles.webBadgeText}>Route Setup</Text>
+                  </View>
                 </View>
+                <Pressable style={styles.webCloseBtn} onPress={() => router.back()}>
+                  <Feather name="x" size={16} color="#64748B" />
+                </Pressable>
               </View>
+            ) : (
+              <Pressable style={styles.closeButton} onPress={() => router.back()}>
+                <Text style={styles.closeText}>×</Text>
+              </Pressable>
+            )}
 
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-          </View>
+            <Text style={[styles.title, isWeb && styles.webTitle]}>Create route</Text>
+            {isWeb && (
+              <Text style={styles.webSubtitle}>
+                Set your route name and delivery schedule. You can also import incomplete stops from previous routes.
+              </Text>
+            )}
 
-          <View style={styles.fieldBlock}>
-            <Text style={styles.label}>Quick option</Text>
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, isWeb && styles.webLabel]}>
+                {isWeb ? 'ROUTE NAME' : 'Route name'}
+              </Text>
 
-            <Pressable
-              style={styles.optionCard}
-              onPress={() => setCarryPastStops(prev => !prev)}
-            >
-              <View style={styles.optionLeft}>
-                <StopsIcon />
-                <Text style={styles.optionTitle}>Carry past stops</Text>
+              <TextInput
+                style={[styles.input, isWeb && styles.webInput]}
+                placeholder="Sunday Route - 09 Jun"
+                placeholderTextColor="#98A2B3"
+                value={routeName}
+                onChangeText={setRouteName}
+              />
+
+              <Text style={styles.helperText}>
+                Route name is generated using selected date and day.
+              </Text>
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, isWeb && styles.webLabel]}>
+                {isWeb ? 'SELECT ROUTE DATE' : 'Select route date'}
+              </Text>
+
+              {isWeb ? (
+                <View style={styles.webDateGrid}>
+                  <Pressable
+                    style={[
+                      styles.webDateTile,
+                      isSameDate(routeDate, today) && styles.webDateTileSelected,
+                    ]}
+                    onPress={() => handleSelectDate(today)}
+                  >
+                    <View style={styles.webDateTileTop}>
+                      <View
+                        style={[
+                          styles.webDateIconBox,
+                          isSameDate(routeDate, today) && styles.webDateIconBoxSelected,
+                        ]}
+                      >
+                        <Feather
+                          name="calendar"
+                          size={15}
+                          color={isSameDate(routeDate, today) ? '#2563EB' : '#64748B'}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.radioOuter,
+                          isSameDate(routeDate, today) && styles.radioOuterSelected,
+                        ]}
+                      >
+                        {isSameDate(routeDate, today) ? <View style={styles.radioInner} /> : null}
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.webDateTileTitle,
+                        isSameDate(routeDate, today) && styles.webDateTileTitleSelected,
+                      ]}
+                    >
+                      Today
+                    </Text>
+                    <Text style={styles.webDateTileDate}>{formatDateLabel(today)}</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.webDateTile,
+                      isSameDate(routeDate, tomorrow) && styles.webDateTileSelected,
+                    ]}
+                    onPress={() => handleSelectDate(tomorrow)}
+                  >
+                    <View style={styles.webDateTileTop}>
+                      <View
+                        style={[
+                          styles.webDateIconBox,
+                          isSameDate(routeDate, tomorrow) && styles.webDateIconBoxSelected,
+                        ]}
+                      >
+                        <Feather
+                          name="sun"
+                          size={15}
+                          color={isSameDate(routeDate, tomorrow) ? '#2563EB' : '#64748B'}
+                        />
+                      </View>
+                      <View
+                        style={[
+                          styles.radioOuter,
+                          isSameDate(routeDate, tomorrow) && styles.radioOuterSelected,
+                        ]}
+                      >
+                        {isSameDate(routeDate, tomorrow) ? <View style={styles.radioInner} /> : null}
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.webDateTileTitle,
+                        isSameDate(routeDate, tomorrow) && styles.webDateTileTitleSelected,
+                      ]}
+                    >
+                      Tomorrow
+                    </Text>
+                    <Text style={styles.webDateTileDate}>{formatDateLabel(tomorrow)}</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.webDateTile,
+                      !isSameDate(routeDate, today) &&
+                        !isSameDate(routeDate, tomorrow) &&
+                        styles.webDateTileSelected,
+                    ]}
+                    onPress={() => setShowCalendar(true)}
+                  >
+                    <View style={styles.webDateTileTop}>
+                      <View
+                        style={[
+                          styles.webDateIconBox,
+                          !isSameDate(routeDate, today) &&
+                            !isSameDate(routeDate, tomorrow) &&
+                            styles.webDateIconBoxSelected,
+                        ]}
+                      >
+                        <Feather
+                          name="calendar"
+                          size={15}
+                          color={
+                            !isSameDate(routeDate, today) && !isSameDate(routeDate, tomorrow)
+                              ? '#2563EB'
+                              : '#64748B'
+                          }
+                        />
+                      </View>
+                      <Feather name="chevron-right" size={16} color="#64748B" />
+                    </View>
+                    <Text
+                      style={[
+                        styles.webDateTileTitle,
+                        !isSameDate(routeDate, today) &&
+                          !isSameDate(routeDate, tomorrow) &&
+                          styles.webDateTileTitleSelected,
+                      ]}
+                    >
+                      Pick a date
+                    </Text>
+                    <Text style={styles.webDateTileDate}>{formatDateLabel(routeDate)}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <DateCard
+                    title="Today"
+                    date={formatDateLabel(today)}
+                    selected={isSameDate(routeDate, today)}
+                    onPress={() => handleSelectDate(today)}
+                  />
+
+                  <DateCard
+                    title="Tomorrow"
+                    date={formatDateLabel(tomorrow)}
+                    selected={isSameDate(routeDate, tomorrow)}
+                    onPress={() => handleSelectDate(tomorrow)}
+                  />
+
+                  <Pressable
+                    style={styles.optionCard}
+                    onPress={() => setShowCalendar(true)}
+                  >
+                    <View style={styles.optionLeft}>
+                      <CalendarIcon />
+
+                      <View style={styles.dateTextBox}>
+                        <Text style={styles.optionTitle}>Pick a date</Text>
+                        <Text style={styles.optionDate}>{formatDateLabel(routeDate)}</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.chevron}>›</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, isWeb && styles.webLabel]}>
+                {isWeb ? 'QUICK OPTION' : 'Quick option'}
+              </Text>
+
+              {isWeb ? (
+                <Pressable
+                  style={[styles.webOptionCard, carryPastStops && styles.webOptionCardSelected]}
+                  onPress={() => setCarryPastStops(prev => !prev)}
+                >
+                  <View style={styles.webOptionLeft}>
+                    <View
+                      style={[
+                        styles.webOptionIconBox,
+                        carryPastStops && styles.webOptionIconBoxSelected,
+                      ]}
+                    >
+                      <Feather
+                        name="repeat"
+                        size={18}
+                        color={carryPastStops ? '#2563EB' : '#64748B'}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.webOptionTitle}>Carry past stops</Text>
+                      <Text style={styles.webOptionDesc}>
+                        Transfer incomplete or pending stops from your previous route to this new route.
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.checkbox,
+                      carryPastStops && styles.checkboxSelected,
+                    ]}
+                  >
+                    {carryPastStops ? <Text style={styles.checkText}>✓</Text> : null}
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={styles.optionCard}
+                  onPress={() => setCarryPastStops(prev => !prev)}
+                >
+                  <View style={styles.optionLeft}>
+                    <StopsIcon />
+                    <Text style={styles.optionTitle}>Carry past stops</Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.checkbox,
+                      carryPastStops && styles.checkboxSelected,
+                    ]}
+                  >
+                    {carryPastStops ? <Text style={styles.checkText}>✓</Text> : null}
+                  </View>
+                </Pressable>
+              )}
+            </View>
+
+            {/* Web Inline Action Buttons */}
+            {isWeb && (
+              <View style={styles.webActionRow}>
+                <Pressable style={styles.webCancelBtn} onPress={() => router.back()}>
+                  <Text style={styles.webCancelBtnText}>Cancel</Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.webConfirmBtn,
+                    isConfirmDisabled && styles.disabledButton,
+                  ]}
+                  disabled={isConfirmDisabled}
+                  onPress={handleConfirm}
+                >
+                  <Text style={styles.webConfirmBtnText}>
+                    {carryPastStops ? 'Proceed to copy' : 'Confirm'}
+                  </Text>
+                  <Feather name="arrow-right" size={15} color="#FFFFFF" />
+                </Pressable>
               </View>
-
-              <View
-                style={[
-                  styles.checkbox,
-                  carryPastStops && styles.checkboxSelected,
-                ]}
-              >
-                {carryPastStops ? <Text style={styles.checkText}>✓</Text> : null}
-              </View>
-            </Pressable>
+            )}
           </View>
         </ScrollView>
 
-        <View
-          style={[
-            styles.footer,
-            {
-              paddingBottom: Math.max(insets.bottom + 14, 24),
-            },
-          ]}
-        >
-          <Pressable
+        {/* Mobile Fixed Screen-Bottom Footer */}
+        {!isWeb && (
+          <View
             style={[
-              styles.confirmButton,
-              isConfirmDisabled && styles.disabledButton,
+              styles.footer,
+              {
+                paddingBottom: Math.max(insets.bottom + 14, 24),
+              },
             ]}
-            disabled={isConfirmDisabled}
-            onPress={handleConfirm}
           >
-            <Text style={styles.confirmText}>{carryPastStops ? 'Proceed to copy' : 'Confirm'}</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              style={[
+                styles.confirmButton,
+                isConfirmDisabled && styles.disabledButton,
+              ]}
+              disabled={isConfirmDisabled}
+              onPress={handleConfirm}
+            >
+              <Text style={styles.confirmText}>
+                {carryPastStops ? 'Proceed to copy' : 'Confirm'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         <CalendarModal
           visible={showCalendar}
@@ -312,6 +542,7 @@ function CalendarModal({
 }) {
   const insets = useSafeAreaInsets();
   const [visibleMonth, setVisibleMonth] = useState(selectedDate);
+  const isWeb = Platform.OS === 'web';
 
   const days = getCalendarDays(visibleMonth);
 
@@ -322,15 +553,17 @@ function CalendarModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalRoot}>
+      <View style={[styles.modalRoot, isWeb && styles.webModalRoot]}>
         <Pressable style={styles.modalBackdrop} onPress={onClose} />
 
         <View
           style={[
             styles.calendarSheet,
-            {
-              paddingBottom: Math.max(insets.bottom + 20, 32),
-            },
+            isWeb
+              ? styles.webCalendarSheet
+              : {
+                  paddingBottom: Math.max(insets.bottom + 20, 32),
+                },
           ]}
         >
           <View style={styles.calendarHeader}>
@@ -755,5 +988,264 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: '#64748B',
+  },
+
+  // Web Specific Styles
+  webRoot: {
+    backgroundColor: '#F8FAFC',
+    minHeight: '100%',
+  },
+  webScrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webCard: {
+    maxWidth: 700,
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 36,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.06,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  webHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  webHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  webBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  webBackText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  webBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  webBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  webCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  webSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginBottom: 26,
+  },
+  webLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  webInput: {
+    height: 50,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
+  },
+  webDateGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  webDateTile: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    justifyContent: 'space-between',
+    minHeight: 96,
+  },
+  webDateTileSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#F0F7FF',
+  },
+  webDateTileTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  webDateIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webDateIconBoxSelected: {
+    backgroundColor: '#DBEAFE',
+  },
+  webDateTileTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 3,
+  },
+  webDateTileTitleSelected: {
+    color: '#1D4ED8',
+  },
+  webDateTileDate: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  webOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+  },
+  webOptionCardSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#F0F7FF',
+  },
+  webOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+    paddingRight: 16,
+  },
+  webOptionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webOptionIconBoxSelected: {
+    backgroundColor: '#DBEAFE',
+  },
+  webOptionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  webOptionDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 17,
+  },
+  webActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 28,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  webCancelBtn: {
+    height: 46,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  webCancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  webConfirmBtn: {
+    height: 46,
+    paddingHorizontal: 26,
+    borderRadius: 10,
+    backgroundColor: '#2F76F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    shadowColor: '#2F76F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  webConfirmBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  webModalRoot: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  webCalendarSheet: {
+    maxWidth: 400,
+    width: '100%',
+    borderRadius: 20,
+    padding: 24,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    elevation: 12,
   },
 });

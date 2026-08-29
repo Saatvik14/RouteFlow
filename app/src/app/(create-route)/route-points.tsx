@@ -6,6 +6,7 @@ import { useUserRole } from './../../hooks/useUserRole';
 import { isTokenValid } from './../../services/auth/jwtUtils';
 import { addManifestStopsToBackend } from '../(route-preview)/route-preview-input.service';
 import { ROUTE_STATUS_PENDING } from './../(route-preview)/route-preview.helpers';
+import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -1069,216 +1070,287 @@ export default function RoutePointsScreen() {
     }
   };
 
+  const isWeb = Platform.OS === 'web';
+
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, isWeb && styles.webRoot]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.root}>
+      <View style={[styles.root, isWeb && styles.webRoot]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.container,
-            {
-              paddingTop: insets.top + 22,
-              paddingBottom: 142 + insets.bottom,
-            },
+            isWeb
+              ? styles.webScrollContainer
+              : {
+                  paddingTop: insets.top + 22,
+                  paddingBottom: 142 + insets.bottom,
+                },
           ]}
         >
-          <Pressable style={styles.closeButton} onPress={() => router.back()}>
-            <Text style={styles.closeText}>×</Text>
-          </Pressable>
-
-          <Text style={styles.title}>Route details</Text>
-
-          <View style={styles.routeSummaryCard}>
-            <Text style={styles.routeSummaryLabel}>Route</Text>
-            <Text style={styles.routeSummaryTitle}>{routeName}</Text>
-            <Text style={styles.routeSummaryDate}>{routeDateLabel}</Text>
-          </View>
-
-          {!!errorMessage && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorBannerText}>{errorMessage}</Text>
-            </View>
-          )}
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Start location</Text>
-
-            <TextInput
-              style={styles.addressInput}
-              placeholder="Enter start address"
-              placeholderTextColor="#98A2B3"
-              value={
-                startLocation.mode === 'current_location' &&
-                !startLocation.address.trim()
-                  ? ''
-                  : startLocation.address
-              }
-              onChangeText={handleManualStartAddress}
-              onFocus={() => setActiveSearch('start')}
-            />
-
-            {activeSearch === 'start' && suggestions.length > 0 && (
-              <View style={styles.suggestionsList}>
-                {suggestions.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    style={styles.suggestionItem}
-                    onPress={() => handleSelectSuggestion(item)}
-                  >
-                    <Text style={styles.suggestionTitle}>{item.title}</Text>
-                    <Text style={styles.suggestionSubtitle}>{item.subtitle}</Text>
+          <View style={isWeb ? styles.webCard : null}>
+            {isWeb ? (
+              <View style={styles.webHeader}>
+                <View style={styles.webHeaderLeft}>
+                  <Pressable style={styles.webBackButton} onPress={() => router.back()}>
+                    <Feather name="arrow-left" size={15} color="#475569" />
+                    <Text style={styles.webBackText}>Back</Text>
                   </Pressable>
-                ))}
+                  <View style={styles.webBadge}>
+                    <Feather name="map" size={12} color="#2563EB" />
+                    <Text style={styles.webBadgeText}>Route Setup</Text>
+                  </View>
+                </View>
+                <Pressable style={styles.webCloseBtn} onPress={() => router.back()}>
+                  <Feather name="x" size={16} color="#64748B" />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.closeButton} onPress={() => router.back()}>
+                <Text style={styles.closeText}>×</Text>
+              </Pressable>
+            )}
+
+            <Text style={[styles.title, isWeb && styles.webTitle]}>Route details</Text>
+            {isWeb && (
+              <Text style={styles.webSubtitle}>
+                Configure your starting depot, destination, delivery schedule, and driver assignments.
+              </Text>
+            )}
+
+            <View style={[styles.routeSummaryCard, isWeb && styles.webRouteSummaryCard]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={styles.routeSummaryLabel}>SCHEDULED ROUTE</Text>
+                <View style={styles.webDateBadge}>
+                  <Feather name="calendar" size={11} color="#2563EB" />
+                  <Text style={styles.webDateBadgeText}>{routeDateLabel}</Text>
+                </View>
+              </View>
+              <Text style={[styles.routeSummaryTitle, isWeb && styles.webRouteSummaryTitle]}>{routeName}</Text>
+            </View>
+
+            {!!errorMessage && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{errorMessage}</Text>
               </View>
             )}
 
-            <Pressable
-              style={[
-                styles.currentLocationButton,
-                isFetchingLocation && styles.disabledLightButton,
-              ]}
-              disabled={isFetchingLocation}
-              onPress={handleUseCurrentLocation}
-            >
-              {isFetchingLocation ? (
-                <ActivityIndicator size="small" color="#2F76F6" />
-              ) : (
-                <Text style={styles.currentLocationText}>Use current location</Text>
+            {/* Start Location Section */}
+            <View style={[styles.section, isWeb && styles.webSection]}>
+              <Text style={[styles.sectionTitle, isWeb && styles.webSectionTitle]}>START LOCATION</Text>
+
+              <TextInput
+                style={[styles.addressInput, isWeb && styles.webAddressInput]}
+                placeholder="Enter start address"
+                placeholderTextColor="#98A2B3"
+                value={
+                  startLocation.mode === 'current_location' &&
+                  !startLocation.address.trim()
+                    ? ''
+                    : startLocation.address
+                }
+                onChangeText={handleManualStartAddress}
+                onFocus={() => setActiveSearch('start')}
+              />
+
+              {activeSearch === 'start' && suggestions.length > 0 && (
+                <View style={styles.suggestionsList}>
+                  {suggestions.map((item) => (
+                    <Pressable
+                      key={item.id}
+                      style={styles.suggestionItem}
+                      onPress={() => handleSelectSuggestion(item)}
+                    >
+                      <Text style={styles.suggestionTitle}>{item.title}</Text>
+                      <Text style={styles.suggestionSubtitle}>{item.subtitle}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               )}
-            </Pressable>
 
-            <InfoCard
-              icon="◷"
-              iconColor="#2F76F6"
-              title="Start date & time"
-              subtitle={`${formatDisplayDate(startDate)} • ${startTime}`}
-              showChevron
-              onPress={() => setDateTimePickerTarget('start')}
-            />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>End location</Text>
-
-            <InfoCard
-              icon={endMode === 'round_trip' ? '↩' : endMode === 'no_end' ? '×' : '⌖'}
-              iconColor={endMode === 'no_end' ? '#98A2B3' : '#2F76F6'}
-              title={endTitle}
-              subtitle={endSubtitle}
-              showChevron
-              onPress={() => setShowEndSheet(true)}
-            />
-
-            {endMode === 'other_address' ? (
-              <>
-                <TextInput
-                  style={styles.addressInput}
-                  placeholder="Enter end address"
-                  placeholderTextColor="#98A2B3"
-                  value={endLocation.address}
-                  onChangeText={handleManualEndAddress}
-                  onFocus={() => setActiveSearch('end')}
-                />
-
-                {activeSearch === 'end' && suggestions.length > 0 && (
-                  <View style={styles.suggestionsList}>
-                    {suggestions.map((item) => (
-                      <Pressable
-                        key={item.id}
-                        style={styles.suggestionItem}
-                        onPress={() => handleSelectSuggestion(item)}
-                      >
-                        <Text style={styles.suggestionTitle}>{item.title}</Text>
-                        <Text style={styles.suggestionSubtitle}>{item.subtitle}</Text>
-                      </Pressable>
-                    ))}
+              <Pressable
+                style={[
+                  styles.currentLocationButton,
+                  isWeb && styles.webCurrentLocationBtn,
+                  isFetchingLocation && styles.disabledLightButton,
+                ]}
+                disabled={isFetchingLocation}
+                onPress={handleUseCurrentLocation}
+              >
+                {isFetchingLocation ? (
+                  <ActivityIndicator size="small" color="#2F76F6" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Feather name="navigation" size={14} color="#2F76F6" />
+                    <Text style={styles.currentLocationText}>Use current location</Text>
                   </View>
                 )}
-              </>
-            ) : null}
+              </Pressable>
 
-            {endMode !== 'no_end' ? (
               <InfoCard
                 icon="◷"
                 iconColor="#2F76F6"
-                title="End date & time"
-                subtitle={`${formatDisplayDate(endDate)} • ${endTime}`}
+                title="Start date & time"
+                subtitle={`${formatDisplayDate(startDate)} • ${startTime}`}
                 showChevron
-                onPress={() => setDateTimePickerTarget('end')}
+                onPress={() => setDateTimePickerTarget('start')}
               />
-            ) : null}
-          </View>
+            </View>
 
-          {canAddDriver ? (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Driver details</Text>
+            {/* End Location Section */}
+            <View style={[styles.section, isWeb && styles.webSection]}>
+              <Text style={[styles.sectionTitle, isWeb && styles.webSectionTitle]}>END LOCATION</Text>
 
               <InfoCard
-                icon="👤"
-                iconColor="#2F76F6"
-                title={selectedDriver ? selectedDriver.name : 'Assign Driver'}
-                subtitle={
-                  selectedDriver
-                    ? selectedDriver.phone || selectedDriver.email || 'Assigned driver'
-                    : 'Tap to select or add driver'
-                }
+                icon={endMode === 'round_trip' ? '↩' : endMode === 'no_end' ? '×' : '⌖'}
+                iconColor={endMode === 'no_end' ? '#98A2B3' : '#2F76F6'}
+                title={endTitle}
+                subtitle={endSubtitle}
                 showChevron
-                onPress={() => setShowDriverSheet(true)}
+                onPress={() => setShowEndSheet(true)}
               />
+
+              {endMode === 'other_address' ? (
+                <>
+                  <TextInput
+                    style={[styles.addressInput, isWeb && styles.webAddressInput]}
+                    placeholder="Enter end address"
+                    placeholderTextColor="#98A2B3"
+                    value={endLocation.address}
+                    onChangeText={handleManualEndAddress}
+                    onFocus={() => setActiveSearch('end')}
+                  />
+
+                  {activeSearch === 'end' && suggestions.length > 0 && (
+                    <View style={styles.suggestionsList}>
+                      {suggestions.map((item) => (
+                        <Pressable
+                          key={item.id}
+                          style={styles.suggestionItem}
+                          onPress={() => handleSelectSuggestion(item)}
+                        >
+                          <Text style={styles.suggestionTitle}>{item.title}</Text>
+                          <Text style={styles.suggestionSubtitle}>{item.subtitle}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </>
+              ) : null}
+
+              {endMode !== 'no_end' ? (
+                <InfoCard
+                  icon="◷"
+                  iconColor="#2F76F6"
+                  title="End date & time"
+                  subtitle={`${formatDisplayDate(endDate)} • ${endTime}`}
+                  showChevron
+                  onPress={() => setDateTimePickerTarget('end')}
+                />
+              ) : null}
             </View>
-          ) : null}
 
-          {/* <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Break</Text>
+            {/* Driver Details Section */}
+            {canAddDriver ? (
+              <View style={[styles.section, isWeb && styles.webSection]}>
+                <Text style={[styles.sectionTitle, isWeb && styles.webSectionTitle]}>DRIVER ASSIGNMENT</Text>
 
-            <InfoCard
-              icon="☕"
-              iconColor="#2F76F6"
-              title="No break"g
-              subtitle="Tap to plan a break later"
-              onPress={() => {}}
-            />
-          </View> */}
+                <InfoCard
+                  icon="👤"
+                  iconColor="#2F76F6"
+                  title={selectedDriver ? selectedDriver.name : 'Assign Driver'}
+                  subtitle={
+                    selectedDriver
+                      ? selectedDriver.phone || selectedDriver.email || 'Assigned driver'
+                      : 'Tap to select or add driver'
+                  }
+                  showChevron
+                  onPress={() => setShowDriverSheet(true)}
+                />
+              </View>
+            ) : null}
+
+            {/* Web Inline Action Row */}
+            {isWeb && (
+              <View style={styles.webActionRow}>
+                <Pressable
+                  style={styles.webDefaultRow}
+                  onPress={() => setSaveAsDefault(prev => !prev)}
+                >
+                  <View style={[styles.checkbox, saveAsDefault && styles.checkboxActive]}>
+                    {saveAsDefault ? <Text style={styles.checkText}>✓</Text> : null}
+                  </View>
+                  <Text style={styles.webDefaultText}>Save as default</Text>
+                </Pressable>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Pressable style={styles.webCancelBtn} onPress={() => router.back()}>
+                    <Text style={styles.webCancelBtnText}>Cancel</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.webDoneBtn,
+                      !canSubmit && styles.webDoneBtnDisabled,
+                    ]}
+                    disabled={!canSubmit}
+                    onPress={handleDone}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (
+                      <>
+                        <Text style={styles.webDoneBtnText}>Done</Text>
+                        <Feather name="arrow-right" size={15} color="#FFFFFF" />
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
         </ScrollView>
 
-        <View
-          style={[
-            styles.footer,
-            {
-              paddingBottom: Math.max(insets.bottom + 12, 24),
-            },
-          ]}
-        >
-          <Pressable
+        {/* Mobile Fixed Screen-Bottom Footer */}
+        {!isWeb && (
+          <View
             style={[
-              styles.doneButton,
-              !canSubmit && styles.doneButtonDisabled,
+              styles.footer,
+              {
+                paddingBottom: Math.max(insets.bottom + 12, 24),
+              },
             ]}
-            disabled={!canSubmit}
-            onPress={handleDone}
           >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.doneText}>Done</Text>
-            )}
-          </Pressable>
+            <Pressable
+              style={[
+                styles.doneButton,
+                !canSubmit && styles.doneButtonDisabled,
+              ]}
+              disabled={!canSubmit}
+              onPress={handleDone}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.doneText}>Done</Text>
+              )}
+            </Pressable>
 
-          <Pressable
-            style={styles.defaultRow}
-            onPress={() => setSaveAsDefault(prev => !prev)}
-          >
-            <View style={[styles.checkbox, saveAsDefault && styles.checkboxActive]}>
-              {saveAsDefault ? <Text style={styles.checkText}>✓</Text> : null}
-            </View>
+            <Pressable
+              style={styles.defaultRow}
+              onPress={() => setSaveAsDefault(prev => !prev)}
+            >
+              <View style={[styles.checkbox, saveAsDefault && styles.checkboxActive]}>
+                {saveAsDefault ? <Text style={styles.checkText}>✓</Text> : null}
+              </View>
 
-            <Text style={styles.defaultText}>Save as default</Text>
-          </Pressable>
-        </View>
+              <Text style={styles.defaultText}>Save as default</Text>
+            </Pressable>
+          </View>
+        )}
 
         <DriverPickerSheet
           visible={showDriverSheet}
@@ -1898,7 +1970,9 @@ const styles = StyleSheet.create({
 
   modalRoot: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-end',
+    alignItems: Platform.OS === 'web' ? 'center' : undefined,
+    padding: Platform.OS === 'web' ? 24 : 0,
   },
 
   modalBackdrop: {
@@ -1908,17 +1982,33 @@ const styles = StyleSheet.create({
 
   bottomSheet: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: Platform.OS === 'web' ? 20 : 24,
+    borderTopRightRadius: Platform.OS === 'web' ? 20 : 24,
+    borderRadius: Platform.OS === 'web' ? 20 : undefined,
+    maxWidth: Platform.OS === 'web' ? 480 : undefined,
+    width: Platform.OS === 'web' ? '100%' : undefined,
     paddingTop: 18,
+    shadowColor: Platform.OS === 'web' ? '#0F172A' : undefined,
+    shadowOffset: Platform.OS === 'web' ? { width: 0, height: 16 } : undefined,
+    shadowOpacity: Platform.OS === 'web' ? 0.16 : undefined,
+    shadowRadius: Platform.OS === 'web' ? 32 : undefined,
+    elevation: Platform.OS === 'web' ? 10 : undefined,
   },
 
   dateTimeSheet: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: Platform.OS === 'web' ? 20 : 24,
+    borderTopRightRadius: Platform.OS === 'web' ? 20 : 24,
+    borderRadius: Platform.OS === 'web' ? 20 : undefined,
+    maxWidth: Platform.OS === 'web' ? 480 : undefined,
+    width: Platform.OS === 'web' ? '100%' : undefined,
     paddingHorizontal: 18,
     paddingTop: 18,
+    shadowColor: Platform.OS === 'web' ? '#0F172A' : undefined,
+    shadowOffset: Platform.OS === 'web' ? { width: 0, height: 16 } : undefined,
+    shadowOpacity: Platform.OS === 'web' ? 0.16 : undefined,
+    shadowRadius: Platform.OS === 'web' ? 32 : undefined,
+    elevation: Platform.OS === 'web' ? 10 : undefined,
   },
 
   sheetHeader: {
@@ -2248,6 +2338,210 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#667085',
     marginTop: 2,
+  },
+
+  // Web Specific Styles
+  webRoot: {
+    backgroundColor: '#F8FAFC',
+    minHeight: '100%',
+  },
+  webScrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webCard: {
+    maxWidth: 720,
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 36,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.06,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  webHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  webHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  webBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  webBackText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  webBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  webBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  webCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  webSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  webRouteSummaryCard: {
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    marginBottom: 24,
+  },
+  webRouteSummaryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  webDateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  webDateBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  webSection: {
+    marginBottom: 24,
+  },
+  webSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  webAddressInput: {
+    height: 50,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
+  },
+  webCurrentLocationBtn: {
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  webActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 28,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  webDefaultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  webDefaultText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#475569',
+  },
+  webCancelBtn: {
+    height: 46,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  webCancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  webDoneBtn: {
+    height: 46,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    backgroundColor: '#2F76F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    shadowColor: '#2F76F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  webDoneBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  webDoneBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
 

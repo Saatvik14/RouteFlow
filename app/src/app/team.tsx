@@ -21,6 +21,8 @@ import {
   StatusBadge,
 } from '../components/operations/operations-ui';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
+import { LEGAL_URLS } from '../constants/legal';
+import { openExternalUrl } from '../hooks/open-external-url';
 import {
   DriverPermissions,
   DriverProfile,
@@ -418,6 +420,13 @@ function AccessCodeModal({ credential, onClose }: {
             <Text selectable style={styles.accessCodeValue}>{credential.accessCode}</Text>
           </View>
           <View style={styles.accessCodeWarning}><Feather name="shield" size={16} color={C.warning} /><Text style={styles.accessCodeWarningText}>Anyone with this code and sign-in ID can access the driver account.</Text></View>
+          <View style={{ marginBottom: 16, backgroundColor: '#F0FDF4', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#BBF7D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>Driver Android App</Text>
+              <Text style={{ fontSize: 12, color: '#14532D', marginTop: 2 }}>Drivers enter this code on our Google Play app</Text>
+            </View>
+            <ActionButton variant="secondary" icon="download" label="Get app link" onPress={() => openExternalUrl(LEGAL_URLS.PLAY_STORE_APP)} />
+          </View>
           <ActionButton icon="check" label="I’ve saved the code" onPress={onClose} />
         </View> : null}
       </View>

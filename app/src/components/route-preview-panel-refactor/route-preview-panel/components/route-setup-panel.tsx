@@ -132,17 +132,45 @@ function getStopText(stop: StopLike) {
   return { title, subtitle };
 }
 
-function HeaderSearchBar({ onOpenSearch }: { onOpenSearch?: () => void }) {
+function formatTimelineTime(timeStr?: string) {
+  if (!timeStr) return 'Now';
+  const trimmed = String(timeStr).trim();
+  if (trimmed.includes('-') || trimmed.includes('T')) {
+    try {
+      const d = new Date(trimmed.replace(' ', 'T'));
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }).toLowerCase();
+      }
+    } catch {}
+  }
+  return trimmed;
+}
+
+function HeaderSearchBar({ onOpenSearch, isWide }: { onOpenSearch?: () => void; isWide?: boolean }) {
   return (
-    <View style={localStyles.searchHeaderRow}>
-      <Pressable style={localStyles.searchBox} onPress={onOpenSearch}>
-        <Text style={localStyles.searchIcon}>⌕</Text>
+    <View style={[localStyles.searchHeaderRow, isWide && localStyles.searchHeaderRowWeb]}>
+      <Pressable style={[localStyles.searchBox, isWide && localStyles.searchBoxWeb]} onPress={onOpenSearch}>
+        {isWide ? (
+          <Feather name="search" size={16} color="#64748B" style={{ marginRight: 8 }} />
+        ) : (
+          <Text style={localStyles.searchIcon}>⌕</Text>
+        )}
 
         <Text style={localStyles.searchPlaceholder} numberOfLines={1}>
           Tap to add more stops
         </Text>
-      </Pressable>
 
+        {isWide && (
+          <View style={localStyles.addBadgeWeb}>
+            <Feather name="plus" size={13} color="#2563EB" />
+            <Text style={localStyles.addBadgeWebText}>Add stop</Text>
+          </View>
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -170,12 +198,14 @@ function RouteSetupRow({
   icon: string;
   last?: boolean;
 }) {
+  const displayTime = formatTimelineTime(leftText);
+
   return (
     <View style={localStyles.setupRow}>
       <View style={localStyles.timelineCol}>
         {leftText ? (
           <Text style={localStyles.timelineTime} numberOfLines={1}>
-            {leftText}
+            {displayTime}
           </Text>
         ) : (
           <View style={localStyles.timelineDot} />
@@ -189,7 +219,7 @@ function RouteSetupRow({
           {title}
         </Text>
 
-        <Text style={localStyles.setupSubtitle} numberOfLines={3}>
+        <Text style={localStyles.setupSubtitle} numberOfLines={2}>
           {subtitle}
         </Text>
       </View>
@@ -206,27 +236,41 @@ function StopRow({
   stop,
   index,
   onPress,
+  isWide,
 }: {
   stop: StopLike;
   index: number;
   onPress?: (stop: StopLike, index: number) => void;
+  isWide?: boolean;
 }) {
   const stopText = getStopText(stop);
 
   return (
     <Pressable
-      style={({ pressed }) => [localStyles.stopRow, pressed && localStyles.stopRowPressed]}
+      style={({ pressed }) => [
+        localStyles.stopRow,
+        isWide && localStyles.stopRowWeb,
+        pressed && localStyles.stopRowPressed,
+      ]}
       onPress={() => onPress?.(stop, index)}
     >
-      <Text style={localStyles.stopIndex}>{String(index + 1).padStart(2, '0')}</Text>
+      {isWide ? (
+        <View style={localStyles.stopIndexBadgeWeb}>
+          <Text style={localStyles.stopIndexBadgeWebText}>{String(index + 1).padStart(2, '0')}</Text>
+        </View>
+      ) : (
+        <Text style={localStyles.stopIndex}>{String(index + 1).padStart(2, '0')}</Text>
+      )}
 
       <View style={localStyles.stopTextBox}>
-        <Text style={localStyles.stopTitle} numberOfLines={1}>
+        <Text style={[localStyles.stopTitle, isWide && localStyles.stopTitleWeb]} numberOfLines={1}>
           {stopText.title}
           {stop.priority ? ` ★ P${stop.priority}` : ''}
         </Text>
 
-        <Text style={localStyles.stopSubtitle}>{stopText.subtitle}</Text>
+        <Text style={[localStyles.stopSubtitle, isWide && localStyles.stopSubtitleWeb]} numberOfLines={2}>
+          {stopText.subtitle}
+        </Text>
       </View>
 
       <View style={localStyles.stopIconBox}>
@@ -262,12 +306,22 @@ export function RouteSetupPanel({
   return (
     <DraggableRouteSheet isWide={isWide} initialSnap="middle" collapsedHeight={88}>
       <View style={[localStyles.panel, isWide && localStyles.panelWeb]}>
-        <HeaderSearchBar onOpenSearch={onOpenSearch} />
+        <HeaderSearchBar onOpenSearch={onOpenSearch} isWide={isWide} />
 
-        <View style={localStyles.routeTitleBox}>
-          <Text style={localStyles.stopCount}>{stopLabel}</Text>
+        <View style={[localStyles.routeTitleBox, isWide && localStyles.routeTitleBoxWeb]}>
+          <View style={localStyles.metaHeaderRow}>
+            <View style={[localStyles.stopsPill, !isWide && { marginBottom: 5 }]}>
+              {isWide && <Feather name="map-pin" size={11} color="#2563EB" />}
+              <Text style={isWide ? localStyles.stopsPillText : localStyles.stopCount}>{stopLabel}</Text>
+            </View>
+            {isWide && (
+              <View style={localStyles.draftPill}>
+                <Text style={localStyles.draftPillText}>Draft Route</Text>
+              </View>
+            )}
+          </View>
 
-          <Text style={localStyles.routeTitle} numberOfLines={1}>
+          <Text style={[localStyles.routeTitle, isWide && localStyles.routeTitleWeb]} numberOfLines={1}>
             {routeName || 'Route preview'}
           </Text>
         </View>
@@ -275,7 +329,7 @@ export function RouteSetupPanel({
         <ScrollView
           style={localStyles.scroll}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={{ paddingBottom: isWide ? 40 : 20 }}
         >
           <SectionLabel title="Route setup" />
 
@@ -305,6 +359,7 @@ export function RouteSetupPanel({
                   key={stop.id ?? `${index}`}
                   stop={stop}
                   index={index}
+                  isWide={isWide}
                   onPress={(stop) => {
                     if (onOpenStopDetails) {
                       onOpenStopDetails(stop);
@@ -329,24 +384,52 @@ export function RouteSetupPanel({
           style={[
             localStyles.footer,
             isWide && localStyles.footerWeb,
-            { paddingBottom: Math.max(insets.bottom + 10, 16) },
+            { paddingBottom: isWide ? 20 : Math.max(insets.bottom + 10, 16) },
           ]}
         >
-          <Pressable
-            style={({ pressed }) => [
-              localStyles.cancelRouteButton,
-              pressed && localStyles.cancelRouteButtonPressed,
-            ]}
-            onPress={onCancelRoute}
-          >
-            <Feather name="trash-2" size={22} color="#FF3B3B" />
+          {isWide ? (
+            <View style={localStyles.webFooterRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  localStyles.webCancelButton,
+                  pressed && localStyles.webCancelButtonPressed,
+                ]}
+                onPress={onCancelRoute}
+              >
+                <Feather name="trash-2" size={16} color="#DC2626" />
+                <Text style={localStyles.webCancelText}>Cancel route</Text>
+              </Pressable>
 
-            <Text style={localStyles.cancelRouteText}>Cancel route</Text>
-          </Pressable>
-          <Pressable style={localStyles.optimizeButton} onPress={onOptimizeRoute}>
-            <Text style={localStyles.optimizeIcon}>↻</Text>
-            <Text style={localStyles.optimizeText}>Optimize route</Text>
-          </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  localStyles.webOptimizeButton,
+                  pressed && localStyles.webOptimizeButtonPressed,
+                ]}
+                onPress={onOptimizeRoute}
+              >
+                <Feather name="zap" size={17} color="#FFFFFF" />
+                <Text style={localStyles.webOptimizeText}>Optimize route</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  localStyles.cancelRouteButton,
+                  pressed && localStyles.cancelRouteButtonPressed,
+                ]}
+                onPress={onCancelRoute}
+              >
+                <Feather name="trash-2" size={22} color="#FF3B3B" />
+
+                <Text style={localStyles.cancelRouteText}>Cancel route</Text>
+              </Pressable>
+              <Pressable style={localStyles.optimizeButton} onPress={onOptimizeRoute}>
+                <Text style={localStyles.optimizeIcon}>↻</Text>
+                <Text style={localStyles.optimizeText}>Optimize route</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
 
@@ -747,6 +830,7 @@ const localStyles = StyleSheet.create({
   footerWeb: {
     maxWidth: 470,
     alignSelf: 'center',
+    width: '100%',
   },
   cancelButton: {
     height: 46,
@@ -819,5 +903,156 @@ const localStyles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: -0.1,
+  },
+
+  // Web Specific Styles
+  searchHeaderRowWeb: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  searchBoxWeb: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 14,
+    minHeight: 46,
+  },
+  addBadgeWeb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  addBadgeWebText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  routeTitleBoxWeb: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  metaHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  stopsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stopsPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  draftPill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  draftPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  routeTitleWeb: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  stopRowWeb: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  stopIndexBadgeWeb: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  stopIndexBadgeWebText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  stopTitleWeb: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  stopSubtitleWeb: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#64748B',
+  },
+  webFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    gap: 12,
+  },
+  webCancelButton: {
+    height: 50,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    backgroundColor: '#FFF5F5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  webCancelButtonPressed: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
+  webCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#DC2626',
+    lineHeight: 20,
+  },
+  webOptimizeButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  webOptimizeButtonPressed: {
+    backgroundColor: '#1D4ED8',
+    opacity: 0.95,
+  },
+  webOptimizeText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    lineHeight: 20,
   },
 });

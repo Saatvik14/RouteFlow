@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -68,6 +69,7 @@ const vehicles: Array<{ value: VehicleType; label: string; icon: keyof typeof Fe
 ];
 
 export default function SignupScreen() {
+  const searchParams = useLocalSearchParams<{ role?: string; email?: string }>();
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<SignupRole | null>(null);
   const [name, setName] = useState('');
@@ -91,6 +93,18 @@ export default function SignupScreen() {
   const router = useRouter();
   const { login } = useAuth();
   const narrow = width < 620;
+
+  useEffect(() => {
+    if (searchParams.email) {
+      setEmail(String(searchParams.email));
+    }
+    if (searchParams.role) {
+      const paramRole = String(searchParams.role).toUpperCase();
+      if (paramRole === 'BUSINESS_OWNER' || paramRole === 'FLEET_DRIVER' || paramRole === 'INDEPENDENT_DRIVER') {
+        setRole(paramRole as SignupRole);
+      }
+    }
+  }, [searchParams.email, searchParams.role]);
 
   const validateAccount = () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -118,6 +132,11 @@ export default function SignupScreen() {
   const continueRole = () => {
     if (!role) {
       setError('Choose the option that best describes you.');
+      return;
+    }
+    if (Platform.OS === 'web' && (role === 'INDEPENDENT_DRIVER' || role === 'FLEET_DRIVER')) {
+      setError('Driver accounts are registered and operated exclusively via our Android mobile app. Please download RouteFloww on Google Play.');
+      openExternalUrl(LEGAL_URLS.PLAY_STORE_APP);
       return;
     }
     setError('');

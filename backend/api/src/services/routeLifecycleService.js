@@ -5,15 +5,16 @@ const TERMINAL_ROUTE_STATES = new Set(['completed', 'failed', 'cancelled']);
 const transitions = Object.freeze({
   accept: { from: ['assigned'], to: 'accepted' },
   reject: { from: ['assigned'], to: 'draft' },
-  start: { from: ['accepted'], to: 'in_progress' },
+  start: { from: ['accepted', 'optimized', 'draft'], to: 'in_progress' },
   complete: { from: ['in_progress'], to: 'completed' },
   fail: { from: ['in_progress'], to: 'failed' },
-  cancel: { from: ['draft', 'assigned', 'accepted', 'in_progress'], to: 'cancelled' },
+  cancel: { from: ['draft', 'optimized', 'confirmed', 'assigned', 'accepted', 'in_progress'], to: 'cancelled' },
 });
 
 const normalizeRouteState = (state) => {
   const normalized = String(state || '').trim().toLowerCase().replace(/[ -]+/g, '_');
-  if (['pending', 'pnding', 'new', 'scheduled', 'optimized', 'ready'].includes(normalized)) return 'draft';
+  if (['optimized', 'confirmed'].includes(normalized)) return 'optimized';
+  if (['pending', 'pnding', 'new', 'scheduled', 'ready'].includes(normalized)) return 'draft';
   if (['active', 'in_transit', 'started', 'running', 'in_progress'].includes(normalized)) return 'in_progress';
   if (['complete', 'done', 'delivered', 'closed', 'archived'].includes(normalized)) return 'completed';
   if (normalized === 'canceled') return 'cancelled';
@@ -42,7 +43,7 @@ const transitionRoute = ({ currentState, action }) => {
 
 const assertAssignable = (currentState) => {
   const current = normalizeRouteState(currentState);
-  if (!['draft', 'assigned', 'accepted'].includes(current)) {
+  if (!['draft', 'optimized', 'assigned', 'accepted'].includes(current)) {
     throw new HttpError(
       409,
       'ROUTE_NOT_ASSIGNABLE',

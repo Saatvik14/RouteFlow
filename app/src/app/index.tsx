@@ -10,6 +10,9 @@ import { RoutePanel } from '../components/route-panel';
 import { Sidebar } from '../components/sidebar';
 import { IMAGES } from '../constants/theme';
 import { useUserRole } from '../hooks/useUserRole';
+import { Platform } from 'react-native';
+import { useAuth } from './_layout';
+import MainLandingScreen from './landing';
 
 export default function Index() {
   const router = useRouter();
@@ -17,12 +20,20 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { isLoggedIn, isLoading: isAuthLoading } = useAuth();
   const { isLoading: isRoleLoading, isBusinessOwner, isFleetDriver } = useUserRole();
 
   useEffect(() => {
-    if (isRoleLoading) return;
+    if (isAuthLoading || isRoleLoading) return;
+    if (Platform.OS === 'web' && !isLoggedIn) return;
+
     if (workspace === 'map') {
       setIsLoading(false);
+      return;
+    }
+
+    if (isBusinessOwner && Platform.OS === 'web') {
+      router.replace('/dashboard' as any);
       return;
     }
 
@@ -44,6 +55,8 @@ export default function Index() {
         } else {
           if (isFleetDriver) {
             router.replace('/driver-routes' as any);
+          } else if (isBusinessOwner) {
+            router.replace('/dashboard' as any);
           } else {
             setIsLoading(false);
           }
@@ -52,6 +65,8 @@ export default function Index() {
         console.error("Home initialization route check failed:", error);
         if (isFleetDriver) {
           router.replace('/driver-routes' as any);
+        } else if (isBusinessOwner) {
+          router.replace('/dashboard' as any);
         } else {
           setIsLoading(false);
         }
@@ -59,7 +74,12 @@ export default function Index() {
     }
 
     checkUserRoute();
-  }, [isBusinessOwner, isFleetDriver, isRoleLoading, router, workspace]);
+  }, [isAuthLoading, isBusinessOwner, isFleetDriver, isLoggedIn, isRoleLoading, router, workspace]);
+
+  // On Web, if visitor is not logged in, render the product landing page directly at localhost:8081 (root /)
+  if (Platform.OS === 'web' && !isAuthLoading && !isLoggedIn) {
+    return <MainLandingScreen />;
+  }
 
   if (isLoading) {
     return (
