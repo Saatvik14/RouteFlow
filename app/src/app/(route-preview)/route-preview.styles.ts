@@ -41,7 +41,8 @@ export const styles = StyleSheet.create({
   mapControls: {
     position: 'absolute',
     right: 24,
-    zIndex: 80,
+    width: 56,
+    zIndex: 30,
     gap: 14,
   },
 

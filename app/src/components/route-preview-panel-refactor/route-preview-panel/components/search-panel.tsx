@@ -383,9 +383,9 @@ export function SearchPanel({
           >
             <Text style={localStyles.sectionTitle}>Add a new stop</Text>
 
-            {suggestions.map(item => (
+            {suggestions.map((item, index) => (
               <Pressable
-                key={item.id}
+                key={item.id || `suggestion-${index}`}
                 style={({ pressed }) => [
                   localStyles.suggestionRow,
                   Platform.OS === 'web' && ({ cursor: 'pointer' } as any),

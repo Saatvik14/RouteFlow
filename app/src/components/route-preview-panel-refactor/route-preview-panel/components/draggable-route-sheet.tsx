@@ -216,53 +216,8 @@ export function DraggableRouteSheet({
     [animatedHeight, snapHeights],
   );
 
-  // On web (isWide), Google Maps JS adds document-level mousedown/pointerdown listeners
-  // that intercept clicks even on elements layered above the map. We attach a native
-  // DOM listener in the capture phase on the panel div to stop propagation before
-  // Google Maps sees the event.
-  const widePanelRef = useRef<any>(null);
-  useEffect(() => {
-    if (!isWide || Platform.OS !== 'web') return;
-    const el = widePanelRef.current;
-    if (!el) return;
-
-    // Access the underlying DOM node from the React Native Web view
-    const domNode: HTMLElement | null =
-      typeof el.getNativeScrollRef === 'function'
-        ? el.getNativeScrollRef()
-        : (el as any)._nativeTag
-        ? null
-        : el;
-
-    if (!domNode || typeof domNode.addEventListener !== 'function') return;
-
-    const stopProp = (e: Event) => {
-      e.stopPropagation();
-    };
-
-    // Capture phase so we intercept before Google Maps document listener runs
-    domNode.addEventListener('pointerdown', stopProp, { capture: true });
-    domNode.addEventListener('mousedown', stopProp, { capture: true });
-    domNode.addEventListener('click', stopProp, { capture: false });
-
-    return () => {
-      domNode.removeEventListener('pointerdown', stopProp, { capture: true } as any);
-      domNode.removeEventListener('mousedown', stopProp, { capture: true } as any);
-      domNode.removeEventListener('click', stopProp);
-    };
-  }, [isWide]);
-
   if (isWide) {
-    return (
-      <View
-        ref={widePanelRef}
-        style={styles.wideSheet}
-        // @ts-ignore – valid web prop on View (React Native Web)
-        onPointerDown={(e: any) => e.stopPropagation()}
-      >
-        {children}
-      </View>
-    );
+    return <View style={styles.wideSheet}>{children}</View>;
   }
 
   return (
@@ -344,8 +299,8 @@ const styles = StyleSheet.create({
     right: 20,
     bottom: 24,
     width: 440,
-    zIndex: 50,
-    elevation: 16,
+    zIndex: 100,
+    elevation: 24,
     overflow: 'hidden',
     borderRadius: 20,
     backgroundColor: '#FFFFFF',

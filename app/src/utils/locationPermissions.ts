@@ -4,11 +4,17 @@ import { getAuthToken, restoreAuthToken, getUserEmailFromToken } from '../servic
 export const INDIA_ALLOWED_EMAILS = [
   'vai@gmail.com',
   'saatvikrawat8921@gmail.com',
+  'saatvik652@gmail.com',
+  'vaibhavgrg2801@gmail.com',
+  'vaibh.garg.3010@gmail.com',
+  'vaibhavgrg007@gmail.com',
+  'visiofytech@gmail.com',
 ];
 
 let cachedEmail: string | null = null;
 
 export const isIndiaAllowedForEmail = (email?: string | null): boolean => {
+  if (__DEV__ || process.env.NODE_ENV !== 'production') return true;
   if (!email) return false;
   return INDIA_ALLOWED_EMAILS.includes(String(email).toLowerCase().trim());
 };

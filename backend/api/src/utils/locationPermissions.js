@@ -1,6 +1,11 @@
 const INDIA_ALLOWED_EMAILS = [
   'vai@gmail.com',
   'saatvikrawat8921@gmail.com',
+  'saatvik652@gmail.com',
+  'vaibhavgrg2801@gmail.com',
+  'vaibh.garg.3010@gmail.com',
+  'vaibhavgrg007@gmail.com',
+  'visiofytech@gmail.com',
 ];
 
 const isIndiaAllowedUser = (email) => {
@@ -72,6 +77,9 @@ const getCountryCodeFilter = (userEmail) => {
 };
 
 const getAllowedCountryCodes = (userEmail) => {
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_INDIA_LOCATION === 'true') {
+    return ['GB', 'IN'];
+  }
   return isIndiaAllowedUser(userEmail) ? ['GB', 'IN'] : ['GB'];
 };
 

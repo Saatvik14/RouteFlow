@@ -368,15 +368,17 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           </Pressable>
 
           <View
+            pointerEvents="box-none"
             style={[
               styles.mapControls,
               {
                 top: insets.top + 16,
               },
               isWide && {
-                right: undefined,
+                right: 'auto' as any,
                 left: 24,
                 top: insets.top + 88,
+                width: 56,
               },
             ]}
           >

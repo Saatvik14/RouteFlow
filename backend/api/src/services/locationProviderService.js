@@ -49,7 +49,20 @@ const getProviderKey = provider => {
 
 const isProviderEnabled = provider => {
   const envName = `LOCATION_${provider.toUpperCase()}_ENABLED`;
-  return toBoolean(process.env[envName], true) && Boolean(getProviderKey(provider));
+  const isEnabledFlag = toBoolean(process.env[envName], true);
+
+  // If Geoapify is marked disabled in configuration, but no other provider (like Google)
+  // has an API key configured yet, temporarily keep Geoapify active so existing functionality
+  // does not break before the user provides their GOOGLE_MAPS_API_KEY. Once GOOGLE_MAPS_API_KEY
+  // is provided, Geoapify is disabled immediately as configured.
+  if (provider === 'geoapify' && !isEnabledFlag) {
+    const hasActiveProviderKey = Boolean(getProviderKey('google')) || Boolean(getProviderKey('tomtom'));
+    if (!hasActiveProviderKey && Boolean(getProviderKey('geoapify'))) {
+      return true;
+    }
+  }
+
+  return isEnabledFlag && Boolean(getProviderKey(provider));
 };
 
 const isCoolingDown = provider => (providerCooldowns.get(provider) || 0) > Date.now();
@@ -369,7 +382,15 @@ const googleGeocode = async ({ text, latitude, longitude, countryCodes, limit })
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
   if (text) url.searchParams.set('address', text);
   else url.searchParams.set('latlng', `${latitude},${longitude}`);
-  if (countryCodes?.length === 1) url.searchParams.set('region', countryCodes[0].toLowerCase());
+  if (countryCodes?.length) {
+    url.searchParams.set(
+      'components',
+      countryCodes.map(code => `country:${code.toLowerCase()}`).join('|'),
+    );
+    if (countryCodes.length === 1) {
+      url.searchParams.set('region', countryCodes[0].toLowerCase());
+    }
+  }
   url.searchParams.set('key', getProviderKey('google'));
 
   const data = await requestJson('google', url.toString());
@@ -531,7 +552,8 @@ const reverseGeocode = async (latitude, longitude, options = {}) => {
 };
 
 const resolvePlaceDetails = async ({ placeId, provider, text, countryCodes, sessionToken }) => {
-  if (provider === 'google' && placeId && isProviderEnabled('google') && !isCoolingDown('google')) {
+  const isGoogle = provider === 'google' || (!provider && isProviderEnabled('google'));
+  if (isGoogle && placeId && isProviderEnabled('google') && !isCoolingDown('google')) {
     try {
       const results = filterByCountries(await googlePlaceDetails(placeId, sessionToken), countryCodes);
       if (results.length > 0) return { provider: 'google', results };
