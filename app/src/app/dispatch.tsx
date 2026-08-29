@@ -61,7 +61,7 @@ export default function DispatchLandingScreen() {
               onPress={() => openExternalUrl(LEGAL_URLS.PLAY_STORE_APP)}
             >
               <Feather name="download" size={13} color="#16A34A" />
-              <Text style={[styles.navLinkText, { color: '#16A34A', fontWeight: '700' }]}>Get Driver App</Text>
+              <Text style={[styles.navLinkText, { color: '#16A34A', fontWeight: '600' }]}>Get Driver App</Text>
             </Pressable>
 
             <Pressable style={styles.loginBtn} onPress={() => router.push('/login')}>
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
   },
   headerLinks: {
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 48,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0F172A',
     lineHeight: 56,
     letterSpacing: -1.2,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
   },
   highlightText: {
     color: '#0F172A',
-    fontWeight: '700',
+    fontWeight: '600',
     textDecorationLine: 'underline',
   },
   ctaForm: {
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   getStartedBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   errorText: {
     color: '#DC2626',
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   },
   mockRouteTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 12,
   },
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   },
   activeTabItemText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
   inactiveTabItemText: {
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
   driverInfoText: {
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   },
   driverName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   statusBadge: {
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
   },
   stopNum: {
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#2563EB',
     backgroundColor: '#EFF6FF',
     paddingHorizontal: 8,
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   },
   stopAddress: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   stopSub: {
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
   },
   sectionHeading: {
     fontSize: 28,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     textAlign: 'center',
     marginBottom: 40,
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 8,
   },
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
   },
   actionBannerTitle: {
     fontSize: 28,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 12,
@@ -619,6 +619,6 @@ const styles = StyleSheet.create({
   bannerLoginBtnText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   },
   openingTitle: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     marginTop: 16,
     letterSpacing: -0.5,

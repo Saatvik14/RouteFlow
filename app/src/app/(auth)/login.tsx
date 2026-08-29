@@ -243,8 +243,8 @@ const styles = StyleSheet.create({
   securityNote: { color: C.inkSubtle, fontFamily: AUTH_FONT, fontSize: 11, textAlign: 'center', marginTop: 18 },
   driverNoticeBox: { backgroundColor: '#EFF6FF', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#BFDBFE', marginVertical: 12, alignItems: 'center' },
   driverNoticeIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  driverNoticeTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A', textAlign: 'center', marginBottom: 6 },
+  driverNoticeTitle: { fontSize: 15, fontWeight: '600', color: '#0F172A', textAlign: 'center', marginBottom: 6 },
   driverNoticeText: { fontSize: 13, color: '#475569', textAlign: 'center', lineHeight: 18, marginBottom: 16 },
   playStoreBtn: { backgroundColor: '#16A34A', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
-  playStoreBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  playStoreBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
 });

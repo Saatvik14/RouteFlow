@@ -1771,7 +1771,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     lineHeight: 30,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#101828',
     marginBottom: 18,
     letterSpacing: -0.3,
@@ -1958,7 +1958,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     lineHeight: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   defaultText: {
@@ -2024,7 +2024,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 20,
     lineHeight: 26,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#101828',
     letterSpacing: -0.2,
   },
@@ -2077,7 +2077,7 @@ const styles = StyleSheet.create({
   selectedTick: {
     fontSize: 20,
     lineHeight: 24,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2F76F6',
   },
 
@@ -2253,7 +2253,7 @@ const styles = StyleSheet.create({
 
   driverModalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#101828',
   },
 
@@ -2404,7 +2404,7 @@ const styles = StyleSheet.create({
   },
   webBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
   webCloseBtn: {
@@ -2417,7 +2417,7 @@ const styles = StyleSheet.create({
   },
   webTitle: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     letterSpacing: -0.4,
     marginBottom: 6,
@@ -2438,7 +2438,7 @@ const styles = StyleSheet.create({
   },
   webRouteSummaryTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   webDateBadge: {
@@ -2460,7 +2460,7 @@ const styles = StyleSheet.create({
   },
   webSectionTitle: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#475569',
     letterSpacing: 0.6,
     marginBottom: 10,
@@ -2541,7 +2541,7 @@ const styles = StyleSheet.create({
   webDoneBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });
 

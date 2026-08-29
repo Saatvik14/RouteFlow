@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 21,
     lineHeight: 28,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#111827',
     marginBottom: 22,
   },
@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     lineHeight: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   calendarIcon: {
@@ -1054,7 +1054,7 @@ const styles = StyleSheet.create({
   },
   webBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
   webCloseBtn: {
@@ -1067,7 +1067,7 @@ const styles = StyleSheet.create({
   },
   webTitle: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     letterSpacing: -0.4,
     marginBottom: 6,
@@ -1080,7 +1080,7 @@ const styles = StyleSheet.create({
   },
   webLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#475569',
     letterSpacing: 0.6,
     marginBottom: 10,
@@ -1132,7 +1132,7 @@ const styles = StyleSheet.create({
   },
   webDateTileTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 3,
   },
@@ -1177,7 +1177,7 @@ const styles = StyleSheet.create({
   },
   webOptionTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 2,
   },
@@ -1229,7 +1229,7 @@ const styles = StyleSheet.create({
   webConfirmBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   webModalRoot: {
     justifyContent: 'center',

@@ -203,7 +203,7 @@ export default function GoogleRouteMap({
           map: mapRef.current,
           position: toLatLng(item.point),
           title: item.point.title || item.point.description || '',
-          label: { text: item.label, color: '#FFFFFF', fontWeight: '700' },
+          label: { text: item.label, color: '#FFFFFF', fontWeight: '600' },
           icon: {
             path: googleApi.maps.SymbolPath.CIRCLE,
             fillColor: item.color,

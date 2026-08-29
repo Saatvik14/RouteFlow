@@ -460,7 +460,7 @@ export function RouteSetupPanel({
             onPress={(e) => e.stopPropagation()}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A' }}>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: '#0F172A' }}>
                 Set stops priority
               </Text>
               <Pressable onPress={() => setIsPriorityModalOpen(false)} style={{ padding: 4 }}>
@@ -511,7 +511,7 @@ export function RouteSetupPanel({
                         }}
                         style={{ padding: 8 }}
                       >
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#64748B' }}>−</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#64748B' }}>−</Text>
                       </Pressable>
 
                       <Text style={{ fontSize: 13, fontWeight: '600', color: stop.priority ? '#2E76F6' : '#64748B', minWidth: 40, textAlign: 'center' }}>
@@ -529,7 +529,7 @@ export function RouteSetupPanel({
                         }}
                         style={{ padding: 8 }}
                       >
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#64748B' }}>+</Text>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: '#64748B' }}>+</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -930,7 +930,7 @@ const localStyles = StyleSheet.create({
   },
   addBadgeWebText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
   routeTitleBoxWeb: {
@@ -951,7 +951,7 @@ const localStyles = StyleSheet.create({
   },
   stopsPillText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
   draftPill: {
@@ -967,7 +967,7 @@ const localStyles = StyleSheet.create({
   },
   routeTitleWeb: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     letterSpacing: -0.3,
   },
@@ -988,12 +988,12 @@ const localStyles = StyleSheet.create({
   },
   stopIndexBadgeWebText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#2563EB',
   },
   stopTitleWeb: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   stopSubtitleWeb: {
@@ -1025,7 +1025,7 @@ const localStyles = StyleSheet.create({
   },
   webCancelText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#DC2626',
     lineHeight: 20,
   },
@@ -1051,7 +1051,7 @@ const localStyles = StyleSheet.create({
   webOptimizeText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: -0.2,
     lineHeight: 20,
   },

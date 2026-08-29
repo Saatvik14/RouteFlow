@@ -1326,7 +1326,7 @@ const localStyles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: '#1D4ED8',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   travelSummaryDivider: {
     width: 1,
@@ -1348,7 +1348,7 @@ const localStyles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#0F172A',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   inlineEditButton: {
     minHeight: 32,
@@ -2160,7 +2160,7 @@ const localStyles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 6,
     textAlign: 'center',
@@ -2198,7 +2198,7 @@ const localStyles = StyleSheet.create({
   },
   btnTitleLight: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   btnDescLight: {
@@ -2208,7 +2208,7 @@ const localStyles = StyleSheet.create({
   },
   btnTitleDark: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#1E293B',
   },
   btnDescDark: {
@@ -2253,7 +2253,7 @@ const localStyles = StyleSheet.create({
   },
   dispatchTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0369A1',
     marginBottom: 2,
   },

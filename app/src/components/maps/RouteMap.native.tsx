@@ -622,13 +622,13 @@ const styles = StyleSheet.create({
   },
   startMarkerLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#2F76F6',
     lineHeight: 13,
   },
   endMarkerLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#22C55E',
     lineHeight: 13,
   },
@@ -688,7 +688,7 @@ const styles = StyleSheet.create({
   },
   stopMarkerText: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   navPuckContainer: {

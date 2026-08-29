@@ -422,7 +422,7 @@ function AccessCodeModal({ credential, onClose }: {
           <View style={styles.accessCodeWarning}><Feather name="shield" size={16} color={C.warning} /><Text style={styles.accessCodeWarningText}>Anyone with this code and sign-in ID can access the driver account.</Text></View>
           <View style={{ marginBottom: 16, backgroundColor: '#F0FDF4', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#BBF7D0', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>Driver Android App</Text>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: '#166534', textTransform: 'uppercase' }}>Driver Android App</Text>
               <Text style={{ fontSize: 12, color: '#14532D', marginTop: 2 }}>Drivers enter this code on our Google Play app</Text>
             </View>
             <ActionButton variant="secondary" icon="download" label="Get app link" onPress={() => openExternalUrl(LEGAL_URLS.PLAY_STORE_APP)} />
@@ -486,13 +486,13 @@ const styles = StyleSheet.create({
   inviteModal: { width: '100%', maxWidth: 560, maxHeight: '90%', backgroundColor: C.surface, borderRadius: R.lg, padding: S.xl },
   accessCodeCard: { width: '100%', maxWidth: 480, backgroundColor: C.surface, borderRadius: 22, padding: S.xl, alignItems: 'center' },
   accessCodeIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: S.lg },
-  accessCodeTitle: { color: C.ink, fontSize: 21, fontWeight: '700', textAlign: 'center' },
+  accessCodeTitle: { color: C.ink, fontSize: 21, fontWeight: '600', textAlign: 'center' },
   accessCodeMessage: { color: C.inkMuted, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: S.sm },
   credentialBlock: { width: '100%', borderRadius: R.lg, borderWidth: 1, borderColor: '#C6D9F5', backgroundColor: C.primarySoft, padding: S.lg, marginVertical: S.xl },
-  credentialLabel: { color: C.inkSubtle, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.7 },
+  credentialLabel: { color: C.inkSubtle, fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.7 },
   credentialIdentifier: { color: C.ink, fontSize: 14, fontWeight: '600', marginTop: 5 },
   credentialDivider: { height: 1, backgroundColor: '#C6D9F5', marginVertical: S.lg },
-  accessCodeValue: { color: C.primaryDark, fontSize: 27, fontWeight: '800', letterSpacing: 2, marginTop: 5 },
+  accessCodeValue: { color: C.primaryDark, fontSize: 27, fontWeight: '600', letterSpacing: 2, marginTop: 5 },
   accessCodeWarning: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: S.sm, padding: S.md, borderRadius: R.md, backgroundColor: C.warningSoft, marginBottom: S.xl },
   accessCodeWarningText: { flex: 1, color: C.warning, fontSize: 11, lineHeight: 17 },
   detailPanel: { width: '100%', maxWidth: 660, maxHeight: '92%', backgroundColor: C.surface, borderRadius: R.lg, padding: S.xl },

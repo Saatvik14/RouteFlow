@@ -92,7 +92,7 @@ const localStyles = StyleSheet.create({
     marginTop: 14,
     color: '#0F172A',
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   loadingText: {
     marginTop: 6,

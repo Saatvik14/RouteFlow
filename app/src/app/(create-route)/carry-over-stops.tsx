@@ -329,7 +329,7 @@ export default function CarryOverStopsScreen() {
                     paddingHorizontal: 8,
                     marginLeft: 8,
                   }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E40AF' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#1E40AF' }}>
                       A{stop.sequence || index + 1}
                     </Text>
                   </View>
@@ -441,7 +441,7 @@ export default function CarryOverStopsScreen() {
             ) : pastRouteStops.length === 0 ? (
               <View style={{ paddingVertical: 48, alignItems: 'center' }}>
                 <MaterialCommunityIcons name="map-marker-off" size={48} color="#94A3B8" />
-                <Text style={{ marginTop: 14, fontSize: 16, fontWeight: '700', color: '#334155' }}>
+                <Text style={{ marginTop: 14, fontSize: 16, fontWeight: '600', color: '#334155' }}>
                   No stops found
                 </Text>
                 <Text style={{ marginTop: 6, fontSize: 13, color: '#94A3B8', textAlign: 'center', maxWidth: 360 }}>
@@ -548,7 +548,7 @@ export default function CarryOverStopsScreen() {
       </View>
 
       <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-        <Text style={{ fontSize: 24, fontWeight: '700', color: '#0F172A', marginBottom: 16 }}>
+        <Text style={{ fontSize: 24, fontWeight: '600', color: '#0F172A', marginBottom: 16 }}>
           Carry over stops
         </Text>
 
@@ -810,7 +810,7 @@ const webStyles = StyleSheet.create({
   },
   webBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
   webCloseBtn: {
@@ -823,7 +823,7 @@ const webStyles = StyleSheet.create({
   },
   webTitle: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     letterSpacing: -0.4,
     marginBottom: 6,
@@ -906,7 +906,7 @@ const webStyles = StyleSheet.create({
   },
   categoryTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#334155',
   },
   categoryCountPill: {
@@ -917,7 +917,7 @@ const webStyles = StyleSheet.create({
   },
   categoryCountText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#475569',
   },
   stopsList: {
@@ -948,7 +948,7 @@ const webStyles = StyleSheet.create({
   },
   stopTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 2,
   },
@@ -967,7 +967,7 @@ const webStyles = StyleSheet.create({
   },
   seqBadgeText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#1E40AF',
   },
   webActionRow: {
@@ -1018,7 +1018,7 @@ const webStyles = StyleSheet.create({
   webConfirmBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   webConfirmBtnTextDisabled: {
     color: '#94A3B8',

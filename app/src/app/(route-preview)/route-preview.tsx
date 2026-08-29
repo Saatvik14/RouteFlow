@@ -292,7 +292,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
                     paddingHorizontal: 8,
                     marginLeft: 8,
                   }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E40AF' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#1E40AF' }}>
                       A{stop.sequence || index + 1}
                     </Text>
                   </View>
@@ -677,7 +677,7 @@ const activePanelMode = explicitPanelModes.includes(panelMode)
           </View>
 
           <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
-            <Text style={{ fontSize: 24, fontWeight: '700', color: '#0F172A', marginBottom: 16 }}>
+            <Text style={{ fontSize: 24, fontWeight: '600', color: '#0F172A', marginBottom: 16 }}>
               Carry over stops
             </Text>
 

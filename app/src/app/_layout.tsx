@@ -286,7 +286,7 @@ const layoutStyles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 12,
     textAlign: 'center',

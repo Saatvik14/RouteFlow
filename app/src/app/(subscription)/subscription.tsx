@@ -680,7 +680,7 @@ export default function SubscriptionScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ flex: 1, padding: 32, justifyContent: 'center', alignItems: 'center' }}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>🚚</Text>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 22, fontWeight: '600', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 8 }}>
             Fleet Driver Account
           </Text>
           <Text style={{ fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 24 }}>
@@ -1473,7 +1473,7 @@ const styles = StyleSheet.create({
   standardActiveTitle: {
     fontSize: 20,
     lineHeight: 26,
-    fontWeight: "700",
+    fontWeight: "600",
     color: COLORS.textPrimary,
     textAlign: "center",
     marginBottom: 10,

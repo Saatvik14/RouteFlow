@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   markerText: {
     color: '#1E293B',
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   userMarker: {
     width: 34,

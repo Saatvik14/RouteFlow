@@ -1727,7 +1727,7 @@ const navModalStyles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "600",
     color: "#0F172A",
     marginBottom: 2,
   },
@@ -1762,7 +1762,7 @@ const navModalStyles = StyleSheet.create({
   },
   btnTitleLight: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#FFFFFF",
   },
   btnDescLight: {
@@ -1773,7 +1773,7 @@ const navModalStyles = StyleSheet.create({
   },
   btnTitleDark: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#0F172A",
   },
   btnDescDark: {

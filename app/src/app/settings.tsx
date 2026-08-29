@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   modalHeaderTitle: {
     fontSize: 18,
     lineHeight: 24,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#0F172A",
   },
 
@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontSize: 16,
     lineHeight: 22,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#1E293B",
   },
 
@@ -579,7 +579,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#0F172A",
   },
 

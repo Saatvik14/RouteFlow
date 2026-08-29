@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   title: {
     color: '#FFFFFF',
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '600',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   unlockButtonText: {
     color: '#FFFFFF',
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
 });

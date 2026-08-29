@@ -583,7 +583,7 @@ export function SearchPanel({
                         </Text>
                         <View style={localStyles.reviewRowBadgeRow}>
                           {!isItemUk && (
-                            <Text style={[localStyles.reviewRowBadge, { backgroundColor: '#FEE2E2', color: '#EF4444', fontWeight: 'bold' }]}>
+                            <Text style={[localStyles.reviewRowBadge, { backgroundColor: '#FEE2E2', color: '#EF4444', fontWeight: '600' }]}>
                               ⚠️ Outside Region
                             </Text>
                           )}
@@ -823,7 +823,7 @@ const localStyles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   secondaryButton: {
     height: 50,
@@ -870,7 +870,7 @@ const localStyles = StyleSheet.create({
     marginTop: 14,
     color: '#0F172A',
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   copyingText: {
     marginTop: 6,
@@ -1006,7 +1006,7 @@ const localStyles = StyleSheet.create({
   },
   reviewTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#172033',
   },
   reviewSubtitle: {
@@ -1068,7 +1068,7 @@ const localStyles = StyleSheet.create({
   reviewDeleteText: {
     fontSize: 18,
     color: '#EF4444',
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginTop: -2,
   },
   reviewFooter: {
@@ -1105,7 +1105,7 @@ const localStyles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#172033',
     textAlign: 'center',
     marginTop: 6,
@@ -1136,7 +1136,7 @@ const localStyles = StyleSheet.create({
   },
   alertTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 8,
     textAlign: 'center',

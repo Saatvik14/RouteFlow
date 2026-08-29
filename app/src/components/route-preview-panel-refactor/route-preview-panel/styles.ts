@@ -670,7 +670,7 @@ export const styles = StyleSheet.create({
   },
   routeIconText: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   previewTitleBox: {
@@ -686,7 +686,7 @@ export const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 19,
     lineHeight: 24,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   previewSubtitle: {
@@ -704,7 +704,7 @@ export const styles = StyleSheet.create({
   },
   statusChipText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#15803D',
   },
   optimizedChip: {
@@ -782,7 +782,7 @@ export const styles = StyleSheet.create({
   summaryValue: {
     marginTop: 3,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   previewScroll: {
@@ -827,7 +827,7 @@ export const styles = StyleSheet.create({
   },
   previewSectionTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   sectionMeta: {
@@ -875,7 +875,7 @@ export const styles = StyleSheet.create({
   locationMarkerText: {
     fontSize: 15,
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   locationTextBox: {
     flex: 1,
@@ -883,7 +883,7 @@ export const styles = StyleSheet.create({
   },
   locationTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   locationSubtitle: {
@@ -938,7 +938,7 @@ export const styles = StyleSheet.create({
   },
   stopNumberText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   stopListTextBox: {
@@ -974,7 +974,7 @@ export const styles = StyleSheet.create({
   },
   noStopsTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   noStopsSubtitle: {
@@ -1030,7 +1030,7 @@ export const styles = StyleSheet.create({
   },
   primaryActionText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   confirmSummaryPill: {
@@ -1049,7 +1049,7 @@ export const styles = StyleSheet.create({
   confirmSummaryValue: {
     marginTop: 2,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#15803D',
   },
   refineActionButton: {

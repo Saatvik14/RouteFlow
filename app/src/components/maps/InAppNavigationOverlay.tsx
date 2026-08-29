@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   distanceText: {
     color: '#34D399',
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: -0.3,
   },
   rerouteBadge: {
@@ -562,12 +562,12 @@ const styles = StyleSheet.create({
   rerouteText: {
     color: '#FBBF24',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   instructionText: {
     color: '#F8FAFC',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     marginTop: 3,
     lineHeight: 21,
   },
@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
   gpsLockText: {
     color: '#E2E8F0',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   bottomCard: {
     position: 'absolute',
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   },
   destTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
   },
   destSub: {
@@ -673,13 +673,13 @@ const styles = StyleSheet.create({
   },
   etaValue: {
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#059669',
     letterSpacing: -0.5,
   },
   etaLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#059669',
     textTransform: 'uppercase',
     marginTop: 1,
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   },
   metricVal: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
   },
   metricLabel: {
@@ -726,7 +726,7 @@ const styles = StyleSheet.create({
   endNavButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     letterSpacing: 0.2,
   },
 });

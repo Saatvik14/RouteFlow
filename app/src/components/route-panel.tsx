@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
 
   label: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#64748B',
     textTransform: 'uppercase',
     letterSpacing: 0.5,

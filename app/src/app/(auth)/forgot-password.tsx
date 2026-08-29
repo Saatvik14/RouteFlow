@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing.two,
   },
-  resetButtonText: { color: 'white', fontWeight: 'bold' },
+  resetButtonText: { color: 'white', fontWeight: '600' },
   footerLink: {
     marginTop: Spacing.six,
     textAlign: 'center',

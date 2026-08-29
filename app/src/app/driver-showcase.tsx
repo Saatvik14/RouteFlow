@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     letterSpacing: -0.5,
   },
@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
   signupBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   scrollContent: {
     paddingBottom: 80,
@@ -590,13 +590,13 @@ const styles = StyleSheet.create({
   },
   eyebrowText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#2563EB',
     letterSpacing: 0.5,
   },
   heroTitle: {
     fontSize: 34,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0F172A',
     textAlign: 'center',
     lineHeight: 44,
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#2563EB',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   contentSection: {
     maxWidth: 1100,
@@ -674,14 +674,14 @@ const styles = StyleSheet.create({
   },
   roleIntroBadge: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#2563EB',
     letterSpacing: 0.6,
     marginBottom: 4,
   },
   roleIntroTitle: {
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0F172A',
     letterSpacing: -0.4,
   },
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   boldText: {
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   statHighlightsRow: {
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
   },
   statHighlightNum: {
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#2563EB',
     marginBottom: 2,
   },
@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
   },
   detailSectionTitle: {
     fontSize: 28,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0F172A',
     textAlign: 'center',
     letterSpacing: -0.5,
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
   },
   deepFeatureTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 10,
   },
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
   },
   featurePillText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2563EB',
   },
 
@@ -819,7 +819,7 @@ const styles = StyleSheet.create({
   },
   workflowMainTitle: {
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0F172A',
     textAlign: 'center',
     marginBottom: 8,
@@ -858,11 +858,11 @@ const styles = StyleSheet.create({
   workflowStepBadgeText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   workflowStepHeading: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
     marginBottom: 6,
     textAlign: 'center',
@@ -880,7 +880,7 @@ const styles = StyleSheet.create({
   },
   faqSectionTitle: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#0F172A',
     textAlign: 'center',
     marginBottom: 24,
@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
   faqQuestion: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0F172A',
   },
   faqAnswer: {
@@ -937,13 +937,13 @@ const styles = StyleSheet.create({
   },
   ctaBadgeText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#4ADE80',
     letterSpacing: 0.5,
   },
   ctaTitle: {
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 12,
@@ -973,7 +973,7 @@ const styles = StyleSheet.create({
   primaryCtaText: {
     color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   ctaFootnote: {
     fontSize: 12,

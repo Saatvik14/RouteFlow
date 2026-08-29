@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   errorTitle: {
     color: '#F87171',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   secondaryButton: {
     paddingVertical: 12,
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   errorCardTitle: {
     color: '#EF4444',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 8,
   },
   errorCardText: {
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
   resultLabel: {
     color: '#9CA3AF',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 8,
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
   cardPrimaryButtonText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   cardSecondaryButton: {
     flex: 1,
