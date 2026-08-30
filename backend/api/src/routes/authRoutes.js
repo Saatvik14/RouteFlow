@@ -1,5 +1,5 @@
 const express = require('express');
-const { signup, identify, login, refresh, checkHealth, sendOtpEmail, verifyOtp, adminDeleteUser, adminChangeUserRole } = require('../controllers/authController');
+const { signup, identify, login, refresh, checkHealth, sendOtpEmail, verifyOtp, resetPassword, adminDeleteUser, adminChangeUserRole } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 const { requirePlatformAdmin } = require('../middleware/rbacMiddleware');
 const { createRateLimiter } = require('../middleware/rateLimitMiddleware');
@@ -23,6 +23,7 @@ router.get('/health', checkHealth);
 router.post('/signup', authAttemptLimit, signup);
 router.post('/send-otp', authAttemptLimit, sendOtpEmail);
 router.post('/verify-otp', authAttemptLimit, verifyOtp);
+router.post('/reset-password', authAttemptLimit, resetPassword);
 router.post('/identify', authLookupLimit, identify);
 router.post('/login', authAttemptLimit, login);
 router.post('/refresh', refresh);

@@ -830,6 +830,87 @@ const verifyOtp = async (req, res) => {
   }
 };
 
+// @desc    Reset password using OTP verificationToken OR direct OTP
+// @route   POST /users/reset-password
+// @access  Public
+const resetPassword = async (req, res) => {
+  const { email, otp, verificationToken, newPassword, password } = req.body;
+  const cleanEmail = normalizeIdentifier(email);
+  const targetPassword = String(newPassword || password || '');
+
+  if (!cleanEmail) {
+    return res.status(400).json({ message: 'Email address is required.' });
+  }
+
+  if (!targetPassword) {
+    return res.status(400).json({ message: 'New password is required.' });
+  }
+
+  if (targetPassword.length < 8 || !/[A-Za-z]/.test(targetPassword) || !/\d/.test(targetPassword)) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters and include both a letter and a number.' });
+  }
+
+  try {
+    let verified = false;
+
+    // Check verificationToken if provided
+    if (verificationToken) {
+      try {
+        const decoded = jwt.verify(verificationToken, JWT_ACCESS_SECRET);
+        if (decoded && normalizeIdentifier(decoded.email) === cleanEmail) {
+          verified = true;
+        }
+      } catch (jwtErr) {
+        // Fall back to checking otp if provided
+      }
+    }
+
+    // If not verified via token, check direct OTP
+    if (!verified && otp) {
+      const cleanOtp = String(otp).trim();
+      const otpRes = await runQuery(
+        `SELECT id, otp_code, expires_at FROM otps 
+         WHERE email = $1 AND is_used = FALSE AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [cleanEmail]
+      );
+
+      if (otpRes.rows.length > 0) {
+        const storedOtp = otpRes.rows[0];
+        const isMatch = await bcrypt.compare(cleanOtp, storedOtp.otp_code);
+        if (isMatch) {
+          await runQuery('UPDATE otps SET is_used = TRUE WHERE id = $1', [storedOtp.id]);
+          verified = true;
+        }
+      }
+    }
+
+    if (!verified) {
+      return res.status(400).json({ message: 'Invalid or expired verification code. Please check your OTP and try again.' });
+    }
+
+    // Verify user exists
+    const userRes = await runQuery('SELECT user_id FROM users WHERE LOWER(email) = $1 LIMIT 1', [cleanEmail]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ message: 'No account found with this email address.' });
+    }
+
+    // Hash and update password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(targetPassword, salt);
+
+    await runQuery('UPDATE users SET password = $1, updated_at = NOW() WHERE LOWER(email) = $2', [hashedPassword, cleanEmail]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password reset successful. You can now sign in with your new password.',
+    });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    return res.status(500).json({ message: 'Server error while resetting password. Please try again.' });
+  }
+};
+
 // @desc    Admin: Delete any user by email or user_id
 // @route   DELETE /users/admin/delete-user
 // @access  Public / Protected
@@ -936,6 +1017,7 @@ module.exports = {
   checkHealth,
   sendOtpEmail,
   verifyOtp,
+  resetPassword,
   adminDeleteUser,
   adminChangeUserRole,
 };
