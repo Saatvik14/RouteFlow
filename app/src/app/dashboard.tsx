@@ -24,7 +24,50 @@ import { AiAssignmentModal } from '../components/operations/ai-assignment-modal'
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { DashboardRoute, DriverProfile, enterpriseService } from '../services/api/enterprise';
 
-const today = () => new Date().toISOString().slice(0, 10);
+type RangePreset = 'today' | 'week' | 'next7' | 'month';
+
+const toDateInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const shiftedDate = (date: Date, days: number) => {
+  const shifted = new Date(date);
+  shifted.setDate(shifted.getDate() + days);
+  return shifted;
+};
+const rangeForPreset = (preset: RangePreset) => {
+  const now = new Date();
+  if (preset === 'today') return { from: toDateInput(now), to: toDateInput(now) };
+  if (preset === 'next7') return { from: toDateInput(now), to: toDateInput(shiftedDate(now, 6)) };
+  if (preset === 'month') {
+    return {
+      from: toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+      to: toDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    };
+  }
+  const mondayOffset = (now.getDay() + 6) % 7;
+  const monday = shiftedDate(now, -mondayOffset);
+  return { from: toDateInput(monday), to: toDateInput(shiftedDate(monday, 6)) };
+};
+const validDateInput = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T12:00:00`);
+  return !Number.isNaN(parsed.getTime()) && toDateInput(parsed) === value;
+};
+const formatRangeDate = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+const formatRange = (from: string, to: string) => {
+  if (!validDateInput(from) || !validDateInput(to)) return 'your custom date range';
+  return from === to ? formatRangeDate(from) : `${formatRangeDate(from)} – ${formatRangeDate(to)}`;
+};
+
+const rangePresets: Array<{ value: RangePreset; label: string }> = [
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This week' },
+  { value: 'next7', label: 'Next 7 days' },
+  { value: 'month', label: 'This month' },
+];
 const formatTime = (value?: string | null) => {
   if (!value) return 'Not recorded';
   const date = new Date(value);
@@ -62,7 +105,10 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [date, setDate] = useState(today());
+  const [initialRange] = useState(() => rangeForPreset('week'));
+  const [fromDate, setFromDate] = useState(initialRange.from);
+  const [toDate, setToDate] = useState(initialRange.to);
+  const [rangePreset, setRangePreset] = useState<RangePreset | null>('week');
   const [status, setStatus] = useState('');
   const [driverId, setDriverId] = useState<number | undefined>();
   const [filterMenu, setFilterMenu] = useState<'status' | 'driver' | null>(null);
@@ -71,12 +117,33 @@ export default function DashboardScreen() {
   const [actionError, setActionError] = useState('');
   const [aiAssignmentOpen, setAiAssignmentOpen] = useState(false);
 
+  const rangeError = useMemo(() => {
+    if (!validDateInput(fromDate) || !validDateInput(toDate)) return 'Enter both dates in YYYY-MM-DD format.';
+    const from = new Date(`${fromDate}T00:00:00`).getTime();
+    const to = new Date(`${toDate}T00:00:00`).getTime();
+    if (to < from) return 'The end date must be on or after the start date.';
+    if ((to - from) / 86400000 > 366) return 'Choose a date range of 366 days or less.';
+    return '';
+  }, [fromDate, toDate]);
+
+  const applyRangePreset = (preset: RangePreset) => {
+    const range = rangeForPreset(preset);
+    setFromDate(range.from);
+    setToDate(range.to);
+    setRangePreset(preset);
+  };
+
   const load = useCallback(async (background = false) => {
+    if (rangeError) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     if (background) setRefreshing(true);
     else setLoading(true);
     setError('');
     const [dashboard, team] = await Promise.all([
-      enterpriseService.getDashboard({ date, status: status || undefined, driverId, search: search.trim() || undefined }),
+      enterpriseService.getDashboard({ from: fromDate, to: toDate, status: status || undefined, driverId, search: search.trim() || undefined }),
       enterpriseService.getTeam({ status: 'active' }),
     ]);
     if (!dashboard.success || !dashboard.data) {
@@ -89,7 +156,7 @@ export default function DashboardScreen() {
     if (team.success && team.data) setDrivers(team.data.drivers || []);
     setLoading(false);
     setRefreshing(false);
-  }, [date, driverId, search, status]);
+  }, [driverId, fromDate, rangeError, search, status, toDate]);
 
   useEffect(() => {
     const timer = setTimeout(() => load(), search ? 300 : 0);
@@ -129,8 +196,8 @@ export default function DashboardScreen() {
   return (
     <OperationsShell
       active="dashboard"
-      title="Dispatch overview"
-      subtitle={`Live delivery operations for ${new Date(`${date}T12:00:00`).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}`}
+      title="Delivery Operations"
+      subtitle={`Plan, monitor, and resolve route activity across ${formatRange(fromDate, toDate)}.`}
       actions={(
         <>
           <ActionButton compact variant="secondary" icon="refresh-cw" label={refreshing ? 'Refreshing' : 'Refresh'} disabled={refreshing} onPress={() => load(true)} />
@@ -139,6 +206,30 @@ export default function DashboardScreen() {
         </>
       )}
     >
+      <View style={[styles.rangeOverview, compact && styles.rangeOverviewCompact]}>
+        <View style={styles.rangeSummary}>
+          <View style={styles.rangeIcon}><Feather name="calendar" size={20} color={C.primaryDark} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rangeEyebrow}>Selected operating window</Text>
+            <Text style={styles.rangeTitle}>{formatRange(fromDate, toDate)}</Text>
+            <Text style={styles.rangeHint}>All route totals, alerts, and cards below use this date range.</Text>
+          </View>
+        </View>
+        <View accessibilityRole="tablist" style={styles.rangePresets}>
+          {rangePresets.map((preset) => (
+            <Pressable
+              key={preset.value}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: rangePreset === preset.value }}
+              onPress={() => applyRangePreset(preset.value)}
+              style={[styles.rangePreset, rangePreset === preset.value && styles.rangePresetActive]}
+            >
+              <Text style={[styles.rangePresetText, rangePreset === preset.value && styles.rangePresetTextActive]}>{preset.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
       <View style={styles.filters}>
         <View style={[styles.searchWrap, compact && { minWidth: '100%' as any }]}>
           <Feather name="search" size={17} color={C.inkSubtle} />
@@ -152,9 +243,10 @@ export default function DashboardScreen() {
           />
           {search ? <Pressable accessibilityLabel="Clear search" onPress={() => setSearch('')}><Feather name="x-circle" size={17} color={C.inkSubtle} /></Pressable> : null}
         </View>
-        <View style={styles.dateField}>
-          <Feather name="calendar" size={16} color={C.inkMuted} />
-          <TextInput value={date} onChangeText={setDate} accessibilityLabel="Dispatch date, YYYY-MM-DD" style={styles.dateInput} />
+        <View style={[styles.rangeFields, compact && { width: '100%' }]}>
+          <DateField label="From" value={fromDate} onChangeText={(value) => { setFromDate(value); setRangePreset(null); }} />
+          <View style={styles.rangeArrow}><Feather name="arrow-right" size={15} color={C.inkSubtle} /></View>
+          <DateField label="To" value={toDate} onChangeText={(value) => { setToDate(value); setRangePreset(null); }} />
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Filter by route status" onPress={() => setFilterMenu('status')} style={styles.filterButton}>
           <Feather name="filter" size={16} color={C.inkMuted} />
@@ -167,6 +259,7 @@ export default function DashboardScreen() {
           <Feather name="chevron-down" size={15} color={C.inkSubtle} />
         </Pressable>
       </View>
+      {rangeError ? <View accessibilityRole="alert" style={styles.rangeError}><Feather name="alert-circle" size={16} color={C.danger} /><Text style={styles.rangeErrorText}>{rangeError}</Text></View> : null}
 
       {loading ? <SkeletonRows count={5} /> : error ? (
         <StatePanel icon="wifi-off" title="Dispatch data is unavailable" message={`${error} Check your connection, then try again.`} actionLabel="Try again" onAction={() => load()} />
@@ -185,17 +278,17 @@ export default function DashboardScreen() {
           ) : null}
 
           <View style={styles.metrics}>
-            <Metric icon="navigation" label="Active routes" value={summary.activeRoutes || 0} tone="primary" />
-            <Metric icon="user-x" label="Need assignment" value={summary.unassignedRoutes || 0} tone={summary.unassignedRoutes ? 'warning' : 'neutral'} />
+            <Metric icon="navigation" label="In progress" value={summary.activeRoutes || 0} tone="primary" />
+            <Metric icon="user-x" label="Unassigned" value={summary.unassignedRoutes || 0} tone={summary.unassignedRoutes ? 'warning' : 'neutral'} />
             <Metric icon="clock" label="Delayed" value={summary.delayedRoutes || 0} tone={summary.delayedRoutes ? 'danger' : 'neutral'} />
-            <Metric icon="check-circle" label="Completed" value={summary.completedToday || 0} tone="success" />
+            <Metric icon="check-circle" label="Completed in range" value={summary.completedRoutes || 0} tone="success" />
             <Metric icon="alert-circle" label="Failed stops" value={summary.failedStops || 0} tone={summary.failedStops ? 'danger' : 'neutral'} />
           </View>
 
           <View style={styles.sectionHeading}>
             <View>
-              <Text style={styles.sectionTitle}>Routes</Text>
-              <Text style={styles.sectionSubtitle}>{operationalRoutes.length} currently need dispatcher attention</Text>
+              <Text style={styles.sectionTitle}>Routes in this window</Text>
+              <Text style={styles.sectionSubtitle}>{operationalRoutes.length} active or awaiting a start in the selected range</Text>
             </View>
             <Text style={styles.routeCount}>{routes.length} total</Text>
           </View>
@@ -204,9 +297,9 @@ export default function DashboardScreen() {
             <StatePanel
               icon="map"
               title="No routes match these filters"
-              message="Try another date or clear a filter. New routes will appear here as soon as they are created."
+              message="Try another date range or clear a filter. New routes will appear here as soon as they are created."
               actionLabel="Clear filters"
-              onAction={() => { setSearch(''); setStatus(''); setDriverId(undefined); setDate(today()); }}
+              onAction={() => { setSearch(''); setStatus(''); setDriverId(undefined); applyRangePreset('week'); }}
             />
           ) : (
             <View style={styles.routeList}>
@@ -254,6 +347,26 @@ export default function DashboardScreen() {
         onConfirmed={() => load(true)}
       />
     </OperationsShell>
+  );
+}
+
+function DateField({ label, value, onChangeText }: { label: string; value: string; onChangeText: (value: string) => void }) {
+  return (
+    <View style={styles.dateField}>
+      <Text style={styles.dateLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        accessibilityLabel={`${label} date, YYYY-MM-DD`}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="numbers-and-punctuation"
+        maxLength={10}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={C.inkSubtle}
+        style={styles.dateInput}
+      />
+    </View>
   );
 }
 
@@ -334,11 +447,28 @@ function ChoiceRow({ label, detail, selected, disabled, onPress }: { label: stri
 }
 
 const styles = StyleSheet.create({
+  rangeOverview: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: S.lg, padding: S.lg, marginBottom: S.md, borderRadius: R.lg, borderWidth: 1, borderColor: '#CFE0FF', backgroundColor: '#F7FAFF' },
+  rangeOverviewCompact: { alignItems: 'stretch', flexDirection: 'column' },
+  rangeSummary: { minWidth: 280, flex: 1, flexDirection: 'row', alignItems: 'center', gap: S.md },
+  rangeIcon: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
+  rangeEyebrow: { color: C.primaryDark, fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+  rangeTitle: { color: C.ink, fontSize: 17, lineHeight: 24, fontWeight: '600', marginTop: 2 },
+  rangeHint: { color: C.inkMuted, fontSize: 11, lineHeight: 17, marginTop: 2 },
+  rangePresets: { flexDirection: 'row', flexWrap: 'wrap', gap: S.xs, padding: 4, borderRadius: R.md, backgroundColor: C.surface },
+  rangePreset: { minHeight: 34, justifyContent: 'center', paddingHorizontal: S.md, borderRadius: R.sm },
+  rangePresetActive: { backgroundColor: C.primary },
+  rangePresetText: { color: C.inkMuted, fontSize: 12, fontWeight: '500' },
+  rangePresetTextActive: { color: '#FFFFFF' },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, marginBottom: S.lg },
   searchWrap: { minHeight: 44, minWidth: 260, flex: 1, flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: C.surface, borderWidth: 1, borderColor: C.lineStrong, borderRadius: R.md, paddingHorizontal: S.md },
   searchInput: { flex: 1, minWidth: 120, color: C.ink, fontSize: 14, outlineStyle: 'none' } as any,
-  dateField: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: S.sm, backgroundColor: C.surface, borderWidth: 1, borderColor: C.lineStrong, borderRadius: R.md, paddingHorizontal: S.md },
-  dateInput: { width: 96, fontSize: 13, color: C.ink },
+  rangeFields: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: S.xs, paddingHorizontal: S.sm, borderWidth: 1, borderColor: C.lineStrong, borderRadius: R.md, backgroundColor: C.surface },
+  rangeArrow: { width: 22, alignItems: 'center' },
+  dateField: { minWidth: 116, gap: 1 },
+  dateLabel: { color: C.inkSubtle, fontSize: 9, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  dateInput: { width: 112, paddingVertical: 2, color: C.ink, fontSize: 13, fontWeight: '500', outlineStyle: 'none' } as any,
+  rangeError: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: -S.sm, marginBottom: S.lg, paddingHorizontal: S.md, borderRadius: R.md, backgroundColor: C.dangerSoft },
+  rangeErrorText: { flex: 1, color: C.danger, fontSize: 12 },
   filterButton: { minHeight: 44, maxWidth: 190, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.md, borderWidth: 1, borderColor: C.lineStrong, borderRadius: R.md, backgroundColor: C.surface },
   filterButtonText: { flex: 1, color: C.ink, fontSize: 13, fontWeight: '500' },
   alertStack: { gap: S.sm, marginBottom: S.lg },

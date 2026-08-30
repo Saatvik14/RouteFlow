@@ -189,7 +189,7 @@ const fetchProtectedFile = async (endpoint: string) => {
 
 export const enterpriseService = {
   getContext: () => apiGet<any>(API_ENDPOINTS.ENTERPRISE.CONTEXT),
-  getDashboard: (filters: { date?: string; driverId?: number; status?: string; search?: string } = {}) =>
+  getDashboard: (filters: { from?: string; to?: string; driverId?: number; status?: string; search?: string } = {}) =>
     apiGet<{ summary: any; alerts: any[]; routes: DashboardRoute[]; generatedAt: string }>(
       `${API_ENDPOINTS.ENTERPRISE.DASHBOARD}${query(filters)}`,
     ),

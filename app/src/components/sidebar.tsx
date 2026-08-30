@@ -1153,7 +1153,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             ) : null}
             {isBusinessOwner ? renderQuickAction(
               "activity",
-              "Live dispatch",
+              "Delivery operations",
               handleLiveDispatch,
               pathname?.includes("dashboard"),
             ) : null}

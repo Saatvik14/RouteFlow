@@ -6,6 +6,17 @@ const { HttpError } = require('../utils/httpError');
 const { optionalIsoDate, positiveInteger } = require('../utils/validation');
 
 const staleAfterSeconds = () => Math.max(30, Number(LOCATION_STALE_AFTER_SECONDS) || 120);
+const dateOnly = (value, field) => {
+  const normalized = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new HttpError(400, 'VALIDATION_ERROR', `${field} must use YYYY-MM-DD.`);
+  }
+  const parsed = optionalIsoDate(`${normalized}T00:00:00.000Z`, field);
+  if (!parsed || parsed.toISOString().slice(0, 10) !== normalized) {
+    throw new HttpError(400, 'VALIDATION_ERROR', `${field} must be a valid calendar date.`);
+  }
+  return parsed;
+};
 
 const dashboardRoute = (row) => {
   const lastUpdate = row.location_received_at ? new Date(row.location_received_at) : null;
@@ -69,11 +80,20 @@ const buildDashboardFilters = (req) => {
   }
   if (req.query.driverId) filters.push(`r.driver_id = ${add(positiveInteger(req.query.driverId, 'driverId'))}`);
   if (req.query.search) filters.push(`(r.name ILIKE ${add(`%${String(req.query.search).trim()}%`)} OR r.route_id::text ILIKE ${add(`%${String(req.query.search).trim()}%`)})`);
-  if (req.query.date) {
-    const date = String(req.query.date);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, 'VALIDATION_ERROR', 'date must use YYYY-MM-DD.');
-    filters.push(`r.start_datetime >= ${add(`${date}T00:00:00.000Z`)}::timestamptz`);
-    filters.push(`r.start_datetime < (${add(`${date}T00:00:00.000Z`)}::timestamptz + INTERVAL '1 day')`);
+  const legacyDate = req.query.date ? String(req.query.date) : '';
+  const fromValue = req.query.from || legacyDate;
+  const toValue = req.query.to || legacyDate;
+  if (fromValue || toValue) {
+    const from = dateOnly(fromValue || toValue, 'from');
+    const to = dateOnly(toValue || fromValue, 'to');
+    if (to.getTime() < from.getTime()) {
+      throw new HttpError(400, 'INVALID_DATE_RANGE', 'The end date must be on or after the start date.');
+    }
+    if ((to.getTime() - from.getTime()) / 86400000 > 366) {
+      throw new HttpError(400, 'DATE_RANGE_TOO_LARGE', 'Delivery Operations is limited to 366 days.');
+    }
+    filters.push(`r.start_datetime >= ${add(from.toISOString())}::timestamptz`);
+    filters.push(`r.start_datetime < (${add(to.toISOString())}::timestamptz + INTERVAL '1 day')`);
   }
   return { values, where: filters.length ? `AND ${filters.join(' AND ')}` : '' };
 };
@@ -138,7 +158,7 @@ const getDashboard = async (req, res) => {
     activeRoutes: routes.filter((route) => route.status === 'in_progress').length,
     unassignedRoutes: routes.filter((route) => route.status === 'draft' && !route.driver).length,
     delayedRoutes: routes.filter((route) => route.delayed).length,
-    completedToday: routes.filter((route) => route.status === 'completed').length,
+    completedRoutes: routes.filter((route) => route.status === 'completed').length,
     failedStops: routes.reduce((sum, route) => sum + route.failedStops, 0),
   };
   const alerts = [
@@ -302,6 +322,7 @@ const exportReportCsv = async (req, res) => {
 };
 
 module.exports = {
+  buildDashboardFilters,
   exportReportCsv,
   getDashboard,
   getLiveProgress,
