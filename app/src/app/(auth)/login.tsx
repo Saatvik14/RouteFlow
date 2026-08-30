@@ -15,7 +15,7 @@ import {
 import { OperationsColors as C } from '../../constants/theme';
 import { LEGAL_URLS } from '../../constants/legal';
 import { openExternalUrl } from '../../hooks/open-external-url';
-import { authService, AuthMethod, setAuthToken } from '../../services/api';
+import { authService, AuthMethod, setAuthSession } from '../../services/api';
 import { useAuth } from '../_layout';
 
 type AccountResolution = {
@@ -88,7 +88,7 @@ export default function LoginScreen() {
       return;
     }
 
-    await setAuthToken(response.data.accessToken);
+    await setAuthSession(response.data.accessToken, response.data.refreshToken);
     login();
     const respData = response.data as any;
     const rawRole = String(respData?.role || respData?.user?.role || '').toUpperCase();

@@ -1,6 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from './../constants/api';
+import { getValidAuthToken } from './api/client';
 
 async function uploadFile({
   url,
@@ -17,6 +18,7 @@ async function uploadFile({
   };
   token?: string;
 }) {
+  const currentToken = await getValidAuthToken() || token;
   const formData = new FormData();
 
   formData.append(fieldName, {
@@ -28,7 +30,7 @@ async function uploadFile({
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
     },
     body: formData,
   });
@@ -131,11 +133,12 @@ export async function importRouteManifestFile(token?: string) {
 }
 
 export async function resolveVoiceAddress(text: string, token?: string) {
+  const currentToken = await getValidAuthToken() || token;
   const response = await fetch(`${API_BASE_URL}/route/address/resolve`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
     },
     body: JSON.stringify({ text }),
   });
@@ -158,6 +161,7 @@ export async function addBulkStopsToRoute({
   stops: any[];
   token?: string;
 }) {
+  const currentToken = await getValidAuthToken() || token;
   const validStops = stops
     .filter(stop => stop.valid !== false)
     .map(stop => ({
@@ -179,7 +183,7 @@ export async function addBulkStopsToRoute({
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
     },
     body: JSON.stringify({
       route_id: routeId,

@@ -17,7 +17,7 @@ import {
 import { ActionButton, FormField, StatusBadge } from '../components/operations/operations-ui';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { useAuth } from './_layout';
-import { getAuthToken, setAuthToken } from '../services/api/client';
+import { getAuthToken, setActiveOrganizationId, setAuthSession } from '../services/api/client';
 import { enterpriseService } from '../services/api/enterprise';
 import { LEGAL_URLS } from '../constants/legal';
 import { openExternalUrl } from '../hooks/open-external-url';
@@ -53,13 +53,41 @@ export default function InvitationScreen() {
         setError(response.error || 'This invitation could not be opened.');
         return;
       }
-      setInvitation(response.data?.invitation || response.data);
-      const status = response.data?.invitation?.status;
+      const invitationData = response.data?.invitation || response.data;
+      setInvitation(invitationData);
+      const status = invitationData?.status;
+
+      // "Sign in to accept" is a single user intent. Once an existing user
+      // returns from authentication, complete the acceptance automatically
+      // instead of requiring a second, easy-to-miss confirmation click.
+      if (status === 'pending' && invitationData?.existingUser && isLoggedIn && getAuthToken()) {
+        setSubmitting(true);
+        const acceptance = await enterpriseService.acceptInvitationExisting(token);
+        if (!mounted) return;
+        setSubmitting(false);
+        if (!acceptance.success) {
+          if (acceptance.statusCode === 410) setState('expired');
+          else if (/already (?:been )?accepted/i.test(acceptance.error || '')) setState('success');
+          else {
+            setState('ready');
+            setError(acceptance.error || 'The invitation could not be accepted.');
+          }
+          return;
+        }
+        if (acceptance.data?.accessToken) {
+          await setAuthSession(acceptance.data.accessToken, acceptance.data.refreshToken);
+          await setActiveOrganizationId(acceptance.data.organization?.id || null);
+          login();
+        }
+        setState('success');
+        return;
+      }
+
       setState(status === 'expired' ? 'expired' : status === 'accepted' ? 'accepted' : status === 'pending' ? 'ready' : 'inactive');
     };
     preview();
     return () => { mounted = false; };
-  }, [token]);
+  }, [isLoggedIn, login, token]);
 
   const acceptNew = async () => {
     if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) return setError('Use at least 8 characters with a letter and a number.');
@@ -73,7 +101,8 @@ export default function InvitationScreen() {
       return;
     }
     if (response.data?.accessToken) {
-      await setAuthToken(response.data.accessToken);
+      await setAuthSession(response.data.accessToken, response.data.refreshToken);
+      await setActiveOrganizationId(response.data.organization?.id || null);
       login();
     }
     setState('success');
@@ -85,11 +114,13 @@ export default function InvitationScreen() {
     setSubmitting(false);
     if (!response.success) {
       if (response.statusCode === 410) setState('expired');
+      else if (/already (?:been )?accepted/i.test(response.error || '')) setState('success');
       else setError(response.error || 'The invitation could not be accepted.');
       return;
     }
     if (response.data?.accessToken) {
-      await setAuthToken(response.data.accessToken);
+      await setAuthSession(response.data.accessToken, response.data.refreshToken);
+      await setActiveOrganizationId(response.data.organization?.id || null);
       login();
     }
     setState('success');

@@ -44,3 +44,9 @@ test('proof and location operations are available only behind enterprise authent
   assert.ok(routes.indexOf("router.get('/proofs/:proofId/content'") > protectIndex);
   assert.ok(routes.indexOf("router.post('/routes/:routeId/location'") > protectIndex);
 });
+
+test('multi-business accounts default to their most recently joined organization', () => {
+  const middleware = read('api/src/middleware/rbacMiddleware.js');
+  assert.match(middleware, /ORDER BY om\.joined_at DESC NULLS LAST, om\.created_at DESC/);
+  assert.doesNotMatch(middleware, /CASE om\.role/);
+});

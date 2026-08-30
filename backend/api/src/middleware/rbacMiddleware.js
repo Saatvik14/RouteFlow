@@ -36,15 +36,10 @@ const loadOrganizationContext = async (req, _res, next) => {
         WHERE om.user_id = $1
           AND om.status = 'active'
           ${organizationFilter}
-        ORDER BY
-          CASE om.role
-            WHEN 'owner' THEN 1
-            WHEN 'admin' THEN 2
-            WHEN 'dispatcher' THEN 3
-            WHEN 'driver' THEN 4
-            ELSE 5
-          END,
-          om.created_at ASC
+        -- Accounts can belong to more than one business with different roles.
+        -- Without an explicit organization header, open the workspace they
+        -- joined most recently instead of always preferring an owner role.
+        ORDER BY om.joined_at DESC NULLS LAST, om.created_at DESC
         LIMIT 1
       `,
       values

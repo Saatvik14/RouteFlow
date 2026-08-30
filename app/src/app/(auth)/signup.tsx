@@ -27,7 +27,7 @@ import {
 import { LEGAL_URLS } from '../../constants/legal';
 import { OperationsColors as C } from '../../constants/theme';
 import { openExternalUrl } from '../../hooks/open-external-url';
-import { authService, setAuthToken } from '../../services/api';
+import { authService, setAuthSession } from '../../services/api';
 import { useAuth } from '../_layout';
 
 type SignupRole = 'INDEPENDENT_DRIVER' | 'BUSINESS_OWNER' | 'FLEET_DRIVER';
@@ -192,7 +192,7 @@ export default function SignupScreen() {
       return false;
     }
 
-    await setAuthToken(response.data.accessToken);
+    await setAuthSession(response.data.accessToken, response.data.refreshToken);
     login();
     setShowOtp(false);
     router.replace('/');

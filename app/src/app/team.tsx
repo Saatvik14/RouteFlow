@@ -34,8 +34,6 @@ import {
 
 const roles: Array<{ value: OrganizationRole; label: string; detail: string }> = [
   { value: 'driver', label: 'Driver', detail: 'Receives and executes assigned routes' },
-  { value: 'dispatcher', label: 'Dispatcher', detail: 'Plans, assigns and monitors routes' },
-  { value: 'viewer', label: 'View only', detail: 'Can view operations and reports' },
   { value: 'admin', label: 'Administrator', detail: 'Manages team and delivery operations' },
 ];
 
@@ -74,18 +72,24 @@ export default function TeamScreen() {
   const [notice, setNotice] = useState('');
   const [fleetCredential, setFleetCredential] = useState<{ name: string; identifier: string; accessCode: string } | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const syncTeam = useCallback(async (showLoading: boolean) => {
+    if (showLoading) {
+      setLoading(true);
+      setError('');
+    }
     const [team, invites] = await Promise.all([enterpriseService.getTeam(), enterpriseService.getInvitations()]);
-    if (!team.success || !team.data) setError(team.error || 'Team data could not be loaded.');
+    if (!team.success || !team.data) {
+      if (showLoading) setError(team.error || 'Team data could not be loaded.');
+    }
     else {
       setDrivers(team.data.drivers || []);
       setMembers(team.data.members || []);
     }
     if (invites.success && invites.data) setInvitations(invites.data.invitations || []);
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }, []);
+
+  const load = useCallback(() => syncTeam(true), [syncTeam]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -95,6 +99,23 @@ export default function TeamScreen() {
     return matchesSearch && matchesStatus;
   }), [drivers, search, status]);
   const pending = invitations.filter((invitation) => ['pending', 'expired'].includes(invitation.status));
+  const hasActiveInvitation = invitations.some((invitation) => invitation.status === 'pending');
+
+  useEffect(() => {
+    if (!hasActiveInvitation) return;
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        await syncTeam(false);
+      } finally {
+        refreshing = false;
+      }
+    };
+    const interval = setInterval(() => { void refresh(); }, 10_000);
+    return () => clearInterval(interval);
+  }, [hasActiveInvitation, syncTeam]);
 
   const openDriver = async (driver: DriverProfile) => {
     setSelectedDriver(driver);

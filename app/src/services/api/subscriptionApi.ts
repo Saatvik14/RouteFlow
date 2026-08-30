@@ -1,5 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../../constants/api";
+import { getValidAuthToken } from "./client";
 
 const API_URL = API_BASE_URL;
 export type PlanCode = "lite" | "standard";
@@ -58,7 +58,7 @@ export type SubscriptionResponse = {
 };
 
 async function getAccessToken(): Promise<string> {
-  const token = await AsyncStorage.getItem("authToken");
+  const token = await getValidAuthToken();
 
   if (!token) {
     throw new Error("You are not logged in. Please sign in and try again.");

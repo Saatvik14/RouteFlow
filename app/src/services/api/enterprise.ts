@@ -11,7 +11,7 @@ import {
   apiPost,
   apiPostMultipart,
   getApiErrorMessage,
-  getAuthToken,
+  getValidAuthToken,
 } from './client';
 
 export type OrganizationRole = 'owner' | 'admin' | 'dispatcher' | 'driver' | 'viewer';
@@ -176,7 +176,7 @@ const query = (values: Record<string, string | number | undefined | null>) => {
 };
 
 const fetchProtectedFile = async (endpoint: string) => {
-  const token = getAuthToken();
+  const token = await getValidAuthToken();
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
