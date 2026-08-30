@@ -17,50 +17,22 @@ const driverRoutes = require('./routes/driverRoutes');
 
 const app = express();
 
-// CORS middleware
-const configuredOrigins = String(process.env.CORS_ORIGINS || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-const allowedOrigins = configuredOrigins.length > 0
-  ? configuredOrigins
-  : [
-      'http://localhost:8081',
-      'http://127.0.0.1:8081',
-      'http://localhost:19006',
-      'http://localhost:3000',
-    ];
-
 app.disable('x-powered-by');
+
+// CORS middleware - must run first so all responses and preflights have CORS headers
+app.use(cors({
+  origin: true, // Dynamically reflects request origin, fully supporting credentials from any port/domain
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  optionsSuccessStatus: 200,
+}));
+
 app.use((req, res, next) => {
   req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
   res.setHeader('X-Request-Id', req.requestId);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
   next();
 });
-
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origin is not allowed by CORS.'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'Accept',
-    'apikey',
-    'x-client-info',
-    'x-retry-count',
-    'x-organization-id',
-    'x-request-id',
-    'idempotency-key',
-  ],
-  optionsSuccessStatus: 200,
-}));
 
 // Middleware to parse JSON bodies
 app.use(express.json({ limit: '2mb' }));
