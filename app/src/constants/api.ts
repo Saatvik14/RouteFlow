@@ -76,9 +76,9 @@ export const API_ENDPOINTS = {
     VERIFY_OTP: '/users/verify-otp',
     LOGOUT: '/auth/logout',
     REFRESH_TOKEN: '/users/refresh',
-    FORGOT_PASSWORD: '/auth/forgot-password',
-    RESET_PASSWORD: '/auth/reset-password',
-    VERIFY_EMAIL: '/auth/verify-email',
+    FORGOT_PASSWORD: '/users/send-otp',
+    RESET_PASSWORD: '/users/reset-password',
+    VERIFY_EMAIL: '/users/verify-otp',
   },
 
   // User endpoints
