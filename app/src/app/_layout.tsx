@@ -7,6 +7,13 @@ import {
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform, useColorScheme, Modal, Text, Pressable, View, StyleSheet } from 'react-native';
 
+import './../global.css';
+import { useFonts } from 'expo-font';
+import Feather from '@expo/vector-icons/Feather';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+
 import { AnimatedSplashOverlay } from './../components/animated-icon';
 import { SecurityLockScreen } from './../components/security-lock-screen';
 import { fetchAndStoreConfig, restoreAuthToken, setAuthToken, userService } from './../services/api';
@@ -27,6 +34,67 @@ const AUTH_ONLY_ROUTES = ['login', 'signup', 'forgot-password'];
 const PUBLIC_ROUTES = [...AUTH_ONLY_ROUTES, 'invite', 'landing', 'dispatch', 'driver-showcase', 'index', ''];
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    ...Feather.font,
+    ...MaterialCommunityIcons.font,
+    ...Ionicons.font,
+    ...FontAwesome.font,
+  });
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const ICON_FONT_STYLE_ID = 'routeflow-vector-icon-fonts';
+      if (!document.getElementById(ICON_FONT_STYLE_ID)) {
+        const style = document.createElement('style');
+        style.id = ICON_FONT_STYLE_ID;
+        style.type = 'text/css';
+        style.appendChild(document.createTextNode(`
+          @font-face {
+            font-family: 'feather';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Feather.ttf') format('truetype');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'Feather';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Feather.ttf') format('truetype');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'material-community';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/MaterialCommunityIcons.ttf') format('truetype');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'MaterialCommunityIcons';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/MaterialCommunityIcons.ttf') format('truetype');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'ionicons';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Ionicons.ttf') format('truetype');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'Ionicons';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Ionicons.ttf') format('truetype');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'fontawesome';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/FontAwesome.ttf') format('truetype');
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'FontAwesome';
+            src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/FontAwesome.ttf') format('truetype');
+            font-display: swap;
+          }
+        `));
+        document.head.appendChild(style);
+      }
+    }
+  }, []);
+
   const colorScheme = useColorScheme();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);

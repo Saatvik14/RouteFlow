@@ -7,3 +7,76 @@
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
+
+/* Vector Icons Web Fonts for Expo / React Native Web */
+@font-face {
+  font-family: 'feather';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Feather.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Feather';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Feather.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'material-community';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/MaterialCommunityIcons.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MaterialCommunityIcons';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/MaterialCommunityIcons.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ionicons';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Ionicons.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Ionicons';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/Ionicons.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'fontawesome';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/FontAwesome.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'FontAwesome';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/FontAwesome.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'material';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/MaterialIcons.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MaterialIcons';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/MaterialIcons.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'anticon';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/AntDesign.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'AntDesign';
+  src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.2.0/Fonts/AntDesign.ttf') format('truetype');
+  font-display: swap;
+}
