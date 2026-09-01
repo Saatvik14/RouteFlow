@@ -536,9 +536,48 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     opacity: opacity.value,
   }));
 
-  const handleHome = () => {
+  const handleHome = async () => {
     onClose();
-    router.replace({ pathname: "/", params: { workspace: "map" } } as never);
+
+    // 1. If routes are already loaded in sidebar, navigate to the latest one
+    const latestRoute = routes[0];
+    if (latestRoute?.id) {
+      router.push({
+        pathname: "/route-preview",
+        params: {
+          id: String(latestRoute.id),
+          routeId: String(latestRoute.id),
+        },
+      } as never);
+      return;
+    }
+
+    // 2. Otherwise fetch the latest route directly
+    try {
+      const response = await routesService.getRoutes(5, 0);
+      const rawData = (response as any)?.data ?? response;
+      const routesList = Array.isArray(rawData) ? rawData : (rawData?.routes || []);
+
+      if (routesList && routesList.length > 0) {
+        const latest = routesList[0];
+        const routeId = latest.route_id || latest.id || latest.routeId;
+        if (routeId) {
+          router.push({
+            pathname: "/route-preview",
+            params: {
+              id: String(routeId),
+              routeId: String(routeId),
+            },
+          } as never);
+          return;
+        }
+      }
+    } catch (err) {
+      console.log("Error loading latest route for map workspace:", err);
+    }
+
+    // 3. Fallback to route creation if no routes exist
+    router.push("/setup-locations" as never);
   };
 
   const handleCreateRoute = () => {
@@ -1149,7 +1188,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               "map",
               "Map workspace",
               handleHome,
-              pathname === "/",
+              pathname === "/" || pathname?.includes("route-preview"),
             ) : null}
             {isBusinessOwner ? renderQuickAction(
               "activity",

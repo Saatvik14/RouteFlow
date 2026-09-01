@@ -27,12 +27,8 @@ export default function Index() {
     if (isAuthLoading || isRoleLoading) return;
     if (Platform.OS === 'web' && !isLoggedIn) return;
 
-    if (workspace === 'map') {
-      setIsLoading(false);
-      return;
-    }
-
-    if (isBusinessOwner && Platform.OS === 'web') {
+    // If business owner logs in on web without specifying map workspace, redirect to dispatch dashboard
+    if (isBusinessOwner && Platform.OS === 'web' && workspace !== 'map') {
       router.replace('/dashboard' as any);
       return;
     }
@@ -55,7 +51,7 @@ export default function Index() {
         } else {
           if (isFleetDriver) {
             router.replace('/driver-routes' as any);
-          } else if (isBusinessOwner) {
+          } else if (isBusinessOwner && workspace !== 'map') {
             router.replace('/dashboard' as any);
           } else {
             setIsLoading(false);
@@ -65,7 +61,7 @@ export default function Index() {
         console.error("Home initialization route check failed:", error);
         if (isFleetDriver) {
           router.replace('/driver-routes' as any);
-        } else if (isBusinessOwner) {
+        } else if (isBusinessOwner && workspace !== 'map') {
           router.replace('/dashboard' as any);
         } else {
           setIsLoading(false);
