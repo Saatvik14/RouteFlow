@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Modal,
   Pressable,
   StyleSheet,
@@ -27,6 +28,7 @@ import {
 } from '../services/api/marketplace';
 
 type DriverTab = 'available' | 'my_bids';
+const MARKETPLACE_POLL_INTERVAL_MS = 15_000;
 type ConfirmAction =
   | { type: 'accept'; bid: MarketplaceBid }
   | { type: 'close'; route: MarketplaceRoute }
@@ -87,12 +89,18 @@ export default function MarketplaceScreen() {
   const [bidError, setBidError] = useState('');
   const [busy, setBusy] = useState('');
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [syncError, setSyncError] = useState('');
+  const marketplaceRequestRef = useRef(false);
+  const bidsRequestRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  const load = useCallback(async (silent = false) => {
-    if (roleLoading) return;
-    if (silent) setRefreshing(true);
-    else setLoading(true);
-    setError('');
+  const load = useCallback(async (silent = false, showRefreshIndicator = silent) => {
+    if (roleLoading || marketplaceRequestRef.current) return;
+    marketplaceRequestRef.current = true;
+    if (showRefreshIndicator) setRefreshing(true);
+    else if (!silent) setLoading(true);
+    if (!silent) setError('');
     try {
       if (isBusinessOwner) {
         const response = apiError(await marketplaceService.getBusinessRoutes(), 'Marketplace listings could not be loaded.');
@@ -110,17 +118,53 @@ export default function MarketplaceScreen() {
         setRoutes([]);
         setMyBids([]);
       }
+      if (mountedRef.current) {
+        setError('');
+        setSyncError('');
+        setLastUpdatedAt(new Date());
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Marketplace data could not be loaded.');
+      const message = loadError instanceof Error ? loadError.message : 'Marketplace data could not be loaded.';
+      if (mountedRef.current) {
+        if (silent) setSyncError(message);
+        else setError(message);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      marketplaceRequestRef.current = false;
+      if (mountedRef.current) {
+        setLoading(false);
+        if (showRefreshIndicator) setRefreshing(false);
+      }
     }
   }, [isBusinessOwner, isIndependentDriver, roleLoading]);
 
   useEffect(() => {
+    mountedRef.current = true;
     load();
+    return () => { mountedRef.current = false; };
   }, [load]);
+
+  const refreshRouteBids = useCallback(async (routeId: number, silent = false) => {
+    if (bidsRequestRef.current) return;
+    bidsRequestRef.current = true;
+    if (!silent) setLoadingRouteId(routeId);
+    try {
+      const response = apiError(await marketplaceService.getRouteBids(routeId), 'Bids could not be loaded.');
+      if (mountedRef.current) {
+        setRouteBids((current) => ({ ...current, [routeId]: response.data?.bids || [] }));
+        setSyncError('');
+      }
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : 'Bids could not be loaded.';
+      if (mountedRef.current) {
+        if (silent) setSyncError(message);
+        else setError(message);
+      }
+    } finally {
+      bidsRequestRef.current = false;
+      if (mountedRef.current && !silent) setLoadingRouteId(null);
+    }
+  }, []);
 
   const loadBids = async (routeId: number) => {
     if (expandedRouteId === routeId) {
@@ -129,15 +173,36 @@ export default function MarketplaceScreen() {
     }
     setExpandedRouteId(routeId);
     if (routeBids[routeId]) return;
-    setLoadingRouteId(routeId);
-    try {
-      const response = apiError(await marketplaceService.getRouteBids(routeId), 'Bids could not be loaded.');
-      setRouteBids((current) => ({ ...current, [routeId]: response.data?.bids || [] }));
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Bids could not be loaded.');
-    } finally {
-      setLoadingRouteId(null);
+    await refreshRouteBids(routeId);
+  };
+
+  const pollMarketplace = useCallback(async () => {
+    if (AppState.currentState !== 'active' || roleLoading || busy) return;
+    const requests: Promise<unknown>[] = [load(true, false)];
+    if (isBusinessOwner && expandedRouteId) {
+      requests.push(refreshRouteBids(expandedRouteId, true));
     }
+    await Promise.all(requests);
+  }, [busy, expandedRouteId, isBusinessOwner, load, refreshRouteBids, roleLoading]);
+
+  useEffect(() => {
+    if (roleLoading || isFleetDriver || (!isIndependentDriver && !isBusinessOwner)) return;
+    const interval = setInterval(pollMarketplace, MARKETPLACE_POLL_INTERVAL_MS);
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') pollMarketplace();
+    });
+    return () => {
+      clearInterval(interval);
+      appStateSubscription.remove();
+    };
+  }, [isBusinessOwner, isFleetDriver, isIndependentDriver, pollMarketplace, roleLoading]);
+
+  const manualRefresh = async () => {
+    const requests: Promise<unknown>[] = [load(true, true)];
+    if (isBusinessOwner && expandedRouteId) {
+      requests.push(refreshRouteBids(expandedRouteId, true));
+    }
+    await Promise.all(requests);
   };
 
   const openBid = (route: MarketplaceRoute) => {
@@ -212,7 +277,7 @@ export default function MarketplaceScreen() {
       active="marketplace"
       title="Driver marketplace"
       subtitle={isBusinessOwner ? 'Review public routes, compare driver bids, and award work.' : 'Find public routes from business accounts and submit your price.'}
-      actions={<ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={() => load(true)} />}
+      actions={<View style={styles.headerActions}><View accessibilityLiveRegion="polite" style={[styles.liveStatus, syncError && styles.liveStatusWarning]}><View style={[styles.liveDot, syncError && styles.liveDotWarning]} /><Text style={[styles.liveText, syncError && styles.liveTextWarning]}>{syncError ? 'Sync delayed' : lastUpdatedAt ? `Live · ${lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Live updates'}</Text></View><ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={manualRefresh} /></View>}
     >
       <View style={[styles.hero, compact && styles.heroCompact]}>
         <View style={styles.heroIcon}><Feather name={isBusinessOwner ? 'briefcase' : 'truck'} size={24} color={C.primaryDark} /></View>
@@ -404,6 +469,13 @@ function ConfirmationModal({ action, busy, onClose, onConfirm }: { action: Confi
 
 const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', gap: S.lg, padding: S.xl, borderWidth: 1, borderColor: '#CFE0FA', borderRadius: R.lg, backgroundColor: '#F6FAFF', marginBottom: S.xl },
+  headerActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: S.sm },
+  liveStatus: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: S.md, borderRadius: R.pill, backgroundColor: C.successSoft },
+  liveStatusWarning: { backgroundColor: C.warningSoft },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.success },
+  liveDotWarning: { backgroundColor: C.warning },
+  liveText: { color: C.success, fontSize: 10, fontWeight: '600' },
+  liveTextWarning: { color: C.warning },
   heroCompact: { alignItems: 'flex-start', flexWrap: 'wrap', padding: S.lg },
   heroIcon: { width: 50, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
   heroTitle: { color: C.ink, fontSize: 18, fontWeight: '600' },

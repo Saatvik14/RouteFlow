@@ -13,8 +13,6 @@ import {
   TextLink,
 } from '../../components/auth/auth-ui';
 import { OperationsColors as C } from '../../constants/theme';
-import { LEGAL_URLS } from '../../constants/legal';
-import { openExternalUrl } from '../../hooks/open-external-url';
 import { authService, AuthMethod, setAuthSession } from '../../services/api';
 import { useAuth } from '../_layout';
 
@@ -93,10 +91,13 @@ export default function LoginScreen() {
     const respData = response.data as any;
     const rawRole = String(respData?.role || respData?.user?.role || '').toUpperCase();
     const isOwner = rawRole === 'BUSINESS_OWNER' || rawRole === 'PLATFORM_ADMIN';
+    const isFleetDriver = rawRole === 'FLEET_DRIVER';
     if (returnTo) {
       router.replace(String(returnTo) as any);
     } else if (isOwner && Platform.OS === 'web') {
       router.replace('/dashboard' as any);
+    } else if (isFleetDriver) {
+      router.replace('/fleet-routes' as any);
     } else {
       router.replace('/');
     }
@@ -156,68 +157,47 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          {isWeb && (account.role === 'FLEET_DRIVER' || account.role === 'INDEPENDENT_DRIVER') ? (
-            <View style={styles.driverNoticeBox}>
-              <View style={styles.driverNoticeIcon}>
-                <Feather name="smartphone" size={22} color="#2563EB" />
-              </View>
-              <Text style={styles.driverNoticeTitle}>Driver Account Mobile Access Only</Text>
-              <Text style={styles.driverNoticeText}>
-                RouteFloww Driver accounts operate through our Android mobile app. Please download the app on Google Play to log in and drive.
-              </Text>
+          <AuthField
+            label={account.authMethod === 'access_code' ? 'Business access code' : 'Password'}
+            icon={account.authMethod === 'access_code' ? 'key' : 'lock'}
+            value={credential}
+            onChangeText={(value) => {
+              setCredential(account.authMethod === 'access_code' ? value.toUpperCase() : value);
+              setError('');
+            }}
+            placeholder={account.authMethod === 'access_code' ? 'RF-XXXX-XXXX' : 'Enter your password'}
+            secureTextEntry={!showCredential}
+            autoCapitalize={account.authMethod === 'access_code' ? 'characters' : 'none'}
+            autoCorrect={false}
+            autoComplete={account.authMethod === 'password' ? 'password' : 'off'}
+            textContentType={account.authMethod === 'password' ? 'password' : 'none'}
+            returnKeyType="done"
+            autoFocus={true}
+            editable={!loading}
+            onSubmitEditing={signIn}
+            hint={account.authMethod === 'access_code'
+              ? 'Codes are created and reset by your business admin.'
+              : undefined}
+            trailing={(
               <Pressable
-                style={styles.playStoreBtn}
-                onPress={() => openExternalUrl(LEGAL_URLS.PLAY_STORE_APP)}
+                accessibilityRole="button"
+                accessibilityLabel={showCredential ? 'Hide credential' : 'Show credential'}
+                hitSlop={10}
+                onPress={() => setShowCredential((value) => !value)}
+                style={styles.visibilityButton}
               >
-                <Feather name="download" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.playStoreBtnText}>Download on Google Play</Text>
+                <Feather name={showCredential ? 'eye-off' : 'eye'} size={18} color={C.inkMuted} />
               </Pressable>
+            )}
+          />
+
+          {account.authMethod === 'password' ? (
+            <View style={styles.forgotRow}>
+              <TextLink label="Forgot password?" onPress={() => router.push('/forgot-password')} />
             </View>
-          ) : (
-            <>
-              <AuthField
-                label={account.authMethod === 'access_code' ? 'Business access code' : 'Password'}
-                icon={account.authMethod === 'access_code' ? 'key' : 'lock'}
-                value={credential}
-                onChangeText={(value) => {
-                  setCredential(account.authMethod === 'access_code' ? value.toUpperCase() : value);
-                  setError('');
-                }}
-                placeholder={account.authMethod === 'access_code' ? 'RF-XXXX-XXXX' : 'Enter your password'}
-                secureTextEntry={!showCredential}
-                autoCapitalize={account.authMethod === 'access_code' ? 'characters' : 'none'}
-                autoCorrect={false}
-                autoComplete={account.authMethod === 'password' ? 'password' : 'off'}
-                textContentType={account.authMethod === 'password' ? 'password' : 'none'}
-                returnKeyType="done"
-                autoFocus={true}
-                editable={!loading}
-                onSubmitEditing={signIn}
-                hint={account.authMethod === 'access_code'
-                  ? 'Codes are created and reset by your business admin.'
-                  : undefined}
-                trailing={(
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={showCredential ? 'Hide credential' : 'Show credential'}
-                    hitSlop={10}
-                    onPress={() => setShowCredential((value) => !value)}
-                    style={styles.visibilityButton}
-                  >
-                    <Feather name={showCredential ? 'eye-off' : 'eye'} size={18} color={C.inkMuted} />
-                  </Pressable>
-                )}
-              />
+          ) : null}
 
-              {account.authMethod === 'password' ? (
-                <View style={styles.forgotRow}>
-                  <TextLink label="Forgot password?" onPress={() => router.push('/forgot-password')} />
-                </View>
-              ) : null}
-
-              <AuthButton label="Sign in" icon="log-in" loading={loading} onPress={signIn} />
-            </>
-          )}
+          <AuthButton label="Sign in" icon="log-in" loading={loading} onPress={signIn} />
         </>
       )}
 
@@ -243,10 +223,4 @@ const styles = StyleSheet.create({
   signupRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 22 },
   signupText: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 13 },
   securityNote: { color: C.inkSubtle, fontFamily: AUTH_FONT, fontSize: 11, textAlign: 'center', marginTop: 18 },
-  driverNoticeBox: { backgroundColor: '#EFF6FF', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#BFDBFE', marginVertical: 12, alignItems: 'center' },
-  driverNoticeIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  driverNoticeTitle: { fontSize: 15, fontWeight: '600', color: '#0F172A', textAlign: 'center', marginBottom: 6 },
-  driverNoticeText: { fontSize: 13, color: '#475569', textAlign: 'center', lineHeight: 18, marginBottom: 16 },
-  playStoreBtn: { backgroundColor: '#16A34A', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, flexDirection: 'row', alignItems: 'center' },
-  playStoreBtnText: { color: '#FFFFFF', fontWeight: '600', fontSize: 14 },
 });

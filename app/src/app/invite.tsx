@@ -19,8 +19,6 @@ import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } 
 import { useAuth } from './_layout';
 import { getAuthToken, setActiveOrganizationId, setAuthSession } from '../services/api/client';
 import { enterpriseService } from '../services/api/enterprise';
-import { LEGAL_URLS } from '../constants/legal';
-import { openExternalUrl } from '../hooks/open-external-url';
 
 type ScreenState = 'loading' | 'ready' | 'invalid' | 'expired' | 'accepted' | 'inactive' | 'success';
 
@@ -144,20 +142,12 @@ export default function InvitationScreen() {
                 icon="user-check"
                 title={`Welcome to ${invitation?.organizationName || 'the team'}`}
                 message={invitation?.role === 'driver'
-                  ? (Platform.OS === 'web'
-                      ? 'Your driver account is active! Download the RouteFloww Android app on Google Play to log in and access your assigned routes.'
-                      : 'Your membership is active. Assigned routes will now appear in your driver workspace.')
+                  ? 'Your membership is active. Assigned routes will now appear in your driver workspace.'
                   : 'Your membership is active. You can now open the business operations workspace.'}
                 actionLabel={invitation?.role === 'driver'
-                  ? (Platform.OS === 'web' ? 'Install App on Google Play' : 'Open my routes')
+                  ? 'Open my routes'
                   : 'Open dashboard'}
-                onAction={() => {
-                  if (invitation?.role === 'driver' && Platform.OS === 'web') {
-                    openExternalUrl(LEGAL_URLS.PLAY_STORE_APP);
-                  } else {
-                    router.replace((invitation?.role === 'driver' ? '/fleet-routes' : '/dashboard') as any);
-                  }
-                }}
+                onAction={() => router.replace((invitation?.role === 'driver' ? '/fleet-routes' : '/dashboard') as any)}
                 success
               />
             ) : null}
