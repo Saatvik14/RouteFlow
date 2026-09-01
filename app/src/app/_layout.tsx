@@ -261,7 +261,8 @@ export default function RootLayout() {
   const inAuthGroup = PUBLIC_ROUTES.includes(String((segments as any)[segments.length - 1] ?? '').replace(/[()]/g, ''));
 
   return (
-    <AuthContext.Provider value={authContext}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthContext.Provider value={authContext}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         {isLoggedIn && isAppLocked && Platform.OS !== 'web' ? (
           <SecurityLockScreen onUnlocked={handleUnlocked} />
@@ -284,6 +285,7 @@ export default function RootLayout() {
               <Stack.Screen name="team" />
               <Stack.Screen name="reports" />
               <Stack.Screen name="route-detail" />
+              <Stack.Screen name="marketplace" />
               <Stack.Screen name="invite" />
             </Stack>
 

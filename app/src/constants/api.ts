@@ -51,8 +51,8 @@ function getDevelopmentBaseUrl() {
 }
 
 // Default backend host (use your Render URL)
-const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
-// const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
+// const DEFAULT_BACKEND_URL = 'https://routeflow-rlu5.onrender.com';
+const DEFAULT_BACKEND_URL = getDevelopmentBaseUrl();
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_BACKEND_URL;
 
@@ -168,6 +168,17 @@ export const API_ENDPOINTS = {
     PROOF_CONTENT: (id: number) => `/api/enterprise/proofs/${id}/content`,
     REPORT: '/api/enterprise/reports/daily',
     REPORT_CSV: '/api/enterprise/reports/daily.csv',
+  },
+  MARKETPLACE: {
+    SUMMARY: '/api/marketplace/summary',
+    ROUTES: '/api/marketplace/routes',
+    MY_BIDS: '/api/marketplace/bids/mine',
+    PLACE_BID: (routeId: number) => `/api/marketplace/routes/${routeId}/bids`,
+    WITHDRAW_BID: (bidId: number) => `/api/marketplace/bids/${bidId}/withdraw`,
+    BUSINESS_ROUTES: '/api/marketplace/business/routes',
+    ROUTE_BIDS: (routeId: number) => `/api/marketplace/business/routes/${routeId}/bids`,
+    ACCEPT_BID: (bidId: number) => `/api/marketplace/business/bids/${bidId}/accept`,
+    CLOSE_LISTING: (routeId: number) => `/api/marketplace/business/routes/${routeId}/close`,
   },
 };
 

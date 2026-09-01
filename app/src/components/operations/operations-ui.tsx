@@ -39,6 +39,9 @@ export function StatusBadge({ status, compact = false }: { status: string; compa
     active: { label: 'Active', color: C.success, background: C.successSoft, icon: 'check-circle' },
     inactive: { label: 'Inactive', color: C.inkMuted, background: '#EDF1F6', icon: 'pause-circle' },
     expired: { label: 'Expired', color: C.warning, background: C.warningSoft, icon: 'clock' },
+    open: { label: 'Open', color: C.success, background: C.successSoft, icon: 'globe' },
+    awarded: { label: 'Awarded', color: '#6941C6', background: '#F1ECFE', icon: 'award' },
+    withdrawn: { label: 'Withdrawn', color: C.inkMuted, background: '#EDF1F6', icon: 'slash' },
     revoked: { label: 'Revoked', color: C.danger, background: C.dangerSoft, icon: 'x-circle' },
     resent: { label: 'Resent', color: C.info, background: C.infoSoft, icon: 'send' },
   };
@@ -153,7 +156,7 @@ export function SkeletonRows({ count = 4 }: { count?: number }) {
 export function OperationsShell({ title, subtitle, active: _active, actions, children, scroll = true }: {
   title: string;
   subtitle?: string;
-  active: 'dashboard' | 'team' | 'reports';
+  active: 'dashboard' | 'team' | 'reports' | 'marketplace';
   actions?: ReactNode;
   children: ReactNode;
   scroll?: boolean;

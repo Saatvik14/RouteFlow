@@ -14,6 +14,7 @@ export * from './routes';
 export * from './users';
 export * from './support';
 export * from './enterprise';
+export * from './marketplace';
 
 // Export constants
 export { API_BASE_URL, API_CONFIG, API_ENDPOINTS, ERROR_MESSAGES, HTTP_STATUS } from '../../constants/api';
@@ -28,4 +29,5 @@ export { routesService } from './routes';
 export { userService } from './users';
 export { supportService } from './support';
 export { enterpriseService } from './enterprise';
+export { marketplaceService } from './marketplace';
 

@@ -10,3 +10,4 @@
 \ir 20260824_007_create_ai_assignment_recommendations.sql
 \ir 20260825_008_add_address_to_organizations.sql
 \ir 20260826_009_add_role_aware_authentication.sql
+\ir 20260901_010_create_driver_marketplace.sql

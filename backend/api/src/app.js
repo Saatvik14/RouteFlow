@@ -56,6 +56,7 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use('/driver', driverRoutes);
 
 app.use('/api/enterprise', require('./routes/enterpriseRoutes'));
+app.use('/api/marketplace', require('./routes/marketplaceRoutes'));
 
 app.use((req, res) => {
   res.status(404).json({

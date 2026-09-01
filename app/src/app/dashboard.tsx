@@ -112,12 +112,11 @@ export default function DashboardScreen() {
     if (!validDateInput(fromDate) || !validDateInput(toDate)) return 'Enter both dates in YYYY-MM-DD format.';
     const from = new Date(`${fromDate}T00:00:00`).getTime();
     const to = new Date(`${toDate}T00:00:00`).getTime();
-    const earliest = new Date(`${initialRange.from}T00:00:00`).getTime();
-    const latest = new Date(`${initialRange.to}T00:00:00`).getTime();
+    const today = new Date(`${toDateInput(new Date())}T00:00:00`).getTime();
     if (to < from) return 'The end date must be on or after the start date.';
-    if (from < earliest || to > latest) return 'Choose dates within the past 7 days, including today.';
+    if (from > today || to > today) return 'Future dates are not available.';
     return '';
-  }, [fromDate, initialRange.from, initialRange.to, toDate]);
+  }, [fromDate, toDate]);
 
   const applyRangePreset = (preset: RangePreset) => {
     const range = rangeForPreset(preset);
@@ -205,7 +204,7 @@ export default function DashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.rangeEyebrow}>Selected operating window</Text>
             <Text style={styles.rangeTitle}>{formatRange(fromDate, toDate)}</Text>
-            <Text style={styles.rangeHint}>All route totals, alerts, and cards below use this date range. Dates are limited to the past 7 days.</Text>
+            <Text style={styles.rangeHint}>All route totals, alerts, and cards below use this date range. Choose any past date when you need a wider history.</Text>
           </View>
         </View>
         <View accessibilityRole="tablist" style={styles.rangePresets}>
@@ -339,8 +338,8 @@ export default function DashboardScreen() {
         visible={datePicker !== null}
         label={datePicker === 'to' ? 'To' : 'From'}
         value={datePicker === 'to' ? toDate : fromDate}
-        minDate={datePicker === 'to' ? fromDate : initialRange.from}
-        maxDate={datePicker === 'from' ? toDate : initialRange.to}
+        minDate={datePicker === 'to' ? fromDate : undefined}
+        maxDate={datePicker === 'from' ? toDate : toDateInput(new Date())}
         onClose={() => setDatePicker(null)}
         onSelect={(value) => {
           if (datePicker === 'to') setToDate(value);
@@ -382,7 +381,7 @@ function CalendarModal({ visible, label, value, minDate, maxDate, onClose, onSel
   visible: boolean;
   label: string;
   value: string;
-  minDate: string;
+  minDate?: string;
   maxDate: string;
   onClose: () => void;
   onSelect: (value: string) => void;
@@ -395,7 +394,7 @@ function CalendarModal({ visible, label, value, minDate, maxDate, onClose, onSel
   }, [selectedDate, visible]);
 
   const monthKey = (date: Date) => date.getFullYear() * 12 + date.getMonth();
-  const minimum = new Date(`${minDate}T12:00:00`);
+  const minimum = minDate ? new Date(`${minDate}T12:00:00`) : null;
   const maximum = new Date(`${maxDate}T12:00:00`);
   const firstWeekday = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1).getDay();
   const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
@@ -408,7 +407,7 @@ function CalendarModal({ visible, label, value, minDate, maxDate, onClose, onSel
   const changeMonth = (offset: number) => {
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
   };
-  const canGoBack = monthKey(visibleMonth) > monthKey(minimum);
+  const canGoBack = !minimum || monthKey(visibleMonth) > monthKey(minimum);
   const canGoForward = monthKey(visibleMonth) < monthKey(maximum);
   const monthTitle = visibleMonth.toLocaleDateString([], { month: 'long', year: 'numeric' });
 
@@ -420,7 +419,7 @@ function CalendarModal({ visible, label, value, minDate, maxDate, onClose, onSel
           <View style={styles.calendarTopRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.calendarEyebrow}>Select {label.toLowerCase()} date</Text>
-              <Text style={styles.calendarRange}>Available {formatRange(minDate, maxDate)}</Text>
+              <Text style={styles.calendarRange}>{minDate ? `Available ${formatRange(minDate, maxDate)}` : `Choose any date up to ${formatRangeDate(maxDate)}`}</Text>
             </View>
             <Pressable accessibilityLabel="Close calendar" onPress={onClose} style={styles.closeButton}><Feather name="x" size={20} color={C.inkMuted} /></Pressable>
           </View>
@@ -440,7 +439,7 @@ function CalendarModal({ visible, label, value, minDate, maxDate, onClose, onSel
             {days.map((date, index) => {
               if (!date) return <View key={`empty-${index}`} style={styles.calendarDaySlot} />;
               const dateValue = toDateInput(date);
-              const disabled = dateValue < minDate || dateValue > maxDate;
+              const disabled = (minDate ? dateValue < minDate : false) || dateValue > maxDate;
               const selected = dateValue === value;
               const today = dateValue === toDateInput(new Date());
               return (
@@ -459,7 +458,7 @@ function CalendarModal({ visible, label, value, minDate, maxDate, onClose, onSel
               );
             })}
           </View>
-          <View style={styles.calendarLegend}><View style={styles.calendarLegendDot} /><Text style={styles.calendarLegendText}>Only the past 7 days, including today, can be selected.</Text></View>
+          <View style={styles.calendarLegend}><View style={styles.calendarLegendDot} /><Text style={styles.calendarLegendText}>Any past date can be selected. Future dates are unavailable.</Text></View>
         </View>
       </View>
     </Modal>
@@ -526,7 +525,7 @@ function RouteRow({ route, compact, onOpen, onHistory, onMap, onAssign }: {
         <View style={styles.routeFooterActions}>
           <ActionButton compact variant="secondary" icon="archive" label="Route history" onPress={onHistory} />
           <ActionButton compact icon="map" label="Map workspace" onPress={onMap} />
-          <ActionButton compact variant="quiet" icon="arrow-right" label="View details" onPress={onOpen} />
+          {/* <ActionButton compact variant="quiet" icon="arrow-right" label="View details" onPress={onOpen} /> */}
         </View>
       </View>
     </View>

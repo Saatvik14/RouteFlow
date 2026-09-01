@@ -450,7 +450,7 @@ export default function RoutePointsScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const { isLoggedIn, logout } = useAuth();
-  const { canAddDriver, isFleetDriver } = useUserRole();
+  const { canAddDriver, isBusinessOwner, isFleetDriver } = useUserRole();
 
   useEffect(() => {
     if (isFleetDriver) {
@@ -536,11 +536,19 @@ export default function RoutePointsScreen() {
     details: null,
   });
 
-  const [endDate, setEndDate] = useState<Date>(initialDate);
-  const [endTime, setEndTime] = useState(formatDisplayTime(new Date()));
+  const [endDate, setEndDate] = useState<Date>(() => {
+    const next = new Date(initialDate);
+    const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
+    if (oneHourFromNow.getDate() !== new Date().getDate()) next.setDate(next.getDate() + 1);
+    return next;
+  });
+  const [endTime, setEndTime] = useState(formatDisplayTime(new Date(Date.now() + 60 * 60 * 1000)));
 
   const [showEndSheet, setShowEndSheet] = useState(false);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
+  const [isPublicMarketplace, setIsPublicMarketplace] = useState(false);
+  const [maxDriverCost, setMaxDriverCost] = useState('');
+  const [costCurrency, setCostCurrency] = useState<'GBP' | 'INR'>('GBP');
 
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
@@ -627,7 +635,23 @@ export default function RoutePointsScreen() {
           endLocation.latitude !== null &&
           endLocation.longitude !== null;
 
-  const canSubmit = isStartValid && isEndValid && !isSubmitting && !isFetchingSuggestions;
+  const startTimestamp = new Date(buildDateTimeISOString(startDate, startTime)).getTime();
+  const endTimestamp = new Date(buildDateTimeISOString(endDate, endTime)).getTime();
+  const routeDurationMs = endTimestamp - startTimestamp;
+  const hasValidRouteWindow = Number.isFinite(routeDurationMs) && routeDurationMs > 0 && routeDurationMs <= 24 * 60 * 60 * 1000;
+  const publicCost = Number(maxDriverCost);
+  const hasValidPublicCost = Number.isFinite(publicCost) && publicCost > 0 && publicCost <= 1000000 && Number(publicCost.toFixed(2)) === publicCost;
+  const hasPublicLeadTime = startTimestamp >= Date.now() + 30 * 60 * 1000;
+  const marketplaceFieldsValid = !isPublicMarketplace || (hasValidPublicCost && hasPublicLeadTime && !selectedDriver);
+  const canSubmit = isStartValid && isEndValid && hasValidRouteWindow && marketplaceFieldsValid && !isSubmitting && !isFetchingSuggestions;
+
+  const scheduleMessage = !hasValidRouteWindow
+    ? 'End time must be after start time, with a route window of no more than 24 hours.'
+    : isPublicMarketplace && !hasPublicLeadTime
+      ? 'Public routes must start at least 30 minutes from now. Bidding closes 15 minutes before departure.'
+      : isPublicMarketplace && !hasValidPublicCost
+        ? 'Enter a maximum driver cost greater than 0, using no more than two decimal places.'
+        : '';
 
   console.log('[DEBUG canSubmit]', {
     canSubmit,
@@ -641,6 +665,8 @@ export default function RoutePointsScreen() {
     endMode,
     isSubmitting,
     isFetchingSuggestions,
+    hasValidRouteWindow,
+    marketplaceFieldsValid,
   });
 
   const endTitle = useMemo(() => {
@@ -963,6 +989,9 @@ export default function RoutePointsScreen() {
   start_datetime: buildDateTimeISOString(startDate, startTime),
   end_datetime: buildDateTimeISOString(endDate, endTime),
   driver_id: selectedDriver?.driver_id || null,
+  is_public: isBusinessOwner && isPublicMarketplace,
+  max_driver_cost: isBusinessOwner && isPublicMarketplace ? Number(maxDriverCost) : null,
+  cost_currency: isBusinessOwner && isPublicMarketplace ? costCurrency : null,
 
   // Extra frontend fields
   routeName,
@@ -1253,8 +1282,75 @@ export default function RoutePointsScreen() {
               ) : null}
             </View>
 
+            {scheduleMessage ? (
+              <View style={styles.scheduleWarning}>
+                <Feather name="clock" size={16} color="#B45309" />
+                <Text style={styles.scheduleWarningText}>{scheduleMessage}</Text>
+              </View>
+            ) : null}
+
+            {isBusinessOwner ? (
+              <View style={[styles.section, isWeb && styles.webSection]}>
+                <Text style={[styles.sectionTitle, isWeb && styles.webSectionTitle]}>DRIVER MARKETPLACE</Text>
+                <Pressable
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: isPublicMarketplace }}
+                  onPress={() => {
+                    setIsPublicMarketplace((current) => {
+                      const next = !current;
+                      if (next) setSelectedDriver(null);
+                      return next;
+                    });
+                  }}
+                  style={[styles.marketplaceToggle, isPublicMarketplace && styles.marketplaceToggleActive]}
+                >
+                  <View style={[styles.marketplaceIcon, isPublicMarketplace && styles.marketplaceIconActive]}>
+                    <Feather name="globe" size={18} color={isPublicMarketplace ? '#FFFFFF' : '#2563EB'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.marketplaceTitle}>Make this route public</Text>
+                    <Text style={styles.marketplaceSubtitle}>Independent drivers can view the schedule and bid. No driver is assigned until you select one.</Text>
+                  </View>
+                  <View style={[styles.switchTrack, isPublicMarketplace && styles.switchTrackActive]}>
+                    <View style={[styles.switchThumb, isPublicMarketplace && styles.switchThumbActive]} />
+                  </View>
+                </Pressable>
+
+                {isPublicMarketplace ? (
+                  <View style={styles.marketplaceBudgetCard}>
+                    <Text style={styles.marketplaceBudgetLabel}>MAXIMUM DRIVER COST</Text>
+                    <View style={styles.marketplaceBudgetRow}>
+                      <View style={styles.currencyOptions}>
+                        {(['GBP', 'INR'] as const).map((currency) => (
+                          <Pressable
+                            key={currency}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: costCurrency === currency }}
+                            onPress={() => setCostCurrency(currency)}
+                            style={[styles.currencyOption, costCurrency === currency && styles.currencyOptionActive]}
+                          >
+                            <Text style={[styles.currencyOptionText, costCurrency === currency && styles.currencyOptionTextActive]}>{currency}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                      <TextInput
+                        accessibilityLabel="Maximum driver cost"
+                        value={maxDriverCost}
+                        onChangeText={(value) => setMaxDriverCost(value.replace(/[^0-9.]/g, ''))}
+                        keyboardType="decimal-pad"
+                        placeholder="e.g. 85.00"
+                        placeholderTextColor="#98A2B3"
+                        style={styles.marketplaceCostInput}
+                      />
+                    </View>
+                    <Text style={styles.marketplaceFootnote}>Drivers cannot bid above this amount. Bidding closes automatically 15 minutes before the start time.</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* Driver Details Section */}
-            {canAddDriver ? (
+            {canAddDriver && !isPublicMarketplace ? (
               <View style={[styles.section, isWeb && styles.webSection]}>
                 <Text style={[styles.sectionTitle, isWeb && styles.webSectionTitle]}>DRIVER ASSIGNMENT</Text>
 
@@ -1814,6 +1910,163 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#526071',
     marginBottom: 10,
+  },
+
+  scheduleWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 10,
+    backgroundColor: '#FFFBEB',
+    padding: 12,
+    marginBottom: 18,
+  },
+
+  scheduleWarningText: {
+    flex: 1,
+    color: '#92400E',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  marketplaceToggle: {
+    minHeight: 82,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#DCE3EC',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+  },
+
+  marketplaceToggleActive: {
+    borderColor: '#93C5FD',
+    backgroundColor: '#F8FBFF',
+  },
+
+  marketplaceIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+  },
+
+  marketplaceIconActive: {
+    backgroundColor: '#2563EB',
+  },
+
+  marketplaceTitle: {
+    color: '#101828',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+
+  marketplaceSubtitle: {
+    color: '#64748B',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+
+  switchTrack: {
+    width: 42,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#CBD5E1',
+    padding: 3,
+  },
+
+  switchTrackActive: {
+    backgroundColor: '#2563EB',
+  },
+
+  switchThumb: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+  },
+
+  switchThumbActive: {
+    transform: [{ translateX: 18 }],
+  },
+
+  marketplaceBudgetCard: {
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 12,
+    backgroundColor: '#F8FBFF',
+    padding: 14,
+    marginTop: 10,
+  },
+
+  marketplaceBudgetLabel: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+    marginBottom: 9,
+  },
+
+  marketplaceBudgetRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+
+  currencyOptions: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: 9,
+    backgroundColor: '#E2E8F0',
+  },
+
+  currencyOption: {
+    minWidth: 48,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 7,
+  },
+
+  currencyOptionActive: {
+    backgroundColor: '#FFFFFF',
+  },
+
+  currencyOptionText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  currencyOptionTextActive: {
+    color: '#1D4ED8',
+  },
+
+  marketplaceCostInput: {
+    flex: 1,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    color: '#101828',
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+  },
+
+  marketplaceFootnote: {
+    color: '#64748B',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 9,
   },
 
   addressInput: {

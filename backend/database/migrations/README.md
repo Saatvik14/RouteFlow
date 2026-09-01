@@ -13,6 +13,7 @@ The enterprise delivery schema is split by table responsibility and must be appl
 | 7 | `20260824_007_create_ai_assignment_recommendations.sql` | Adds driver assignment profiles and expiring, dispatcher-confirmed recommendation drafts |
 | 8 | `20260825_008_add_address_to_organizations.sql` | Adds the optional operating address used during business onboarding |
 | 9 | `20260826_009_add_role_aware_authentication.sql` | Adds independent-driver vehicle type and hashed fleet-driver access-code credentials |
+| 10 | `20260901_010_create_driver_marketplace.sql` | Adds public route listing fields, independent-driver bids, award decisions, budgets, and marketplace indexes |
 
 Apply the complete set with:
 

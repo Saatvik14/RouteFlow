@@ -300,7 +300,11 @@ const cancelRoute = async (req, res) => {
     const transition = transitionRoute({ currentState: route.status, action: 'cancel' });
     if (transition.idempotent) return { ...route, idempotent: true };
     const updatedResult = await client.query(
-      `UPDATE routes SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+      `UPDATE routes SET status = 'cancelled', cancelled_at = NOW(),
+                         is_public = FALSE,
+                         marketplace_status = CASE WHEN marketplace_status = 'open' THEN 'withdrawn' ELSE marketplace_status END,
+                         marketplace_closed_at = CASE WHEN marketplace_status = 'open' THEN NOW() ELSE marketplace_closed_at END,
+                         updated_at = NOW()
        WHERE route_id = $1 RETURNING *`,
       [routeId]
     );
@@ -313,6 +317,12 @@ const cancelRoute = async (req, res) => {
       `UPDATE route_assignments SET status = 'cancelled', ended_at = NOW()
        WHERE route_id = $1 AND assignment_version = $2 AND status IN ('assigned', 'accepted')`,
       [routeId, route.assignment_version]
+    );
+    await client.query(
+      `UPDATE route_bids SET status = 'expired', decided_at = NOW(),
+                             decided_by_user_id = $1, updated_at = NOW()
+       WHERE route_id = $2 AND status = 'pending'`,
+      [req.user.user_id, routeId]
     );
     await insertAudit(client, {
       organizationId: req.organization.id,

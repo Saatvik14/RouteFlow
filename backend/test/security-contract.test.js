@@ -50,3 +50,19 @@ test('multi-business accounts default to their most recently joined organization
   assert.match(middleware, /ORDER BY om\.joined_at DESC NULLS LAST, om\.created_at DESC/);
   assert.doesNotMatch(middleware, /CASE om\.role/);
 });
+
+test('marketplace listings expose route summaries through a dedicated protected router', () => {
+  const migration = read('database/migrations/20260901_010_create_driver_marketplace.sql');
+  const routes = read('api/src/routes/marketplaceRoutes.js');
+  const controller = read('api/src/controllers/marketplaceController.js');
+
+  assert.match(migration, /CONSTRAINT route_bids_one_per_driver UNIQUE/);
+  assert.match(migration, /routes_open_marketplace_idx/);
+  assert.match(routes, /router\.use\(protect\)/);
+  assert.doesNotMatch(routes, /loadOrganizationContext/);
+  assert.match(controller, /INDEPENDENT_DRIVER_REQUIRED/);
+  assert.doesNotMatch(controller, /INSERT INTO organization_memberships/);
+  assert.match(controller, /DRIVER_TIME_CONFLICT/);
+  assert.match(controller, /r\.start_datetime < \$4::timestamptz/);
+  assert.match(controller, /r\.end_datetime > \$3::timestamptz/);
+});

@@ -1,6 +1,7 @@
 import { useAuth } from "./../app/_layout";
 import { restoreAuthToken } from "./../services/api";
 import { routesService } from "./../services/api/routes";
+import { marketplaceService } from "./../services/api/marketplace";
 import { ordersService } from "./../services/api/orders";
 import { useUserRole } from "./../hooks/useUserRole";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -394,6 +395,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [actionMode, setActionMode] = useState<RouteActionMode>("menu");
   const [actionError, setActionError] = useState("");
   const [isCancellingRoute, setIsCancellingRoute] = useState(false);
+  const [marketplaceIndicator, setMarketplaceIndicator] = useState(0);
 
   const translateX = useSharedValue(-450);
   const opacity = useSharedValue(0);
@@ -510,6 +512,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen || isFleetDriver) return;
+    let mounted = true;
+    marketplaceService.getSummary().then((response) => {
+      if (!mounted || !response.success) return;
+      const data: any = response.data || {};
+      const count = isBusinessOwner ? data.pending_bids : data.available;
+      setMarketplaceIndicator(Math.max(0, Number(count) || 0));
+    }).catch(() => undefined);
+    return () => { mounted = false; };
+  }, [isBusinessOwner, isFleetDriver, isOpen]);
+
+  useEffect(() => {
     if (isOpen) {
       setMounted(true);
       translateX.value = withTiming(0, { duration: 300 });
@@ -603,6 +617,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const handleLiveDispatch = () => {
     onClose();
     router.push("/dashboard" as never);
+  };
+
+  const handleMarketplace = () => {
+    onClose();
+    router.push("/marketplace" as never);
   };
 
   const handleTeam = () => {
@@ -740,6 +759,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     label: string,
     onPress: () => void,
     isActive?: boolean,
+    badgeCount?: number,
   ) => (
     <Pressable
       accessibilityRole="button"
@@ -771,6 +791,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         {label}
       </Text>
+      {badgeCount ? <View style={styles.quickActionBadge}><Text style={styles.quickActionBadgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text></View> : null}
       <Feather name="chevron-right" size={17} color={isActive ? "#2563EB" : "#94A3B8"} />
     </Pressable>
   );
@@ -1185,6 +1206,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               handleHome,
               pathname === "/" || pathname?.includes("route-preview"),
             ) : null}
+            {!isFleetDriver ? renderQuickAction(
+              "globe",
+              "Driver marketplace",
+              handleMarketplace,
+              pathname?.includes("marketplace"),
+              marketplaceIndicator,
+            ) : null}
             {isBusinessOwner ? renderQuickAction(
               "activity",
               "Delivery operations",
@@ -1563,6 +1591,23 @@ const styles = StyleSheet.create({
 
   quickActionTextActive: {
     color: "#2563EB",
+  },
+
+  quickActionBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 6,
+    marginRight: 7,
+  },
+
+  quickActionBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "600",
   },
 
   historyEntry: {

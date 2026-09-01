@@ -12,6 +12,7 @@ const {
 } = require('../utils/locationPermissions');
 const { assertRouteReadable, assertRouteMutable } = require('../services/accessControlService');
 const { normalizeRouteState } = require('../services/routeLifecycleService');
+const { buildPublicListing, validateRouteWindow } = require('../services/marketplacePolicyService');
 const { HttpError } = require('../utils/httpError');
 const {
   autocomplete: autocompleteLocation,
@@ -81,6 +82,9 @@ const createRoute = async (req, res) => {
     end_datetime,   // New: route end datetime
     status, // New: route status (optional)
     driver_id, // New: driver assignment
+    is_public,
+    max_driver_cost,
+    cost_currency,
     saveAddressDefault
   } = req.body;
   const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
@@ -118,6 +122,32 @@ const createRoute = async (req, res) => {
     return res.status(400).json({
       message: 'Missing required fields. name, start_location (with full_address, latitude, longitude), end_location (with full_address, latitude, longitude), start_datetime, and end_datetime are required.'
     });
+  }
+
+  const wantsPublicListing = is_public === true || is_public === 'true';
+  let publicListing = null;
+  try {
+    const routeWindow = validateRouteWindow({ startValue: start_datetime, endValue: end_datetime });
+    if (wantsPublicListing) {
+      const platformRole = String(req.user?.role || '').toUpperCase();
+      if (!['BUSINESS_OWNER', 'PLATFORM_ADMIN'].includes(platformRole)) {
+        return res.status(403).json({ message: 'Only business accounts can publish routes to the driver marketplace.' });
+      }
+      if (driver_id !== undefined && driver_id !== null && driver_id !== '') {
+        return res.status(400).json({ message: 'A public marketplace route must be unassigned. Remove the selected driver first.' });
+      }
+      publicListing = buildPublicListing({
+        startValue: routeWindow.start,
+        endValue: routeWindow.end,
+        maxCost: max_driver_cost,
+        currency: cost_currency,
+      });
+    }
+  } catch (error) {
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ code: error.code, message: error.message, details: error.details });
+    }
+    throw error;
   }
 
   const userEmail = req.user?.email;
@@ -165,8 +195,19 @@ const createRoute = async (req, res) => {
 
     // 5. Create entry in routes table
     const insertRouteQuery = `
-      INSERT INTO routes (user_id, organization_id, name, start_full_address, end_full_address, start_datetime, end_datetime, status, driver_id, assigned_at, assignment_version)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $9::integer IS NULL THEN NULL ELSE NOW() END, CASE WHEN $9::integer IS NULL THEN 0 ELSE 1 END)
+      INSERT INTO routes (
+        user_id, organization_id, name, start_full_address, end_full_address,
+        start_datetime, end_datetime, status, driver_id, assigned_at, assignment_version,
+        is_public, marketplace_status, max_driver_cost, cost_currency,
+        bidding_closes_at, marketplace_published_at
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9,
+        CASE WHEN $9::integer IS NULL THEN NULL ELSE NOW() END,
+        CASE WHEN $9::integer IS NULL THEN 0 ELSE 1 END,
+        $10, $11, $12, $13, $14,
+        CASE WHEN $10::boolean THEN NOW() ELSE NULL END
+      )
       RETURNING *
     `;
     const routeRes = await runQuery(insertRouteQuery, [
@@ -178,7 +219,12 @@ const createRoute = async (req, res) => {
       start_datetime,
       end_datetime,
       validatedDriverId ? 'assigned' : normalizeRouteState(status || 'draft'),
-      validatedDriverId
+      validatedDriverId,
+      wantsPublicListing,
+      wantsPublicListing ? 'open' : 'private',
+      publicListing?.maxCost || null,
+      publicListing?.currency || null,
+      publicListing?.biddingClosesAt?.toISOString() || null
     ]);
     // If saveAddressDefault is true, update the user's default addresses in config_model
     if (saveAddressDefault) {
@@ -607,6 +653,23 @@ const editRoute = async (req, res) => {
 
   try {
     const isFleetDriver = String(req.user?.role || '').toUpperCase() === 'FLEET_DRIVER';
+    const currentRouteResult = await runQuery(
+      `SELECT * FROM routes WHERE route_id = $1 AND organization_id = $2 LIMIT 1`,
+      [route_id, req.organization.id]
+    );
+    const currentRoute = currentRouteResult.rows[0];
+    if (!currentRoute) return res.status(404).json({ message: 'Route not found or unauthorized' });
+    await assertRouteMutable({ routeId: route_id, user: req.user });
+    if (currentRoute.marketplace_status === 'open') {
+      return res.status(409).json({
+        code: 'OPEN_LISTING_NOT_EDITABLE',
+        message: 'Close the marketplace listing before editing its route, schedule, budget, or driver.',
+      });
+    }
+    validateRouteWindow({
+      startValue: start_datetime || currentRoute.start_datetime,
+      endValue: end_datetime || currentRoute.end_datetime,
+    });
 
     const updateFields = [];
     const updateValues = [];
@@ -693,6 +756,9 @@ const editRoute = async (req, res) => {
     res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error('Edit Route Error:', error);
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ code: error.code, message: error.message, details: error.details });
+    }
     res.status(500).json({ message: 'Server error while updating route' });
   }
 };
@@ -1449,6 +1515,9 @@ const cancelRoute = async (req, res) => {
         UPDATE routes
         SET 
           status = 'cancelled',
+          is_public = FALSE,
+          marketplace_status = CASE WHEN marketplace_status = 'open' THEN 'withdrawn' ELSE marketplace_status END,
+          marketplace_closed_at = CASE WHEN marketplace_status = 'open' THEN NOW() ELSE marketplace_closed_at END,
           updated_at = NOW()
         WHERE route_id = $1 AND organization_id = $2
         RETURNING *
@@ -1461,13 +1530,19 @@ const cancelRoute = async (req, res) => {
         WHERE route_id = $1
           AND LOWER(status) IN ('pending', 'pnding')
         RETURNING order_id, status
+      ),
+      expired_bids AS (
+        UPDATE route_bids
+        SET status = 'expired', decided_at = NOW(), decided_by_user_id = $3, updated_at = NOW()
+        WHERE route_id = $1 AND status = 'pending'
+        RETURNING bid_id
       )
       SELECT 
         (SELECT row_to_json(updated_route) FROM updated_route) AS route,
         (SELECT COUNT(*) FROM updated_orders) AS cancelled_orders_count;
     `;
 
-    const result = await runQuery(query, [routeId, req.organization.id]);
+    const result = await runQuery(query, [routeId, req.organization.id, req.user.user_id]);
 
     const data = result.rows?.[0];
 

@@ -27,6 +27,7 @@ const assignRouteWithClient = async (client, {
   actorUserId,
   expectedVersion = null,
   auditMetadata = {},
+  marketplaceBidId = null,
 }) => {
   const routeResult = await client.query(
     `SELECT * FROM routes
@@ -39,6 +40,13 @@ const assignRouteWithClient = async (client, {
   }
 
   const current = routeResult.rows[0];
+  if (current.marketplace_status === 'open' && !marketplaceBidId) {
+    throw new HttpError(
+      409,
+      'MARKETPLACE_ROUTE_REQUIRES_BID',
+      'Select a driver from the marketplace bids or close the public listing first.'
+    );
+  }
   assertAssignable(current.status);
   assertAssignmentVersion(expectedVersion, current.assignment_version);
 
