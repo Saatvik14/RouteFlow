@@ -50,7 +50,7 @@ export default function Index() {
           } as any);
         } else {
           if (isFleetDriver) {
-            router.replace('/driver-routes' as any);
+            router.replace('/fleet-routes' as any);
           } else if (isBusinessOwner && workspace !== 'map') {
             router.replace('/dashboard' as any);
           } else {
@@ -60,7 +60,7 @@ export default function Index() {
       } catch (error) {
         console.error("Home initialization route check failed:", error);
         if (isFleetDriver) {
-          router.replace('/driver-routes' as any);
+          router.replace('/fleet-routes' as any);
         } else if (isBusinessOwner && workspace !== 'map') {
           router.replace('/dashboard' as any);
         } else {

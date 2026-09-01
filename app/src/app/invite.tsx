@@ -155,7 +155,7 @@ export default function InvitationScreen() {
                   if (invitation?.role === 'driver' && Platform.OS === 'web') {
                     openExternalUrl(LEGAL_URLS.PLAY_STORE_APP);
                   } else {
-                    router.replace((invitation?.role === 'driver' ? '/fleet-routes' : '/driver-routes') as any);
+                    router.replace((invitation?.role === 'driver' ? '/fleet-routes' : '/dashboard') as any);
                   }
                 }}
                 success

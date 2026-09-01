@@ -65,7 +65,6 @@ export function useUserRole() {
     // Feature Flags & Permissions
     canCreateRoute: isIndependentDriver || isBusinessOwner,
     canAddDriver: isIndependentDriver || isBusinessOwner,
-    canViewDriverRoutes: isIndependentDriver || isBusinessOwner,
     canNavigateRoute: isIndependentDriver || isFleetDriver,
     canUpdateDeliveryStatus: isIndependentDriver || isFleetDriver,
   };

@@ -907,7 +907,7 @@ export function RouteCompletedPanel({
           {isFleetDriver ? (
             <Pressable
               style={completedStyles.primaryButton}
-              onPress={() => router.replace('/driver-routes' as any)}
+              onPress={() => router.replace('/fleet-routes' as any)}
             >
               <Feather name="list" size={19} color="#FFFFFF" />
               <Text style={completedStyles.primaryButtonText}>

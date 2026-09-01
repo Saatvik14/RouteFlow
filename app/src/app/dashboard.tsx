@@ -24,7 +24,8 @@ import { AiAssignmentModal } from '../components/operations/ai-assignment-modal'
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { DashboardRoute, DriverProfile, enterpriseService } from '../services/api/enterprise';
 
-type RangePreset = 'today' | 'week' | 'next7' | 'month';
+type RangePreset = 'today' | 'past7';
+type DateFieldName = 'from' | 'to';
 
 const toDateInput = (date: Date) => {
   const year = date.getFullYear();
@@ -40,16 +41,7 @@ const shiftedDate = (date: Date, days: number) => {
 const rangeForPreset = (preset: RangePreset) => {
   const now = new Date();
   if (preset === 'today') return { from: toDateInput(now), to: toDateInput(now) };
-  if (preset === 'next7') return { from: toDateInput(now), to: toDateInput(shiftedDate(now, 6)) };
-  if (preset === 'month') {
-    return {
-      from: toDateInput(new Date(now.getFullYear(), now.getMonth(), 1)),
-      to: toDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-    };
-  }
-  const mondayOffset = (now.getDay() + 6) % 7;
-  const monday = shiftedDate(now, -mondayOffset);
-  return { from: toDateInput(monday), to: toDateInput(shiftedDate(monday, 6)) };
+  return { from: toDateInput(shiftedDate(now, -6)), to: toDateInput(now) };
 };
 const validDateInput = (value: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -62,11 +54,9 @@ const formatRange = (from: string, to: string) => {
   return from === to ? formatRangeDate(from) : `${formatRangeDate(from)} – ${formatRangeDate(to)}`;
 };
 
-const rangePresets: Array<{ value: RangePreset; label: string }> = [
+const rangePresets: { value: RangePreset; label: string }[] = [
   { value: 'today', label: 'Today' },
-  { value: 'week', label: 'This week' },
-  { value: 'next7', label: 'Next 7 days' },
-  { value: 'month', label: 'This month' },
+  { value: 'past7', label: 'Past 7 days' },
 ];
 const formatTime = (value?: string | null) => {
   if (!value) return 'Not recorded';
@@ -105,10 +95,11 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [initialRange] = useState(() => rangeForPreset('week'));
+  const [initialRange] = useState(() => rangeForPreset('past7'));
   const [fromDate, setFromDate] = useState(initialRange.from);
   const [toDate, setToDate] = useState(initialRange.to);
-  const [rangePreset, setRangePreset] = useState<RangePreset | null>('week');
+  const [rangePreset, setRangePreset] = useState<RangePreset | null>('past7');
+  const [datePicker, setDatePicker] = useState<DateFieldName | null>(null);
   const [status, setStatus] = useState('');
   const [driverId, setDriverId] = useState<number | undefined>();
   const [filterMenu, setFilterMenu] = useState<'status' | 'driver' | null>(null);
@@ -121,10 +112,12 @@ export default function DashboardScreen() {
     if (!validDateInput(fromDate) || !validDateInput(toDate)) return 'Enter both dates in YYYY-MM-DD format.';
     const from = new Date(`${fromDate}T00:00:00`).getTime();
     const to = new Date(`${toDate}T00:00:00`).getTime();
+    const earliest = new Date(`${initialRange.from}T00:00:00`).getTime();
+    const latest = new Date(`${initialRange.to}T00:00:00`).getTime();
     if (to < from) return 'The end date must be on or after the start date.';
-    if ((to - from) / 86400000 > 366) return 'Choose a date range of 366 days or less.';
+    if (from < earliest || to > latest) return 'Choose dates within the past 7 days, including today.';
     return '';
-  }, [fromDate, toDate]);
+  }, [fromDate, initialRange.from, initialRange.to, toDate]);
 
   const applyRangePreset = (preset: RangePreset) => {
     const range = rangeForPreset(preset);
@@ -212,7 +205,7 @@ export default function DashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.rangeEyebrow}>Selected operating window</Text>
             <Text style={styles.rangeTitle}>{formatRange(fromDate, toDate)}</Text>
-            <Text style={styles.rangeHint}>All route totals, alerts, and cards below use this date range.</Text>
+            <Text style={styles.rangeHint}>All route totals, alerts, and cards below use this date range. Dates are limited to the past 7 days.</Text>
           </View>
         </View>
         <View accessibilityRole="tablist" style={styles.rangePresets}>
@@ -244,9 +237,9 @@ export default function DashboardScreen() {
           {search ? <Pressable accessibilityLabel="Clear search" onPress={() => setSearch('')}><Feather name="x-circle" size={17} color={C.inkSubtle} /></Pressable> : null}
         </View>
         <View style={[styles.rangeFields, compact && { width: '100%' }]}>
-          <DateField label="From" value={fromDate} onChangeText={(value) => { setFromDate(value); setRangePreset(null); }} />
+          <DateField label="From" value={fromDate} onPress={() => setDatePicker('from')} />
           <View style={styles.rangeArrow}><Feather name="arrow-right" size={15} color={C.inkSubtle} /></View>
-          <DateField label="To" value={toDate} onChangeText={(value) => { setToDate(value); setRangePreset(null); }} />
+          <DateField label="To" value={toDate} onPress={() => setDatePicker('to')} />
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Filter by route status" onPress={() => setFilterMenu('status')} style={styles.filterButton}>
           <Feather name="filter" size={16} color={C.inkMuted} />
@@ -299,7 +292,7 @@ export default function DashboardScreen() {
               title="No routes match these filters"
               message="Try another date range or clear a filter. New routes will appear here as soon as they are created."
               actionLabel="Clear filters"
-              onAction={() => { setSearch(''); setStatus(''); setDriverId(undefined); applyRangePreset('week'); }}
+              onAction={() => { setSearch(''); setStatus(''); setDriverId(undefined); applyRangePreset('past7'); }}
             />
           ) : (
             <View style={styles.routeList}>
@@ -309,6 +302,8 @@ export default function DashboardScreen() {
                   route={route}
                   compact={compact}
                   onOpen={() => router.push({ pathname: '/route-detail', params: { id: String(route.routeId) } } as any)}
+                  onHistory={() => router.push({ pathname: '/route-history-detail', params: { id: String(route.routeId), routeId: String(route.routeId) } } as any)}
+                  onMap={() => router.push({ pathname: '/route-preview', params: { id: String(route.routeId), routeId: String(route.routeId) } } as any)}
                   onAssign={() => { setActionError(''); setAssigningRoute(route); }}
                 />
               ))}
@@ -340,6 +335,21 @@ export default function DashboardScreen() {
         ))}
       </ChoiceModal>
 
+      <CalendarModal
+        visible={datePicker !== null}
+        label={datePicker === 'to' ? 'To' : 'From'}
+        value={datePicker === 'to' ? toDate : fromDate}
+        minDate={datePicker === 'to' ? fromDate : initialRange.from}
+        maxDate={datePicker === 'from' ? toDate : initialRange.to}
+        onClose={() => setDatePicker(null)}
+        onSelect={(value) => {
+          if (datePicker === 'to') setToDate(value);
+          else setFromDate(value);
+          setRangePreset(null);
+          setDatePicker(null);
+        }}
+      />
+
       <AiAssignmentModal
         visible={aiAssignmentOpen}
         routes={routes}
@@ -350,23 +360,109 @@ export default function DashboardScreen() {
   );
 }
 
-function DateField({ label, value, onChangeText }: { label: string; value: string; onChangeText: (value: string) => void }) {
+function DateField({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
   return (
-    <View style={styles.dateField}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Select ${label.toLowerCase()} date. Current date ${formatRangeDate(value)}`}
+      onPress={onPress}
+      style={({ pressed, focused }: any) => [styles.dateField, focused && styles.dateFieldFocused, pressed && styles.dateFieldPressed]}
+    >
       <Text style={styles.dateLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        accessibilityLabel={`${label} date, YYYY-MM-DD`}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="numbers-and-punctuation"
-        maxLength={10}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor={C.inkSubtle}
-        style={styles.dateInput}
-      />
-    </View>
+      <View style={styles.dateValueRow}>
+        <Feather name="calendar" size={14} color={C.primaryDark} />
+        <Text style={styles.dateValue}>{formatRangeDate(value)}</Text>
+        <Feather name="chevron-down" size={14} color={C.inkSubtle} />
+      </View>
+    </Pressable>
+  );
+}
+
+function CalendarModal({ visible, label, value, minDate, maxDate, onClose, onSelect }: {
+  visible: boolean;
+  label: string;
+  value: string;
+  minDate: string;
+  maxDate: string;
+  onClose: () => void;
+  onSelect: (value: string) => void;
+}) {
+  const selectedDate = useMemo(() => new Date(`${value}T12:00:00`), [value]);
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+
+  useEffect(() => {
+    if (visible) setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  }, [selectedDate, visible]);
+
+  const monthKey = (date: Date) => date.getFullYear() * 12 + date.getMonth();
+  const minimum = new Date(`${minDate}T12:00:00`);
+  const maximum = new Date(`${maxDate}T12:00:00`);
+  const firstWeekday = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1).getDay();
+  const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+  const days: (Date | null)[] = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), index + 1)),
+  ];
+  while (days.length % 7 !== 0) days.push(null);
+
+  const changeMonth = (offset: number) => {
+    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  };
+  const canGoBack = monthKey(visibleMonth) > monthKey(minimum);
+  const canGoForward = monthKey(visibleMonth) < monthKey(maximum);
+  const monthTitle = visibleMonth.toLocaleDateString([], { month: 'long', year: 'numeric' });
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <Pressable accessibilityLabel="Close calendar" onPress={onClose} style={StyleSheet.absoluteFill} />
+        <View accessibilityViewIsModal style={styles.calendarCard}>
+          <View style={styles.calendarTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.calendarEyebrow}>Select {label.toLowerCase()} date</Text>
+              <Text style={styles.calendarRange}>Available {formatRange(minDate, maxDate)}</Text>
+            </View>
+            <Pressable accessibilityLabel="Close calendar" onPress={onClose} style={styles.closeButton}><Feather name="x" size={20} color={C.inkMuted} /></Pressable>
+          </View>
+          <View style={styles.calendarHeader}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Previous month" accessibilityState={{ disabled: !canGoBack }} disabled={!canGoBack} onPress={() => changeMonth(-1)} style={[styles.calendarNav, !canGoBack && styles.calendarNavDisabled]}>
+              <Feather name="chevron-left" size={20} color={canGoBack ? C.primaryDark : C.inkSubtle} />
+            </Pressable>
+            <Text style={styles.calendarTitle}>{monthTitle}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Next month" accessibilityState={{ disabled: !canGoForward }} disabled={!canGoForward} onPress={() => changeMonth(1)} style={[styles.calendarNav, !canGoForward && styles.calendarNavDisabled]}>
+              <Feather name="chevron-right" size={20} color={canGoForward ? C.primaryDark : C.inkSubtle} />
+            </Pressable>
+          </View>
+          <View style={styles.calendarWeekRow}>
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={styles.calendarWeekday}>{day}</Text>)}
+          </View>
+          <View style={styles.calendarGrid}>
+            {days.map((date, index) => {
+              if (!date) return <View key={`empty-${index}`} style={styles.calendarDaySlot} />;
+              const dateValue = toDateInput(date);
+              const disabled = dateValue < minDate || dateValue > maxDate;
+              const selected = dateValue === value;
+              const today = dateValue === toDateInput(new Date());
+              return (
+                <View key={dateValue} style={styles.calendarDaySlot}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    accessibilityState={{ disabled, selected }}
+                    disabled={disabled}
+                    onPress={() => onSelect(dateValue)}
+                    style={({ pressed }) => [styles.calendarDay, today && styles.calendarDayToday, selected && styles.calendarDaySelected, pressed && !disabled && styles.calendarDayPressed]}
+                  >
+                    <Text style={[styles.calendarDayText, disabled && styles.calendarDayTextDisabled, today && styles.calendarDayTextToday, selected && styles.calendarDayTextSelected]}>{date.getDate()}</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+          <View style={styles.calendarLegend}><View style={styles.calendarLegendDot} /><Text style={styles.calendarLegendText}>Only the past 7 days, including today, can be selected.</Text></View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -386,41 +482,54 @@ function Metric({ icon, label, value, tone }: { icon: any; label: string; value:
   );
 }
 
-function RouteRow({ route, compact, onOpen, onAssign }: { route: DashboardRoute; compact: boolean; onOpen: () => void; onAssign: () => void }) {
+function RouteRow({ route, compact, onOpen, onHistory, onMap, onAssign }: {
+  route: DashboardRoute;
+  compact: boolean;
+  onOpen: () => void;
+  onHistory: () => void;
+  onMap: () => void;
+  onAssign: () => void;
+}) {
   const progress = route.totalStops ? Math.round(((route.completedStops + route.failedStops) / route.totalStops) * 100) : 0;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${route.name}`} onPress={onOpen} style={({ pressed, focused }: any) => [styles.routeCard, focused && styles.focused, pressed && { opacity: 0.88 }]}>
-      <View style={styles.routeTop}>
-        <View style={styles.routeIdentity}>
-          <View style={styles.routeIcon}><Feather name="truck" size={18} color={C.primaryDark} /></View>
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={styles.routeName}>{route.name}</Text>
-            <Text style={styles.routeId}>Route #{route.routeId} · {formatTime(route.plannedStart)}</Text>
+    <View style={styles.routeCard}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`View details for ${route.name}`} onPress={onOpen} style={({ pressed, focused }: any) => [styles.routeCardMain, focused && styles.focused, pressed && { opacity: 0.88 }]}>
+        <View style={styles.routeTop}>
+          <View style={styles.routeIdentity}>
+            <View style={styles.routeIcon}><Feather name="truck" size={18} color={C.primaryDark} /></View>
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={styles.routeName}>{route.name}</Text>
+              <Text style={styles.routeId}>Route #{route.routeId} · {formatTime(route.plannedStart)}</Text>
+            </View>
+          </View>
+          <View style={styles.routeBadges}><StatusBadge status={route.status} />{route.delayed ? <StatusBadge status="failed" compact /> : null}</View>
+        </View>
+        <View style={[styles.routeBody, compact && styles.routeBodyCompact]}>
+          <View style={styles.routeProgress}>
+            <View style={styles.progressLabels}>
+              <Text style={styles.progressPrimary}>{route.completedStops + route.failedStops} of {route.totalStops} stops resolved</Text>
+              <Text style={styles.progressPercent}>{progress}%</Text>
+            </View>
+            <ProgressBar completed={route.completedStops + route.failedStops} total={route.totalStops} tone={route.failedStops ? 'danger' : 'primary'} />
+            <Text numberOfLines={compact ? 2 : 1} style={styles.currentStop}>{route.currentStop ? `Current: ${route.currentStop.name || route.currentStop.address}` : route.status === 'completed' ? 'Route finished' : 'No current stop'}</Text>
+          </View>
+          <View style={styles.routeFacts}>
+            <Fact icon="user" label="Driver" value={route.driver?.name || 'Unassigned'} warning={!route.driver} />
+            <Fact icon="package" label="Delivered / failed" value={`${route.deliveredStops} / ${route.failedStops}`} warning={route.failedStops > 0} />
+            <Fact icon={route.locationState === 'current' ? 'radio' : 'wifi-off'} label="Last location" value={relativeTime(route.lastLocation?.receivedAt)} warning={route.locationState !== 'current' && route.status === 'in_progress'} />
+            <Fact icon="flag" label="Est. finish" value={formatTime(route.estimatedCompletion)} warning={route.delayed} />
           </View>
         </View>
-        <View style={styles.routeBadges}><StatusBadge status={route.status} />{route.delayed ? <StatusBadge status="failed" compact /> : null}</View>
-      </View>
-      <View style={[styles.routeBody, compact && styles.routeBodyCompact]}>
-        <View style={styles.routeProgress}>
-          <View style={styles.progressLabels}>
-            <Text style={styles.progressPrimary}>{route.completedStops + route.failedStops} of {route.totalStops} stops resolved</Text>
-            <Text style={styles.progressPercent}>{progress}%</Text>
-          </View>
-          <ProgressBar completed={route.completedStops + route.failedStops} total={route.totalStops} tone={route.failedStops ? 'danger' : 'primary'} />
-          <Text numberOfLines={compact ? 2 : 1} style={styles.currentStop}>{route.currentStop ? `Current: ${route.currentStop.name || route.currentStop.address}` : route.status === 'completed' ? 'Route finished' : 'No current stop'}</Text>
-        </View>
-        <View style={styles.routeFacts}>
-          <Fact icon="user" label="Driver" value={route.driver?.name || 'Unassigned'} warning={!route.driver} />
-          <Fact icon="package" label="Delivered / failed" value={`${route.deliveredStops} / ${route.failedStops}`} warning={route.failedStops > 0} />
-          <Fact icon={route.locationState === 'current' ? 'radio' : 'wifi-off'} label="Last location" value={relativeTime(route.lastLocation?.receivedAt)} warning={route.locationState !== 'current' && route.status === 'in_progress'} />
-          <Fact icon="flag" label="Est. finish" value={formatTime(route.estimatedCompletion)} warning={route.delayed} />
-        </View>
-      </View>
+      </Pressable>
       <View style={styles.routeFooter}>
-        {!route.driver || ['draft', 'assigned', 'accepted'].includes(route.status) ? <ActionButton compact variant="secondary" icon="user-plus" label={route.driver ? 'Reassign' : 'Assign driver'} onPress={onAssign} /> : <View />}
-        <View style={styles.openDetail}><Text style={styles.openDetailText}>View route</Text><Feather name="arrow-right" size={16} color={C.primaryDark} /></View>
+        {!route.driver || ['draft', 'assigned', 'accepted'].includes(route.status) ? <ActionButton compact variant="secondary" icon="user-plus" label={route.driver ? 'Reassign' : 'Assign driver'} onPress={onAssign} /> : null}
+        <View style={styles.routeFooterActions}>
+          <ActionButton compact variant="secondary" icon="archive" label="Route history" onPress={onHistory} />
+          <ActionButton compact icon="map" label="Map workspace" onPress={onMap} />
+          <ActionButton compact variant="quiet" icon="arrow-right" label="View details" onPress={onOpen} />
+        </View>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -464,9 +573,12 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, minWidth: 120, color: C.ink, fontSize: 14, outlineStyle: 'none' } as any,
   rangeFields: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: S.xs, paddingHorizontal: S.sm, borderWidth: 1, borderColor: C.lineStrong, borderRadius: R.md, backgroundColor: C.surface },
   rangeArrow: { width: 22, alignItems: 'center' },
-  dateField: { minWidth: 116, gap: 1 },
+  dateField: { minWidth: 150, gap: 3, paddingHorizontal: S.sm, paddingVertical: 4, borderRadius: R.sm },
+  dateFieldFocused: { backgroundColor: C.primarySoft },
+  dateFieldPressed: { opacity: 0.76 },
   dateLabel: { color: C.inkSubtle, fontSize: 9, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  dateInput: { width: 112, paddingVertical: 2, color: C.ink, fontSize: 13, fontWeight: '500', outlineStyle: 'none' } as any,
+  dateValueRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dateValue: { flex: 1, color: C.ink, fontSize: 12, fontWeight: '600' },
   rangeError: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: -S.sm, marginBottom: S.lg, paddingHorizontal: S.md, borderRadius: R.md, backgroundColor: C.dangerSoft },
   rangeErrorText: { flex: 1, color: C.danger, fontSize: 12 },
   filterButton: { minHeight: 44, maxWidth: 190, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingHorizontal: S.md, borderWidth: 1, borderColor: C.lineStrong, borderRadius: R.md, backgroundColor: C.surface },
@@ -486,6 +598,7 @@ const styles = StyleSheet.create({
   routeCount: { color: C.inkMuted, fontSize: 12, fontWeight: '600' },
   routeList: { gap: S.md },
   routeCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.line, borderRadius: R.lg, overflow: 'hidden' },
+  routeCardMain: { overflow: 'hidden' },
   focused: { borderColor: C.focus, borderWidth: 2 },
   routeTop: { minHeight: 72, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: S.md, paddingHorizontal: S.lg, paddingVertical: S.md, borderBottomWidth: 1, borderBottomColor: C.line },
   routeIdentity: { flex: 1, minWidth: 220, flexDirection: 'row', alignItems: 'center', gap: S.md },
@@ -504,9 +617,8 @@ const styles = StyleSheet.create({
   fact: { width: '50%', minWidth: 140, flexDirection: 'row', alignItems: 'center', gap: S.sm, paddingRight: S.sm },
   factLabel: { color: C.inkSubtle, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
   factValue: { color: C.ink, fontSize: 12, fontWeight: '600', marginTop: 2 },
-  routeFooter: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: S.md, paddingHorizontal: S.lg, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.surfaceMuted },
-  openDetail: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: S.sm },
-  openDetailText: { color: C.primaryDark, fontSize: 13, fontWeight: '600' },
+  routeFooter: { minHeight: 58, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: S.sm, paddingHorizontal: S.lg, paddingVertical: S.sm, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.surfaceMuted },
+  routeFooterActions: { flex: 1, minWidth: 280, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: S.xs },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(23,32,51,0.52)', justifyContent: 'center', alignItems: 'center', padding: S.lg },
   modalCard: { width: '100%', maxWidth: 520, maxHeight: '85%', backgroundColor: C.surface, borderRadius: R.lg, padding: S.lg, borderWidth: 1, borderColor: C.line },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: S.md },
@@ -518,4 +630,27 @@ const styles = StyleSheet.create({
   choiceSelected: { backgroundColor: C.primarySoft, borderColor: '#C9DCFF' },
   choiceLabel: { color: C.ink, fontSize: 14, fontWeight: '600' },
   choiceDetail: { color: C.inkMuted, fontSize: 12, marginTop: 2 },
+  calendarCard: { width: '100%', maxWidth: 420, backgroundColor: C.surface, borderRadius: R.lg, padding: S.lg, borderWidth: 1, borderColor: C.line },
+  calendarTopRow: { flexDirection: 'row', alignItems: 'center', gap: S.md, marginBottom: S.sm },
+  calendarEyebrow: { color: C.primaryDark, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+  calendarRange: { color: C.inkMuted, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  calendarHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  calendarNav: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: R.pill, backgroundColor: C.primarySoft },
+  calendarNavDisabled: { backgroundColor: C.surfaceMuted, opacity: 0.55 },
+  calendarTitle: { color: C.ink, fontSize: 16, fontWeight: '600' },
+  calendarWeekRow: { flexDirection: 'row', marginTop: S.sm, borderBottomWidth: 1, borderBottomColor: C.line, paddingBottom: S.xs },
+  calendarWeekday: { width: `${100 / 7}%`, color: C.inkSubtle, fontSize: 10, fontWeight: '600', textAlign: 'center' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingTop: S.xs },
+  calendarDaySlot: { width: `${100 / 7}%`, aspectRatio: 1, padding: 3 },
+  calendarDay: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: R.pill },
+  calendarDayToday: { borderWidth: 1, borderColor: C.primary },
+  calendarDaySelected: { backgroundColor: C.primary, borderColor: C.primary },
+  calendarDayPressed: { backgroundColor: C.primarySoft },
+  calendarDayText: { color: C.ink, fontSize: 13, fontWeight: '500' },
+  calendarDayTextDisabled: { color: '#C6CEDA' },
+  calendarDayTextToday: { color: C.primaryDark, fontWeight: '700' },
+  calendarDayTextSelected: { color: '#FFFFFF', fontWeight: '700' },
+  calendarLegend: { flexDirection: 'row', alignItems: 'center', gap: S.sm, marginTop: S.md, padding: S.md, borderRadius: R.md, backgroundColor: C.primarySoft },
+  calendarLegendDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.primary },
+  calendarLegendText: { flex: 1, color: C.inkMuted, fontSize: 11, lineHeight: 16 },
 });

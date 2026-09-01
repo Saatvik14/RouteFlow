@@ -138,6 +138,6 @@ curl -X PUT "http://localhost:5000/users/admin/change-role" \
 
 | Role | Capabilities | Restrictions |
 | :--- | :--- | :--- |
-| `INDEPENDENT_DRIVER` | Create routes, navigate live GPS, mark orders delivered/failed. | Cannot assign drivers or view `/driver-routes`. |
+| `INDEPENDENT_DRIVER` | Create routes, navigate live GPS, mark orders delivered/failed. | Cannot assign fleet drivers. |
 | `FLEET_DRIVER` | View assigned routes, navigate live GPS, mark orders delivered/failed. | Cannot create new routes. |
-| `BUSINESS_OWNER` | Create routes, assign drivers with mandatory email, view `/driver-routes`. | Cannot start live turn-by-turn navigation; cannot mark orders delivered/failed. |
+| `BUSINESS_OWNER` | Create routes, assign drivers with mandatory email, and manage routes from Delivery Operations. | Cannot start live turn-by-turn navigation; cannot mark orders delivered/failed. |

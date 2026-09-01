@@ -373,7 +373,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { logout } = useAuth();
-  const { canCreateRoute, canViewDriverRoutes, isBusinessOwner, isFleetDriver } = useUserRole();
+  const { canCreateRoute, isBusinessOwner, isFleetDriver } = useUserRole();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const { width } = useWindowDimensions();
@@ -595,14 +595,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     router.push("/support" as never);
   };
 
-  const handleDriverRoutes = () => {
-    onClose();
-    router.push("/driver-routes" as never);
-  };
-
   const handleAssignedRoutes = () => {
     onClose();
-    router.push("/driver-routes" as never);
+    router.push("/fleet-routes" as never);
   };
 
   const handleLiveDispatch = () => {
@@ -1182,7 +1177,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               "navigation",
               "Assigned routes",
               handleAssignedRoutes,
-              pathname?.includes("driver-routes"),
+              pathname?.includes("fleet-routes"),
             ) : null}
             {!isFleetDriver ? renderQuickAction(
               "map",
@@ -1195,12 +1190,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               "Delivery operations",
               handleLiveDispatch,
               pathname?.includes("dashboard"),
-            ) : null}
-            {canViewDriverRoutes ? renderQuickAction(
-              "users",
-              "Routes per Driver",
-              handleDriverRoutes,
-              pathname?.includes("driver-routes"),
             ) : null}
             {isBusinessOwner ? renderQuickAction(
               "user-check",
