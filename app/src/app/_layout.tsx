@@ -6,6 +6,7 @@ import {
 } from '@react-navigation/native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform, useColorScheme, Modal, Text, Pressable, View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import './../global.css';
 import { useFonts } from 'expo-font';
@@ -232,9 +233,9 @@ export default function RootLayout() {
           router.replace('/');
         }
       } else {
-        if (!inAuthGroup) {
+        if (!AUTH_ONLY_ROUTES.includes(currentRoute) && currentRoute !== 'invite') {
           // On Mobile Native App (iOS/Android): Redirect directly to login screen
-          router.replace('/login');
+          router.replace('/(auth)/login' as any);
         }
       }
     } else if (!isLoading && isLoggedIn) {
@@ -260,62 +261,64 @@ export default function RootLayout() {
   const inAuthGroup = PUBLIC_ROUTES.includes(String((segments as any)[segments.length - 1] ?? '').replace(/[()]/g, ''));
 
   return (
-    <AuthContext.Provider value={authContext}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        {isLoggedIn && isAppLocked && Platform.OS !== 'web' ? (
-          <SecurityLockScreen onUnlocked={handleUnlocked} />
-        ) : (
-          <>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="landing" />
-              <Stack.Screen name="dispatch" />
-              <Stack.Screen name="driver-showcase" />
-              <Stack.Screen name="(auth)/login" />
-              <Stack.Screen name="(auth)/signup" />
-              <Stack.Screen name="(auth)/forgot-password" />
-              <Stack.Screen name="(MapScreen)/MapScreen" />
-              <Stack.Screen name="route-points" />
-              <Stack.Screen name="route-preview" />
-              <Stack.Screen name="driver-routes" />
-              <Stack.Screen name="fleet-routes" />
-              <Stack.Screen name="driver-route" />
-              <Stack.Screen name="dashboard" />
-              <Stack.Screen name="team" />
-              <Stack.Screen name="reports" />
-              <Stack.Screen name="route-detail" />
-              <Stack.Screen name="invite" />
-            </Stack>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthContext.Provider value={authContext}>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          {isLoggedIn && isAppLocked && Platform.OS !== 'web' ? (
+            <SecurityLockScreen onUnlocked={handleUnlocked} />
+          ) : (
+            <>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="landing" />
+                <Stack.Screen name="dispatch" />
+                <Stack.Screen name="driver-showcase" />
+                <Stack.Screen name="(auth)/login" />
+                <Stack.Screen name="(auth)/signup" />
+                <Stack.Screen name="(auth)/forgot-password" />
+                <Stack.Screen name="(MapScreen)/MapScreen" />
+                <Stack.Screen name="route-points" />
+                <Stack.Screen name="route-preview" />
+                <Stack.Screen name="driver-routes" />
+                <Stack.Screen name="fleet-routes" />
+                <Stack.Screen name="driver-route" />
+                <Stack.Screen name="dashboard" />
+                <Stack.Screen name="team" />
+                <Stack.Screen name="reports" />
+                <Stack.Screen name="route-detail" />
+                <Stack.Screen name="invite" />
+              </Stack>
 
-            <Modal
-              visible={isLoggedIn && isTrialExpired && !isSubscriptionPage && !inAuthGroup}
-              transparent={true}
-              animationType="fade"
-            >
-              <View style={layoutStyles.modalOverlay}>
-                <View style={layoutStyles.modalContainer}>
-                  <View style={layoutStyles.iconCircle}>
-                    <Text style={layoutStyles.iconText}>⏳</Text>
+              <Modal
+                visible={isLoggedIn && isTrialExpired && !isSubscriptionPage && !inAuthGroup}
+                transparent={true}
+                animationType="fade"
+              >
+                <View style={layoutStyles.modalOverlay}>
+                  <View style={layoutStyles.modalContainer}>
+                    <View style={layoutStyles.iconCircle}>
+                      <Text style={layoutStyles.iconText}>⏳</Text>
+                    </View>
+                    <Text style={layoutStyles.modalTitle}>Trial Expired</Text>
+                    <Text style={layoutStyles.modalMessage}>
+                      Your 7-day free trial has expired. Subscribe to RouteFloww to continue organizing, scanning, and optimizing routes.
+                    </Text>
+                    <Pressable
+                      style={layoutStyles.upgradeButton}
+                      onPress={() => {
+                        router.push('/subscription');
+                      }}
+                    >
+                      <Text style={layoutStyles.upgradeButtonText}>Upgrade Subscription</Text>
+                    </Pressable>
                   </View>
-                  <Text style={layoutStyles.modalTitle}>Trial Expired</Text>
-                  <Text style={layoutStyles.modalMessage}>
-                    Your 7-day free trial has expired. Subscribe to RouteFloww to continue organizing, scanning, and optimizing routes.
-                  </Text>
-                  <Pressable
-                    style={layoutStyles.upgradeButton}
-                    onPress={() => {
-                      router.push('/subscription');
-                    }}
-                  >
-                    <Text style={layoutStyles.upgradeButtonText}>Upgrade Subscription</Text>
-                  </Pressable>
                 </View>
-              </View>
-            </Modal>
-          </>
-        )}
-      </ThemeProvider>
-    </AuthContext.Provider>
+              </Modal>
+            </>
+          )}
+        </ThemeProvider>
+      </AuthContext.Provider>
+    </GestureHandlerRootView>
   );
 }
 

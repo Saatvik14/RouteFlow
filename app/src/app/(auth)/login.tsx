@@ -133,7 +133,7 @@ export default function LoginScreen() {
             placeholder="you@example.com or +91 98765 43210"
             keyboardType="email-address"
             autoCapitalize="none"
-            autoCorrect={false}
+            autoComplete="username"
             textContentType="username"
             returnKeyType="next"
             editable={!loading}
@@ -187,8 +187,10 @@ export default function LoginScreen() {
                 secureTextEntry={!showCredential}
                 autoCapitalize={account.authMethod === 'access_code' ? 'characters' : 'none'}
                 autoCorrect={false}
+                autoComplete={account.authMethod === 'password' ? 'password' : 'off'}
                 textContentType={account.authMethod === 'password' ? 'password' : 'none'}
                 returnKeyType="done"
+                autoFocus={true}
                 editable={!loading}
                 onSubmitEditing={signIn}
                 hint={account.authMethod === 'access_code'
