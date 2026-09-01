@@ -134,11 +134,6 @@ export default function SignupScreen() {
       setError('Choose the option that best describes you.');
       return;
     }
-    if (Platform.OS === 'web' && (role === 'INDEPENDENT_DRIVER' || role === 'FLEET_DRIVER')) {
-      setError('Driver accounts are registered and operated exclusively via our Android mobile app. Please download RouteFloww on Google Play.');
-      openExternalUrl(LEGAL_URLS.PLAY_STORE_APP);
-      return;
-    }
     setError('');
     setStep(3);
   };
