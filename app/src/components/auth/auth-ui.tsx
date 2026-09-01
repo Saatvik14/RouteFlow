@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -33,7 +33,7 @@ export const AUTH_FONT = Platform.select({
 });
 
 export function AuthShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
-  const { height, width } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const compact = width < 480;
 
   return (
@@ -42,17 +42,18 @@ export function AuthShell({ children, wide = false }: { children: ReactNode; wid
         style={styles.keyboardRoot}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View pointerEvents="none" style={styles.background}>
+        <View pointerEvents="none" style={[styles.background, { zIndex: -1 }]}>
           <View style={styles.glowTop} />
           <View style={styles.glowBottom} />
           <View style={styles.routeLine} />
           <View style={styles.routeDot} />
         </View>
         <ScrollView
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={[styles.scroll, { minHeight: height }]}
+          contentContainerStyle={styles.scroll}
         >
           <View style={[styles.card, wide && styles.cardWide, compact && styles.cardCompact]}>
             <View style={styles.brandRow}>
@@ -110,12 +111,20 @@ export function AuthField({
   error?: string;
 }) {
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputBox, focused && styles.inputBoxFocused, error && styles.inputBoxError]}>
+      <Pressable
+        onPress={() => {
+          inputRef.current?.focus();
+        }}
+        style={[styles.inputBox, focused && styles.inputBoxFocused, error && styles.inputBoxError]}
+      >
         <Feather name={icon} size={18} color={focused ? C.primary : C.inkSubtle} />
         <TextInput
+          ref={inputRef}
           {...props}
           accessibilityLabel={props.accessibilityLabel || label}
           placeholderTextColor={C.inkSubtle}
@@ -130,7 +139,7 @@ export function AuthField({
           style={[styles.input, Platform.OS === 'web' && styles.webInput, props.style]}
         />
         {trailing}
-      </View>
+      </Pressable>
       {error ? <Text accessibilityRole="alert" style={styles.fieldError}>{error}</Text> : hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </View>
   );
@@ -232,7 +241,7 @@ const styles = StyleSheet.create({
   inputBox: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 15, borderWidth: 1.2, borderColor: '#D5E0EC', backgroundColor: '#FBFDFF', paddingHorizontal: 15 },
   inputBoxFocused: { borderColor: C.primary, backgroundColor: C.surface, shadowColor: C.primary, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
   inputBoxError: { borderColor: '#E69AA7' },
-  input: { flex: 1, minWidth: 0, height: 52, color: C.ink, fontFamily: AUTH_FONT, fontSize: 15, paddingVertical: 0 },
+  input: { flex: 1, minWidth: 0, height: 52, color: C.ink, fontSize: 15, paddingVertical: 0, paddingHorizontal: 2, ...(Platform.OS === 'web' ? { fontFamily: AUTH_FONT } : {}) },
   webInput: { outlineStyle: 'none' } as any,
   hint: { color: C.inkMuted, fontFamily: AUTH_FONT, fontSize: 12, lineHeight: 17, marginTop: 6 },
   fieldError: { color: C.danger, fontFamily: AUTH_FONT, fontSize: 12, lineHeight: 17, marginTop: 6 },

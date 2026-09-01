@@ -25,7 +25,12 @@ export default function Index() {
 
   useEffect(() => {
     if (isAuthLoading || isRoleLoading) return;
-    if (Platform.OS === 'web' && !isLoggedIn) return;
+    if (!isLoggedIn) {
+      if (Platform.OS !== 'web') {
+        router.replace('/(auth)/login' as any);
+      }
+      return;
+    }
 
     // If business owner logs in on web without specifying map workspace, redirect to dispatch dashboard
     if (isBusinessOwner && Platform.OS === 'web' && workspace !== 'map') {
