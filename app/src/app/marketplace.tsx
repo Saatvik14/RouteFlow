@@ -103,7 +103,7 @@ export default function MarketplaceScreen() {
     if (!silent) setError('');
     try {
       if (isBusinessOwner) {
-        const response = apiError(await marketplaceService.getBusinessRoutes(), 'Marketplace listings could not be loaded.');
+        const response = apiError(await marketplaceService.getBusinessRoutes(), 'Driver Marketplace listings could not be loaded.');
         setRoutes(response.data?.routes || []);
       } else if (isIndependentDriver) {
         const [availableResponse, bidsResponse] = await Promise.all([
@@ -124,7 +124,7 @@ export default function MarketplaceScreen() {
         setLastUpdatedAt(new Date());
       }
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Marketplace data could not be loaded.';
+      const message = loadError instanceof Error ? loadError.message : 'Driver Marketplace data could not be loaded.';
       if (mountedRef.current) {
         if (silent) setSyncError(message);
         else setError(message);
@@ -259,15 +259,17 @@ export default function MarketplaceScreen() {
 
   const availableWithoutBid = useMemo(() => routes.filter((route) => !route.myBid).length, [routes]);
   const pendingBidCount = useMemo(() => myBids.filter((bid) => bid.status === 'pending').length, [myBids]);
+  const openListingCount = useMemo(() => routes.filter((route) => route.marketplaceStatus === 'open').length, [routes]);
+  const pendingDecisionCount = useMemo(() => routes.reduce((total, route) => total + route.pendingBidCount, 0), [routes]);
 
   if (roleLoading || loading) {
-    return <OperationsShell active="marketplace" title="Driver marketplace" subtitle="Loading public routes and bids"><SkeletonRows count={5} /></OperationsShell>;
+    return <OperationsShell active="marketplace" title="Driver Marketplace" subtitle="Loading available work and bids"><SkeletonRows count={5} /></OperationsShell>;
   }
 
   if (isFleetDriver || (!isIndependentDriver && !isBusinessOwner)) {
     return (
-      <OperationsShell active="marketplace" title="Driver marketplace" subtitle="Public route bidding">
-        <StatePanel icon="lock" title="Marketplace unavailable" message="Marketplace bidding is available to independent drivers, while listing management is available to business accounts." />
+      <OperationsShell active="marketplace" title="Driver Marketplace" subtitle="Open delivery work">
+        <StatePanel icon="lock" title="Driver Marketplace unavailable" message="Marketplace routes are available to independent drivers, while listing management is available to business accounts." />
       </OperationsShell>
     );
   }
@@ -275,19 +277,25 @@ export default function MarketplaceScreen() {
   return (
     <OperationsShell
       active="marketplace"
-      title="Driver marketplace"
-      subtitle={isBusinessOwner ? 'Review public routes, compare driver bids, and award work.' : 'Find public routes from business accounts and submit your price.'}
+      title="Driver Marketplace"
+      subtitle={isBusinessOwner ? 'Publish work, compare bids, and award a route with confidence.' : 'Discover open work, send a bid, and follow every decision.'}
       actions={<View style={styles.headerActions}><View accessibilityLiveRegion="polite" style={[styles.liveStatus, syncError && styles.liveStatusWarning]}><View style={[styles.liveDot, syncError && styles.liveDotWarning]} /><Text style={[styles.liveText, syncError && styles.liveTextWarning]}>{syncError ? 'Sync delayed' : lastUpdatedAt ? `Live · ${lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Live updates'}</Text></View><ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={manualRefresh} /></View>}
     >
       <View style={[styles.hero, compact && styles.heroCompact]}>
-        <View style={styles.heroIcon}><Feather name={isBusinessOwner ? 'briefcase' : 'truck'} size={24} color={C.primaryDark} /></View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.heroTitle}>{isBusinessOwner ? 'Your public route listings' : 'Open routes near your schedule'}</Text>
-          <Text style={styles.heroText}>{isBusinessOwner ? 'Only route timing and depot-level addresses are public. Customer and stop details stay private until assignment.' : 'A business can accept only one bid. Overlapping bids are allowed, but once one is awarded, conflicting awards are blocked.'}</Text>
+        <View style={styles.heroCopy}>
+          <View style={styles.heroKicker}><Feather name="briefcase" size={13} color="#2867C7" /><Text style={styles.heroKickerText}>DRIVER MARKETPLACE</Text></View>
+          <Text style={styles.heroTitle}>{isBusinessOwner ? 'Turn unassigned routes into covered work.' : 'Find the next route that fits your day.'}</Text>
+          <Text style={styles.heroText}>{isBusinessOwner ? 'Share schedule and depot details, keep customer data private, then choose the right driver bid.' : 'Review timing and budget before you bid. Customer details unlock only after the business awards the route.'}</Text>
+          <View style={styles.heroTrustRow}>
+            <View style={styles.heroTrustItem}><Feather name="shield" size={13} color="#5E7185" /><Text style={styles.heroTrustText}>Private stop data</Text></View>
+            <View style={styles.heroTrustItem}><Feather name="clock" size={13} color="#5E7185" /><Text style={styles.heroTrustText}>Live bid updates</Text></View>
+            <View style={styles.heroTrustItem}><Feather name="check-circle" size={13} color="#5E7185" /><Text style={styles.heroTrustText}>Conflict checks</Text></View>
+          </View>
         </View>
-        <View style={styles.heroMetric}>
-          <Text style={styles.heroMetricValue}>{isBusinessOwner ? routes.filter((route) => route.marketplaceStatus === 'open').length : availableWithoutBid}</Text>
-          <Text style={styles.heroMetricLabel}>{isBusinessOwner ? 'open listings' : 'new routes'}</Text>
+        <View style={[styles.heroMetrics, compact && styles.heroMetricsCompact]}>
+          <MarketplaceMetric value={isBusinessOwner ? openListingCount : availableWithoutBid} label={isBusinessOwner ? 'Open listings' : 'New routes'} />
+          <MarketplaceMetric value={isBusinessOwner ? pendingDecisionCount : pendingBidCount} label={isBusinessOwner ? 'Bids to review' : 'Awaiting reply'} accent />
+          <MarketplaceMetric value={routes.length} label={isBusinessOwner ? 'Total listings' : 'Routes showing'} />
         </View>
       </View>
 
@@ -295,10 +303,18 @@ export default function MarketplaceScreen() {
 
       {isIndependentDriver ? (
         <View accessibilityRole="tablist" style={styles.tabs}>
-          <Tab label="Available routes" count={routes.length} selected={driverTab === 'available'} onPress={() => setDriverTab('available')} />
+          <Tab label="Open work" count={routes.length} selected={driverTab === 'available'} onPress={() => setDriverTab('available')} />
           <Tab label="My bids" count={pendingBidCount} selected={driverTab === 'my_bids'} onPress={() => setDriverTab('my_bids')} />
         </View>
       ) : null}
+
+      <View style={styles.listHeading}>
+        <View>
+          <Text style={styles.listKicker}>{isBusinessOwner ? 'YOUR LISTINGS' : driverTab === 'available' ? 'AVAILABLE NOW' : 'BID ACTIVITY'}</Text>
+          <Text style={styles.listTitle}>{isBusinessOwner ? 'Routes you have shared' : driverTab === 'available' ? 'Routes accepting bids' : 'Every bid in one place'}</Text>
+        </View>
+        <Text style={styles.listHint}>{isBusinessOwner ? 'Open a listing to compare drivers.' : driverTab === 'available' ? 'Bids close before the route begins.' : 'Update or withdraw while a listing is open.'}</Text>
+      </View>
 
       {isBusinessOwner ? (
         routes.length ? (
@@ -317,11 +333,11 @@ export default function MarketplaceScreen() {
               />
             ))}
           </View>
-        ) : <StatePanel icon="globe" title="No public listings" message="Create a route, turn on “Make this route public,” set a maximum driver cost, and it will appear here." />
+        ) : <StatePanel icon="briefcase" title="No marketplace listings yet" message="Create a route, turn on “List in Driver Marketplace,” set a maximum driver cost, and it will appear here." />
       ) : driverTab === 'available' ? (
         routes.length ? (
           <View style={styles.list}>{routes.map((route) => <DriverRouteCard key={route.routeId} route={route} compact={compact} onBid={() => openBid(route)} />)}</View>
-        ) : <StatePanel icon="search" title="No open routes" message="There are no public routes accepting bids right now. Refresh later for new work." />
+        ) : <StatePanel icon="search" title="No open work right now" message="There are no routes accepting bids at the moment. Refresh later for new work." />
       ) : myBids.length ? (
         <View style={styles.list}>{myBids.map((bid) => <MyBidCard key={bid.bidId} bid={bid} compact={compact} onWithdraw={() => setConfirmAction({ type: 'withdraw', bid })} />)}</View>
       ) : <StatePanel icon="inbox" title="No bids yet" message="Your submitted bids and award decisions will appear here." />}
@@ -342,6 +358,15 @@ export default function MarketplaceScreen() {
   );
 }
 
+function MarketplaceMetric({ value, label, accent = false }: { value: number; label: string; accent?: boolean }) {
+  return (
+    <View style={[styles.heroMetric, accent && styles.heroMetricAccent]}>
+      <Text style={[styles.heroMetricValue, accent && styles.heroMetricValueAccent]}>{value}</Text>
+      <Text style={[styles.heroMetricLabel, accent && styles.heroMetricLabelAccent]}>{label}</Text>
+    </View>
+  );
+}
+
 function Tab({ label, count, selected, onPress }: { label: string; count: number; selected: boolean; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress} style={[styles.tab, selected && styles.tabActive]}>
@@ -357,7 +382,7 @@ function RouteFacts({ route, compact }: { route: MarketplaceRoute; compact: bool
       <Fact icon="calendar" label="Starts" value={dateTime(route.plannedStart)} />
       <Fact icon="clock" label="Window" value={duration(route.plannedStart, route.plannedEnd)} />
       <Fact icon="dollar-sign" label="Maximum cost" value={money(route.currency, route.maxCost)} highlight />
-      <Fact icon="lock" label="Bidding closes" value={dateTime(route.biddingClosesAt)} />
+      <Fact icon="lock" label="Bids close" value={dateTime(route.biddingClosesAt)} />
     </View>
   );
 }
@@ -379,12 +404,12 @@ function DriverRouteCard({ route, compact, onBid }: { route: MarketplaceRoute; c
   const existing = route.myBid;
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}><View style={{ flex: 1 }}><Text style={styles.eyebrow}>{route.organizationName}</Text><Text style={styles.cardTitle}>{route.name}</Text></View>{existing ? <StatusBadge compact status={existing.status} /> : <StatusBadge compact status="open" />}</View>
+      <View style={styles.cardHeader}><View style={styles.routeIdentityIcon}><Feather name="navigation" size={18} color={C.primaryDark} /></View><View style={{ flex: 1 }}><Text style={styles.eyebrow}>{route.organizationName}</Text><Text style={styles.cardTitle}>{route.name}</Text></View>{existing ? <StatusBadge compact status={existing.status} /> : <StatusBadge compact status="open" />}</View>
       <RouteFacts route={route} compact={compact} />
       <AddressPath route={route} />
       <View style={styles.cardFooter}>
-        <Text style={styles.bidMeta}>{route.bidCount} bid{route.bidCount === 1 ? '' : 's'} submitted</Text>
-        <ActionButton compact icon={existing ? 'edit-3' : 'send'} label={existing ? `Update ${money(route.currency, existing.amount)} bid` : 'Place bid'} onPress={onBid} />
+        <View style={styles.marketSignal}><View style={styles.marketSignalDot} /><Text style={styles.bidMeta}>{route.bidCount} bid{route.bidCount === 1 ? '' : 's'} submitted</Text></View>
+        <ActionButton compact icon={existing ? 'edit-3' : 'send'} label={existing ? `Update ${money(route.currency, existing.amount)} bid` : 'Place a bid'} onPress={onBid} />
       </View>
     </View>
   );
@@ -394,8 +419,8 @@ function MyBidCard({ bid, compact, onWithdraw }: { bid: MarketplaceBid; compact:
   const route = bid.route;
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}><View style={{ flex: 1 }}><Text style={styles.eyebrow}>{route?.organizationName}</Text><Text style={styles.cardTitle}>{route?.name || `Route #${bid.routeId}`}</Text></View><StatusBadge compact status={bid.status} /></View>
-      <View style={[styles.bidSummary, compact && styles.bidSummaryCompact]}><View><Text style={styles.factLabel}>YOUR BID</Text><Text style={styles.bidAmount}>{money(bid.currency, bid.amount)}</Text></View><View><Text style={styles.factLabel}>ROUTE START</Text><Text style={styles.bidSummaryValue}>{dateTime(route?.plannedStart)}</Text></View><View><Text style={styles.factLabel}>MAXIMUM</Text><Text style={styles.bidSummaryValue}>{money(bid.currency, route?.maxCost)}</Text></View></View>
+      <View style={styles.cardHeader}><View style={styles.routeIdentityIcon}><Feather name="send" size={18} color={C.primaryDark} /></View><View style={{ flex: 1 }}><Text style={styles.eyebrow}>{route?.organizationName}</Text><Text style={styles.cardTitle}>{route?.name || `Route #${bid.routeId}`}</Text></View><StatusBadge compact status={bid.status} /></View>
+      <View style={[styles.bidSummary, compact && styles.bidSummaryCompact]}><View><Text style={styles.factLabel}>YOUR BID</Text><Text style={styles.bidAmount}>{money(bid.currency, bid.amount)}</Text></View><View><Text style={styles.factLabel}>ROUTE START</Text><Text style={styles.bidSummaryValue}>{dateTime(route?.plannedStart)}</Text></View><View><Text style={styles.factLabel}>BUDGET CEILING</Text><Text style={styles.bidSummaryValue}>{money(bid.currency, route?.maxCost)}</Text></View></View>
       {bid.message ? <Text style={styles.bidMessage}>“{bid.message}”</Text> : null}
       <View style={styles.cardFooter}><Text style={styles.bidMeta}>{bid.status === 'accepted' ? 'You won this route. It is now assigned to you.' : bid.status === 'pending' ? 'The business has not made a decision yet.' : 'This bid is no longer active.'}</Text>{bid.status === 'pending' ? <ActionButton compact variant="danger" icon="x" label="Withdraw" onPress={onWithdraw} /> : null}</View>
     </View>
@@ -409,14 +434,14 @@ function BusinessListingCard({ route, compact, expanded, loadingBids, bids, onTo
   const open = route.marketplaceStatus === 'open';
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}><View style={{ flex: 1 }}><Text style={styles.eyebrow}>ROUTE #{route.routeId}</Text><Text style={styles.cardTitle}>{route.name}</Text></View><StatusBadge compact status={route.marketplaceStatus} /></View>
+      <View style={styles.cardHeader}><View style={styles.routeIdentityIcon}><Feather name="briefcase" size={18} color={C.primaryDark} /></View><View style={{ flex: 1 }}><Text style={styles.eyebrow}>MARKETPLACE ROUTE #{route.routeId}</Text><Text style={styles.cardTitle}>{route.name}</Text></View><StatusBadge compact status={route.marketplaceStatus} /></View>
       <RouteFacts route={route} compact={compact} />
       <AddressPath route={route} />
       <View style={styles.cardFooter}>
-        <View><Text style={styles.bidCountStrong}>{route.pendingBidCount}</Text><Text style={styles.bidMeta}>pending driver bid{route.pendingBidCount === 1 ? '' : 's'}</Text></View>
-        <View style={styles.actions}>{open ? <ActionButton compact variant="danger" icon="slash" label="Close listing" onPress={onClose} /> : null}<ActionButton compact variant="secondary" icon={expanded ? 'chevron-up' : 'users'} label={expanded ? 'Hide bids' : 'Review bids'} onPress={onToggle} /></View>
+        <View><Text style={styles.bidCountStrong}>{route.pendingBidCount}</Text><Text style={styles.bidMeta}>driver bid{route.pendingBidCount === 1 ? '' : 's'} awaiting review</Text></View>
+        <View style={styles.actions}>{open ? <ActionButton compact variant="danger" icon="slash" label="Close listing" onPress={onClose} /> : null}<ActionButton compact variant="secondary" icon={expanded ? 'chevron-up' : 'users'} label={expanded ? 'Hide bids' : 'Compare bids'} onPress={onToggle} /></View>
       </View>
-      {expanded ? <View style={styles.bidPanel}>{loadingBids ? <View style={styles.inlineLoading}><ActivityIndicator color={C.primary} /><Text style={styles.bidMeta}>Loading bids…</Text></View> : bids.length ? bids.map((bid) => <BusinessBidRow key={bid.bidId} bid={bid} canAccept={open && bid.status === 'pending'} compact={compact} onAccept={() => onAccept(bid)} />) : <Text style={styles.emptyBids}>No drivers have bid on this route yet.</Text>}</View> : null}
+      {expanded ? <View style={styles.bidPanel}>{loadingBids ? <View style={styles.inlineLoading}><ActivityIndicator color={C.primary} /><Text style={styles.bidMeta}>Loading bids…</Text></View> : bids.length ? bids.map((bid) => <BusinessBidRow key={bid.bidId} bid={bid} canAccept={open && bid.status === 'pending'} compact={compact} onAccept={() => onAccept(bid)} />) : <Text style={styles.emptyBids}>No drivers have placed a bid on this route yet.</Text>}</View> : null}
     </View>
   );
 }
@@ -440,15 +465,15 @@ function BidModal({ route, amount, message, error, busy, onAmount, onMessage, on
     <Modal visible={Boolean(route)} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}><Pressable accessibilityLabel="Close bid form" onPress={onClose} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal style={styles.modalCard}>
-          <View style={styles.modalHeader}><View style={{ flex: 1 }}><Text style={styles.modalEyebrow}>SUBMIT YOUR PRICE</Text><Text style={styles.modalTitle}>{route?.name}</Text></View><Pressable accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}><Feather name="x" size={20} color={C.inkMuted} /></Pressable></View>
-          <Text style={styles.modalHint}>Maximum {route ? money(route.currency, route.maxCost) : ''} · closes {dateTime(route?.biddingClosesAt)}</Text>
-          <Text style={styles.inputLabel}>Bid amount ({route?.currency})</Text>
+          <View style={styles.modalHeader}><View style={{ flex: 1 }}><Text style={styles.modalEyebrow}>PLACE A BID</Text><Text style={styles.modalTitle}>{route?.name}</Text></View><Pressable accessibilityLabel="Close" onPress={onClose} style={styles.closeButton}><Feather name="x" size={20} color={C.inkMuted} /></Pressable></View>
+          <Text style={styles.modalHint}>Budget ceiling {route ? money(route.currency, route.maxCost) : ''} · closes {dateTime(route?.biddingClosesAt)}</Text>
+          <Text style={styles.inputLabel}>Your bid ({route?.currency})</Text>
           <TextInput accessibilityLabel="Bid amount" value={amount} onChangeText={(value) => onAmount(value.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={C.inkSubtle} style={styles.input} />
           <Text style={styles.inputLabel}>Message to business (optional)</Text>
           <TextInput accessibilityLabel="Message to business" value={message} onChangeText={onMessage} maxLength={500} multiline placeholder="Mention your vehicle, experience, or availability." placeholderTextColor={C.inkSubtle} style={[styles.input, styles.messageInput]} />
           <Text style={styles.characterCount}>{message.length}/500</Text>
           {error ? <Text accessibilityRole="alert" style={styles.modalError}>{error}</Text> : null}
-          <View style={styles.modalActions}><ActionButton style={{ flex: 1 }} variant="secondary" label="Cancel" disabled={busy} onPress={onClose} /><ActionButton style={{ flex: 1 }} icon="send" label={route?.myBid ? 'Update bid' : 'Submit bid'} loading={busy} onPress={onSubmit} /></View>
+          <View style={styles.modalActions}><ActionButton style={{ flex: 1 }} variant="secondary" label="Cancel" disabled={busy} onPress={onClose} /><ActionButton style={{ flex: 1 }} icon="send" label={route?.myBid ? 'Update bid' : 'Send bid'} loading={busy} onPress={onSubmit} /></View>
         </View>
       </View>
     </Modal>
@@ -468,54 +493,71 @@ function ConfirmationModal({ action, busy, onClose, onConfirm }: { action: Confi
 }
 
 const styles = StyleSheet.create({
-  hero: { flexDirection: 'row', alignItems: 'center', gap: S.lg, padding: S.xl, borderWidth: 1, borderColor: '#CFE0FA', borderRadius: R.lg, backgroundColor: '#F6FAFF', marginBottom: S.xl },
+  hero: { flexDirection: 'row', alignItems: 'stretch', gap: S.xl, padding: S.xl, borderRadius: 20, backgroundColor: '#F1F6FC', borderWidth: 1, borderColor: '#DCE7F3', marginBottom: S.xl, overflow: 'hidden' },
   headerActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: S.sm },
-  liveStatus: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: S.md, borderRadius: R.pill, backgroundColor: C.successSoft },
+  liveStatus: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: S.md, borderRadius: R.pill, backgroundColor: '#ECFDF3', borderWidth: 1, borderColor: '#D1FADF' },
   liveStatusWarning: { backgroundColor: C.warningSoft },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.success },
   liveDotWarning: { backgroundColor: C.warning },
   liveText: { color: C.success, fontSize: 10, fontWeight: '600' },
   liveTextWarning: { color: C.warning },
-  heroCompact: { alignItems: 'flex-start', flexWrap: 'wrap', padding: S.lg },
-  heroIcon: { width: 50, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
-  heroTitle: { color: C.ink, fontSize: 18, fontWeight: '600' },
-  heroText: { color: C.inkMuted, fontSize: 12, lineHeight: 18, marginTop: 4, maxWidth: 760 },
-  heroMetric: { minWidth: 92, alignItems: 'center', padding: S.md, borderRadius: R.md, backgroundColor: C.surface },
-  heroMetricValue: { color: C.primaryDark, fontSize: 24, fontWeight: '600' },
-  heroMetricLabel: { color: C.inkMuted, fontSize: 10, marginTop: 2 },
+  heroCompact: { flexDirection: 'column', padding: S.lg },
+  heroCopy: { flex: 1, minWidth: 260, justifyContent: 'center' },
+  heroKicker: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: S.sm },
+  heroKickerText: { color: '#2867C7', fontSize: 9, fontWeight: '600', letterSpacing: 1.1 },
+  heroTitle: { color: '#18324D', fontSize: 25, lineHeight: 32, fontWeight: '600', letterSpacing: -0.4, maxWidth: 620 },
+  heroText: { color: '#5E7185', fontSize: 12, lineHeight: 19, marginTop: 8, maxWidth: 660 },
+  heroTrustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: S.lg, marginTop: S.lg },
+  heroTrustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroTrustText: { color: '#5E7185', fontSize: 10, fontWeight: '500' },
+  heroMetrics: { minWidth: 310, flexDirection: 'row', alignItems: 'stretch', gap: S.sm },
+  heroMetricsCompact: { minWidth: 0, width: '100%' },
+  heroMetric: { flex: 1, minWidth: 88, justifyContent: 'space-between', padding: S.md, borderRadius: R.md, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9E4EF' },
+  heroMetricAccent: { backgroundColor: '#E8F5EF', borderColor: '#CEE5D9' },
+  heroMetricValue: { color: '#23405F', fontSize: 27, lineHeight: 31, fontWeight: '600' },
+  heroMetricValueAccent: { color: '#176B51' },
+  heroMetricLabel: { color: '#6A7D8F', fontSize: 9, lineHeight: 13, marginTop: S.md, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '500' },
+  heroMetricLabelAccent: { color: '#39715E' },
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: S.sm, padding: S.md, borderWidth: 1, borderColor: '#F1B8C1', borderRadius: R.md, backgroundColor: C.dangerSoft, marginBottom: S.lg },
   errorText: { flex: 1, color: C.danger, fontSize: 12, lineHeight: 18 },
-  tabs: { alignSelf: 'flex-start', flexDirection: 'row', gap: 4, padding: 4, borderWidth: 1, borderColor: C.line, borderRadius: R.md, backgroundColor: C.surfaceMuted, marginBottom: S.xl },
-  tab: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: S.lg, borderRadius: 9 },
-  tabActive: { backgroundColor: C.surface },
+  tabs: { alignSelf: 'flex-start', flexDirection: 'row', gap: 4, padding: 4, borderWidth: 1, borderColor: C.line, borderRadius: R.pill, backgroundColor: C.surfaceMuted, marginBottom: S.xl },
+  tab: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: S.lg, borderRadius: R.pill },
+  tabActive: { backgroundColor: C.surface, shadowColor: '#101828', shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
   tabText: { color: C.inkMuted, fontSize: 12, fontWeight: '600' },
   tabTextActive: { color: C.primaryDark },
   tabCount: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E2E8F0' },
   tabCountActive: { backgroundColor: C.primarySoft },
   tabCountText: { color: C.inkMuted, fontSize: 10, fontWeight: '600' },
   tabCountTextActive: { color: C.primaryDark },
-  list: { gap: S.lg },
-  card: { borderWidth: 1, borderColor: C.line, borderRadius: R.lg, backgroundColor: C.surface, padding: S.xl },
+  listHeading: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: S.lg, paddingBottom: S.md },
+  listKicker: { color: C.primaryDark, fontSize: 9, fontWeight: '600', letterSpacing: 1.1 },
+  listTitle: { color: C.ink, fontSize: 18, fontWeight: '600', marginTop: 4 },
+  listHint: { color: C.inkMuted, fontSize: 11, lineHeight: 16 },
+  list: { gap: S.md },
+  card: { borderWidth: 1, borderColor: '#DEE6EC', borderRadius: 18, backgroundColor: C.surface, padding: S.xl, shadowColor: '#28425C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.025, shadowRadius: 12, elevation: 1 },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: S.md, marginBottom: S.lg },
+  routeIdentityIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft, borderWidth: 1, borderColor: '#D5E5FF' },
   eyebrow: { color: C.primaryDark, fontSize: 10, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
   cardTitle: { color: C.ink, fontSize: 18, fontWeight: '600', marginTop: 3 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm, marginBottom: S.lg },
   factsCompact: { flexDirection: 'column' },
-  fact: { minWidth: 190, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9, padding: S.md, borderRadius: R.md, backgroundColor: C.surfaceMuted },
+  fact: { minWidth: 190, flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9, padding: S.md, borderRadius: R.md, backgroundColor: '#F7F9FC', borderWidth: 1, borderColor: '#EDF1F6' },
   factLabel: { color: C.inkSubtle, fontSize: 9, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
   factValue: { color: C.ink, fontSize: 11, fontWeight: '600', marginTop: 3 },
   factValueHighlight: { color: C.primaryDark },
-  addressPath: { flexDirection: 'row', gap: S.md, padding: S.lg, borderWidth: 1, borderColor: C.line, borderRadius: R.md },
+  addressPath: { flexDirection: 'row', gap: S.md, padding: S.lg, borderWidth: 1, borderColor: '#DCE7F5', borderRadius: R.md, backgroundColor: '#FBFDFF' },
   addressRail: { width: 12, alignItems: 'center', paddingVertical: 4 },
   startDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.success },
   addressLine: { width: 1, flex: 1, minHeight: 20, backgroundColor: C.lineStrong },
   endDot: { width: 9, height: 9, borderRadius: 2, backgroundColor: C.danger },
   addressText: { color: C.inkMuted, fontSize: 12, lineHeight: 17 },
   cardFooter: { minHeight: 58, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: S.md, marginTop: S.lg },
+  marketSignal: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  marketSignalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.success },
   bidMeta: { color: C.inkMuted, fontSize: 11, lineHeight: 16 },
   bidCountStrong: { color: C.ink, fontSize: 20, fontWeight: '600' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: S.sm },
-  bidSummary: { flexDirection: 'row', gap: S.xxl, padding: S.lg, borderRadius: R.md, backgroundColor: C.surfaceMuted },
+  bidSummary: { flexDirection: 'row', gap: S.xxl, padding: S.lg, borderRadius: R.md, backgroundColor: '#F3F7FD', borderWidth: 1, borderColor: '#E1EAF6' },
   bidSummaryCompact: { flexDirection: 'column', gap: S.md },
   bidAmount: { color: C.primaryDark, fontSize: 20, fontWeight: '600', marginTop: 3 },
   bidSummaryValue: { color: C.ink, fontSize: 12, fontWeight: '600', marginTop: 4 },
@@ -523,7 +565,7 @@ const styles = StyleSheet.create({
   bidPanel: { borderTopWidth: 1, borderTopColor: C.line, marginTop: S.lg, paddingTop: S.lg, gap: S.sm },
   inlineLoading: { minHeight: 80, alignItems: 'center', justifyContent: 'center', gap: S.sm },
   emptyBids: { color: C.inkMuted, fontSize: 12, textAlign: 'center', padding: S.xl },
-  bidRow: { flexDirection: 'row', alignItems: 'center', gap: S.md, padding: S.lg, borderWidth: 1, borderColor: C.line, borderRadius: R.md, backgroundColor: C.surfaceMuted },
+  bidRow: { flexDirection: 'row', alignItems: 'center', gap: S.md, padding: S.lg, borderWidth: 1, borderColor: '#DCE4EF', borderRadius: R.md, backgroundColor: '#FBFCFE' },
   bidRowCompact: { alignItems: 'flex-start', flexWrap: 'wrap' },
   avatar: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
   avatarText: { color: C.primaryDark, fontSize: 16, fontWeight: '600' },
@@ -535,7 +577,7 @@ const styles = StyleSheet.create({
   driverContact: { color: C.primaryDark, fontSize: 10, marginTop: 5 },
   bidDecision: { alignItems: 'flex-end', gap: 4 },
   bidPrice: { color: C.primaryDark, fontSize: 18, fontWeight: '600' },
-  modalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: S.lg, backgroundColor: 'rgba(15,23,42,0.64)' },
+  modalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: S.lg, backgroundColor: 'rgba(24,50,77,0.36)' },
   modalCard: { width: '100%', maxWidth: 540, borderRadius: R.lg, backgroundColor: C.surface, padding: S.xl },
   modalHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: S.md },
   modalEyebrow: { color: C.primaryDark, fontSize: 10, fontWeight: '600', letterSpacing: 0.8 },

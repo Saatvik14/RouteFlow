@@ -434,7 +434,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   }, [completedRoutes]);
 
   const recentRoutes = useMemo(() => routes.slice(0, 3), [routes]);
-  const isHistoryActive = pathname?.includes("route-history");
 
   useEffect(() => {
     setSelectedRouteId((params.id as string) || null);
@@ -632,11 +631,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const handleReports = () => {
     onClose();
     router.push("/reports" as never);
-  };
-
-  const handleRouteHistory = () => {
-    onClose();
-    router.push("/route-history" as never);
   };
 
   const handleRoutePress = (routeId: string) => {
@@ -1207,8 +1201,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               pathname === "/" || pathname?.includes("route-preview"),
             ) : null}
             {!isFleetDriver ? renderQuickAction(
-              "globe",
-              "Driver marketplace",
+              "briefcase",
+              "Driver Marketplace",
               handleMarketplace,
               pathname?.includes("marketplace"),
               marketplaceIndicator,
@@ -1244,38 +1238,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               pathname?.includes("support"),
             )}
           </View>
-
-          <Pressable
-            style={[
-              styles.historyEntry,
-              isHistoryActive && styles.historyEntryActive,
-            ]}
-            onPress={handleRouteHistory}
-          >
-            <View
-              style={[
-                styles.historyIconBox,
-                isHistoryActive && styles.historyIconBoxActive,
-              ]}
-            >
-              <Feather name="archive" size={16} color="#2563EB" />
-            </View>
-
-            <Text
-              style={[
-                styles.historyTitle,
-                isHistoryActive && styles.historyTitleActive,
-              ]}
-            >
-              Route history
-            </Text>
-
-            <View style={styles.historyCountPill}>
-              <Text style={styles.historyCountText}>
-                {completedRoutes.length || routes.length}
-              </Text>
-            </View>
-          </Pressable>
 
           {/* <View style={styles.statsCard}>
             <Text style={styles.statsTitle}>Completed this month</Text>
@@ -1608,66 +1570,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "600",
-  },
-
-  historyEntry: {
-    minHeight: 55,
-    marginTop: 13,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E1E8F2",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
-
-  historyEntryActive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#CFE2FF",
-  },
-
-  historyIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 13,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 11,
-  },
-
-  historyIconBoxActive: {
-    backgroundColor: "#DBEAFE",
-  },
-
-  historyTitle: {
-    flex: 1,
-    fontSize: 14.5,
-    lineHeight: 19,
-    fontWeight: "500",
-    color: "#1E293B",
-  },
-
-  historyTitleActive: {
-    color: "#2563EB",
-  },
-
-  historyCountPill: {
-    minWidth: 31,
-    minHeight: 26,
-    borderRadius: 13,
-    paddingHorizontal: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#DBEAFE",
-  },
-
-  historyCountText: {
-    fontSize: 12,
-    lineHeight: 15,
-    fontWeight: "500",
-    color: "#2563EB",
   },
 
   statsCard: {

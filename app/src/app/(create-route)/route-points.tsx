@@ -648,7 +648,7 @@ export default function RoutePointsScreen() {
   const scheduleMessage = !hasValidRouteWindow
     ? 'End time must be after start time, with a route window of no more than 24 hours.'
     : isPublicMarketplace && !hasPublicLeadTime
-      ? 'Public routes must start at least 30 minutes from now. Bidding closes 15 minutes before departure.'
+      ? 'Marketplace routes must start at least 30 minutes from now. Bids close 15 minutes before departure.'
       : isPublicMarketplace && !hasValidPublicCost
         ? 'Enter a maximum driver cost greater than 0, using no more than two decimal places.'
         : '';
@@ -1308,8 +1308,8 @@ export default function RoutePointsScreen() {
                     <Feather name="globe" size={18} color={isPublicMarketplace ? '#FFFFFF' : '#2563EB'} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.marketplaceTitle}>Make this route public</Text>
-                    <Text style={styles.marketplaceSubtitle}>Independent drivers can view the schedule and bid. No driver is assigned until you select one.</Text>
+                    <Text style={styles.marketplaceTitle}>List in Driver Marketplace</Text>
+                    <Text style={styles.marketplaceSubtitle}>Independent drivers can view the schedule and place a bid. No driver is assigned until you select one.</Text>
                   </View>
                   <View style={[styles.switchTrack, isPublicMarketplace && styles.switchTrackActive]}>
                     <View style={[styles.switchThumb, isPublicMarketplace && styles.switchThumbActive]} />
@@ -1343,7 +1343,7 @@ export default function RoutePointsScreen() {
                         style={styles.marketplaceCostInput}
                       />
                     </View>
-                    <Text style={styles.marketplaceFootnote}>Drivers cannot bid above this amount. Bidding closes automatically 15 minutes before the start time.</Text>
+                    <Text style={styles.marketplaceFootnote}>Drivers cannot bid above this amount. Bids close automatically 15 minutes before the start time.</Text>
                   </View>
                 ) : null}
               </View>
