@@ -1,3 +1,7 @@
+const { resolveDeliveryProofConfig } = require('./deliveryProof');
+
+const deliveryProof = resolveDeliveryProofConfig();
+
 module.exports = {
     PROJECT_NAME: process.env.PROJECT_NAME,
     PORT: process.env.PORT || 5000,
@@ -14,6 +18,9 @@ module.exports = {
     LOCATION_MIN_UPDATE_SECONDS: Number(process.env.LOCATION_MIN_UPDATE_SECONDS || 10),
     PROOF_STORAGE_BUCKET: process.env.PROOF_STORAGE_BUCKET || '',
     MAX_PROOF_FILE_BYTES: Number(process.env.MAX_PROOF_FILE_BYTES || 8 * 1024 * 1024),
+    DELIVERY_PHOTO_PROOF_ENABLED: deliveryProof.photoEnabled,
+    DELIVERY_OTP_PROOF_ENABLED: deliveryProof.otpEnabled,
+    DELIVERY_PROOF_MODE: deliveryProof.mode,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
     GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 };

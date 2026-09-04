@@ -40,6 +40,12 @@ const fleetProvisionLimit = createRateLimiter({
   code: 'FLEET_PROVISION_RATE_LIMITED',
   keyGenerator: (req) => `${req.organization?.id || 'none'}:${req.user?.user_id || req.ip}:fleet-provision`,
 });
+const deliveryOtpLimit = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  code: 'DELIVERY_OTP_RATE_LIMITED',
+  keyGenerator: (req) => `${req.organization?.id || 'none'}:${req.user?.user_id || req.ip}:${req.params.orderId || 'none'}`,
+});
 
 router.get('/invitations/accept/:token', publicInvitationLimit, asyncHandler(invitations.previewInvitation));
 router.post('/invitations/accept/:token/new', publicInvitationLimit, asyncHandler(invitations.acceptNewInvitation));
@@ -82,6 +88,7 @@ router.post('/routes/:routeId/complete', asyncHandler(operations.completeRoute))
 router.post('/routes/:routeId/cancel', requireBusinessRole, asyncHandler(operations.cancelRoute));
 
 router.post('/stops/:orderId/arrive', asyncHandler(operations.markStopArrived));
+router.post('/stops/:orderId/delivery-otp/request', deliveryOtpLimit, asyncHandler(operations.requestDeliveryOtp));
 router.post('/stops/:orderId/complete', operations.proofUpload, asyncHandler(operations.completeStop));
 router.get('/proofs/:proofId/content', asyncHandler(operations.downloadProof));
 router.post('/routes/:routeId/location', asyncHandler(operations.updateLocation));

@@ -14,6 +14,7 @@ The enterprise delivery schema is split by table responsibility and must be appl
 | 8 | `20260825_008_add_address_to_organizations.sql` | Adds the optional operating address used during business onboarding |
 | 9 | `20260826_009_add_role_aware_authentication.sql` | Adds independent-driver vehicle type and hashed fleet-driver access-code credentials |
 | 10 | `20260901_010_create_driver_marketplace.sql` | Adds public route listing fields, independent-driver bids, award decisions, budgets, and marketplace indexes |
+| 11 | `20260904_011_add_delivery_otp_proof.sql` | Adds recipient email and expiring, attempt-limited delivery OTP verification fields |
 
 Apply the complete set with:
 

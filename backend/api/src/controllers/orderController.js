@@ -826,6 +826,13 @@ const editOrder = async (req, res) => {
     });
   }
 
+  if (String(req.body.status || '').trim().toLowerCase() === 'delivered') {
+    return res.status(409).json({
+      code: 'DELIVERY_PROOF_REQUIRED',
+      message: 'Complete deliveries through the protected stop completion flow so proof can be verified.',
+    });
+  }
+
   try {
     const existingOrder =
       await getOrderWithLocation(order_id);

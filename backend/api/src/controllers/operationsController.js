@@ -1,4 +1,6 @@
 const multer = require('multer');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { runQuery, withTransaction } = require('../config/db');
 const {
   FAILURE_REASONS,
@@ -7,6 +9,9 @@ const {
 const {
   LOCATION_MIN_UPDATE_SECONDS,
   MAX_PROOF_FILE_BYTES,
+  DELIVERY_PHOTO_PROOF_ENABLED,
+  DELIVERY_OTP_PROOF_ENABLED,
+  DELIVERY_PROOF_MODE,
 } = require('../config/env');
 const { assertRouteReadable } = require('../services/accessControlService');
 const { assignRouteWithClient } = require('../services/routeAssignmentService');
@@ -19,6 +24,7 @@ const {
   storeFile,
 } = require('../services/proofStorageService');
 const { HttpError } = require('../utils/httpError');
+const { sendEmailWithGmailApi } = require('../utils/emailSender');
 const {
   optionalCoordinate,
   optionalIsoDate,
@@ -27,6 +33,16 @@ const {
 } = require('../utils/validation');
 
 const imageMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const DELIVERY_OTP_TTL_MINUTES = 30;
+const DELIVERY_OTP_MAX_ATTEMPTS = 5;
+
+const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+const maskEmail = (value) => {
+  const [local, domain] = String(value || '').split('@');
+  if (!local || !domain) return '';
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}${'*'.repeat(Math.max(2, local.length - visible.length))}@${domain}`;
+};
 const proofUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_PROOF_FILE_BYTES, files: 2, fields: 20 },
@@ -346,6 +362,8 @@ const getLockedExecutableStop = async (client, orderId, req) => {
         r.organization_id,
         r.user_id AS route_owner_user_id,
         r.status AS route_status,
+        r.name AS route_name,
+        r.start_datetime AS route_start_datetime,
         r.route_policy,
         r.driver_id,
         d.account_user_id,
@@ -370,10 +388,97 @@ const getLockedExecutableStop = async (client, orderId, req) => {
   if (fleetDriver && (!stop.driver_active || stop.driver_removed_at)) {
     throw new HttpError(403, 'DRIVER_INACTIVE', 'Your driver profile is inactive.');
   }
-  if (stop.route_status !== 'in_progress') {
+  const executableRouteStatuses = independentOwner
+    ? ['in_progress', 'in_transit']
+    : ['in_progress'];
+  if (!executableRouteStatuses.includes(stop.route_status)) {
     throw new HttpError(409, 'ROUTE_NOT_IN_PROGRESS', 'Start the route before updating its stops.');
   }
   return stop;
+};
+
+const requestDeliveryOtp = async (req, res) => {
+  if (!DELIVERY_OTP_PROOF_ENABLED) {
+    throw new HttpError(409, 'OTP_PROOF_DISABLED', 'Delivery OTP confirmation is not enabled for this deployment.');
+  }
+
+  const orderId = positiveInteger(req.params.orderId, 'orderId');
+  const otp = String(crypto.randomInt(100000, 1000000));
+  const otpHash = await bcrypt.hash(otp, 10);
+
+  const delivery = await withTransaction(async (client) => {
+    const current = await getLockedExecutableStop(client, orderId, req);
+    if (!['pending', 'arrived'].includes(current.status)) {
+      throw new HttpError(409, 'STOP_ALREADY_RESOLVED', 'This stop has already been resolved.');
+    }
+
+    const recipientEmail = String(current.recipient_email || '').trim().toLowerCase();
+    if (!isEmail(recipientEmail)) {
+      throw new HttpError(
+        409,
+        'RECIPIENT_EMAIL_REQUIRED',
+        'Add a valid recipient email to this stop before requesting a delivery code.'
+      );
+    }
+
+    const updated = await client.query(
+      `UPDATE orders
+       SET delivery_otp_hash = $1,
+           delivery_otp_expires_at = NOW() + ($2 || ' minutes')::interval,
+           delivery_otp_sent_at = NOW(),
+           delivery_otp_verified_at = NULL,
+           delivery_otp_attempts = 0,
+           updated_at = NOW()
+       WHERE order_id = $3
+       RETURNING delivery_otp_expires_at`,
+      [otpHash, String(DELIVERY_OTP_TTL_MINUTES), orderId]
+    );
+
+    await insertAudit(client, {
+      organizationId: req.organization.id,
+      routeId: current.route_id,
+      orderId,
+      actorUserId: req.user.user_id,
+      eventType: 'delivery_otp_requested',
+      metadata: { recipient: maskEmail(recipientEmail) },
+    });
+
+    return {
+      recipientEmail,
+      maskedEmail: maskEmail(recipientEmail),
+      routeName: current.route_name || `Route ${current.route_id}`,
+      expiresAt: updated.rows[0].delivery_otp_expires_at,
+    };
+  });
+
+  try {
+    await sendEmailWithGmailApi({
+      to: delivery.recipientEmail,
+      subject: 'Your RouteFloww delivery code',
+      text: `Your delivery confirmation code is ${otp}. It expires in ${DELIVERY_OTP_TTL_MINUTES} minutes. Share it only with the driver at your door.`,
+      html: `<p>Your delivery confirmation code for <strong>${delivery.routeName}</strong> is:</p><p style="font-size:28px;letter-spacing:6px;font-weight:600">${otp}</p><p>It expires in ${DELIVERY_OTP_TTL_MINUTES} minutes. Share it only with the driver at your door.</p>`,
+    });
+  } catch (error) {
+    await runQuery(
+      `UPDATE orders
+       SET delivery_otp_hash = NULL,
+           delivery_otp_expires_at = NULL,
+           delivery_otp_sent_at = NULL,
+           delivery_otp_attempts = 0,
+           updated_at = NOW()
+       WHERE order_id = $1`,
+      [orderId]
+    );
+    throw new HttpError(503, 'DELIVERY_OTP_SEND_FAILED', 'The delivery code could not be sent. Try again shortly.');
+  }
+
+  return res.status(201).json({
+    success: true,
+    maskedEmail: delivery.maskedEmail,
+    expiresAt: delivery.expiresAt,
+    expiresInSeconds: DELIVERY_OTP_TTL_MINUTES * 60,
+    message: `Delivery code sent to ${delivery.maskedEmail}.`,
+  });
 };
 
 const markStopArrived = async (req, res) => {
@@ -418,10 +523,16 @@ const completeStop = async (req, res) => {
   const deviceCompletedAt = optionalIsoDate(req.body.deviceCompletedAt, 'deviceCompletedAt');
   const photo = req.files?.photo?.[0];
   const signature = req.files?.signature?.[0];
+  const deliveryOtp = req.body.deliveryOtp ? String(req.body.deliveryOtp).trim() : '';
 
   if (status === 'delivered') {
     if (!recipientName) throw new HttpError(400, 'RECIPIENT_REQUIRED', 'Enter the recipient’s name.', { field: 'recipientName' });
-    if (!photo && !signature) throw new HttpError(400, 'PROOF_REQUIRED', 'Add a delivery photo or signature.');
+    if (DELIVERY_PHOTO_PROOF_ENABLED && !photo) {
+      throw new HttpError(400, 'PHOTO_PROOF_REQUIRED', 'Take a delivery photo before completing this stop.');
+    }
+    if (DELIVERY_OTP_PROOF_ENABLED && !/^\d{6}$/.test(deliveryOtp)) {
+      throw new HttpError(400, 'DELIVERY_OTP_REQUIRED', 'Enter the 6-digit code sent to the recipient.', { field: 'deliveryOtp' });
+    }
   }
   if (['failed', 'reschedule_required'].includes(status) && !FAILURE_REASONS.includes(failureReason)) {
     throw new HttpError(400, 'FAILURE_REASON_REQUIRED', 'Select a valid delivery failure reason.', { field: 'failureReason' });
@@ -452,6 +563,60 @@ const completeStop = async (req, res) => {
         if (!permission.skipStops || current.route_policy?.driverCanSkipStops !== true) {
           throw new HttpError(403, 'DRIVER_PERMISSION_DENIED', 'Your dispatcher has not enabled stop skipping.');
         }
+      }
+
+      if (status === 'delivered' && DELIVERY_OTP_PROOF_ENABLED) {
+        if (!current.delivery_otp_hash) {
+          return {
+            otpError: new HttpError(409, 'DELIVERY_OTP_NOT_REQUESTED', 'Send a delivery code to the recipient first.'),
+          };
+        }
+        if (!current.delivery_otp_expires_at || new Date(current.delivery_otp_expires_at).getTime() < Date.now()) {
+          await client.query(
+            `UPDATE orders
+             SET delivery_otp_hash = NULL, delivery_otp_expires_at = NULL,
+                 delivery_otp_attempts = 0, updated_at = NOW()
+             WHERE order_id = $1`,
+            [orderId]
+          );
+          return {
+            otpError: new HttpError(409, 'DELIVERY_OTP_EXPIRED', 'That delivery code has expired. Send a new code.'),
+          };
+        }
+        if (Number(current.delivery_otp_attempts || 0) >= DELIVERY_OTP_MAX_ATTEMPTS) {
+          return {
+            otpError: new HttpError(429, 'DELIVERY_OTP_LOCKED', 'Too many incorrect codes. Send a new delivery code.'),
+          };
+        }
+
+        const otpMatches = await bcrypt.compare(deliveryOtp, current.delivery_otp_hash);
+        if (!otpMatches) {
+          const attempts = Math.min(DELIVERY_OTP_MAX_ATTEMPTS, Number(current.delivery_otp_attempts || 0) + 1);
+          await client.query(
+            `UPDATE orders SET delivery_otp_attempts = $1, updated_at = NOW() WHERE order_id = $2`,
+            [attempts, orderId]
+          );
+          return {
+            otpError: new HttpError(
+              attempts >= DELIVERY_OTP_MAX_ATTEMPTS ? 429 : 400,
+              attempts >= DELIVERY_OTP_MAX_ATTEMPTS ? 'DELIVERY_OTP_LOCKED' : 'DELIVERY_OTP_INVALID',
+              attempts >= DELIVERY_OTP_MAX_ATTEMPTS
+                ? 'Too many incorrect codes. Send a new delivery code.'
+                : 'That delivery code is incorrect. Try again.'
+            ),
+          };
+        }
+
+        await client.query(
+          `UPDATE orders
+           SET delivery_otp_hash = NULL,
+               delivery_otp_expires_at = NULL,
+               delivery_otp_verified_at = NOW(),
+               delivery_otp_attempts = 0,
+               updated_at = NOW()
+           WHERE order_id = $1`,
+          [orderId]
+        );
       }
 
       for (const [proofType, file] of [
@@ -497,7 +662,10 @@ const completeStop = async (req, res) => {
           latitude,
           longitude,
           submissionKey,
-          { deviceCompletedAt: deviceCompletedAt?.toISOString() || null },
+          {
+            deviceCompletedAt: deviceCompletedAt?.toISOString() || null,
+            deliveryProofMode: status === 'delivered' ? DELIVERY_PROOF_MODE : null,
+          },
           orderId,
         ]
       );
@@ -545,12 +713,15 @@ const completeStop = async (req, res) => {
           failureReason,
           hasPhoto: Boolean(photo),
           hasSignature: Boolean(signature),
+          deliveryProofMode: status === 'delivered' ? DELIVERY_PROOF_MODE : null,
+          otpVerified: status === 'delivered' && DELIVERY_OTP_PROOF_ENABLED,
           locationCaptured: latitude !== null && longitude !== null,
         },
       });
       return { stop: updated.rows[0], proofs: proofRows, idempotent: false };
     });
 
+    if (result.otpError) throw result.otpError;
     return res.json({ success: true, ...result, message: status === 'delivered' ? 'Delivery completed.' : 'Stop outcome recorded.' });
   } catch (error) {
     await deleteStoredFiles(storedFiles).catch(() => undefined);
@@ -653,6 +824,7 @@ module.exports = {
   listMyAssignments,
   markStopArrived,
   proofUpload,
+  requestDeliveryOtp,
   rejectAssignment,
   startRoute,
   updateLocation,
