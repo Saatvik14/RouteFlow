@@ -249,7 +249,11 @@ export default function RootLayout() {
     }
   }, [isLoggedIn, isLoading, isTrialExpired, segments, router]);
 
-  if (isLoading) {
+  // Public web content must render during static export and session restoration.
+  // Keep the splash guard for native and for every non-landing route.
+  const isPublicLanding = Platform.OS === 'web' &&
+    ['', 'index', 'landing'].includes(String(segments[0] ?? ''));
+  if (isLoading && !isPublicLanding) {
     return (
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <AnimatedSplashOverlay />

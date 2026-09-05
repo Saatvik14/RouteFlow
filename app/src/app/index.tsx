@@ -78,7 +78,9 @@ export default function Index() {
   }, [isAuthLoading, isBusinessOwner, isFleetDriver, isLoggedIn, isRoleLoading, router, workspace]);
 
   // On Web, if visitor is not logged in, render the product landing page directly at localhost:8081 (root /)
-  if (Platform.OS === 'web' && !isAuthLoading && !isLoggedIn) {
+  // Render the public page during static export and session restoration so its
+  // content and metadata are available before JavaScript finishes bootstrapping.
+  if (Platform.OS === 'web' && !isLoggedIn) {
     return <MainLandingScreen />;
   }
 

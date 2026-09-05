@@ -34,7 +34,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/image.png"
+      "favicon": "./assets/images/favicon-max.png"
     },
     "plugins": [
       "expo-router",

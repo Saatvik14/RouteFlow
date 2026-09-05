@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { usePathname, useRouter } from 'expo-router';
-import { type ComponentProps, useEffect } from 'react';
+import Head from 'expo-router/head';
+import { type ComponentProps, useEffect, useRef, useState } from 'react';
 import {
   Image,
   Platform,
@@ -13,14 +14,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { LEGAL_URLS } from '../constants/legal';
 import { IMAGES } from '../constants/theme';
 import { openExternalUrl } from '../hooks/open-external-url';
 
 type IconName = ComponentProps<typeof Feather>['name'];
-
-const HERO_IMAGE = require('../../assets/images/landing-delivery-hero.png');
 
 const capabilityCards: Array<{
   icon: IconName;
@@ -81,6 +81,8 @@ export default function LandingScreen() {
   const desktop = width >= 1000;
   const tablet = width >= 720;
   const pagePadding = tablet ? 32 : 20;
+  const scrollRef = useRef<ScrollView>(null);
+  const [howItWorksY, setHowItWorksY] = useState(760);
 
   useEffect(() => {
     if (Platform.OS === 'web' && pathname === '/landing') router.replace('/');
@@ -88,12 +90,27 @@ export default function LandingScreen() {
 
   return (
     <View style={styles.page}>
+      <Head>
+        <title>RouteFloww | Multi-stop route planning and driver dispatch</title>
+        <meta name="description" content="Create and optimise multi-stop delivery routes, assign them to drivers, and manage delivery progress from one organised workspace." />
+        <link rel="canonical" href="https://routefloww.com/" />
+        <meta property="og:title" content="RouteFloww | Plan smarter routes. Dispatch with confidence." />
+        <meta property="og:description" content="Plan multi-stop routes, assign drivers and keep delivery work organised in one clear workspace." />
+        <meta property="og:type" content="website" />
+      </Head>
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 8) }]}>
         <View style={[styles.headerInner, { paddingHorizontal: pagePadding }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="RouteFloww home" onPress={() => router.push('/')} style={({ pressed }) => [styles.brand, pressed && styles.pressed]}>
             <Image source={IMAGES.LOGO} style={styles.logo} />
             <Text style={styles.brandName}>Route<Text style={styles.brandAccent}>Floww</Text></Text>
           </Pressable>
+
+          {desktop ? (
+            <View style={styles.navLinks}>
+              <Pressable accessibilityRole="link" onPress={() => scrollRef.current?.scrollTo({ y: howItWorksY, animated: true })} style={styles.navLink}><Text style={styles.navLinkText}>Product</Text></Pressable>
+              <Pressable accessibilityRole="link" onPress={() => scrollRef.current?.scrollTo({ y: howItWorksY, animated: true })} style={styles.navLink}><Text style={styles.navLinkText}>How it works</Text></Pressable>
+            </View>
+          ) : null}
 
           <View style={styles.headerActions}>
             <Pressable onPress={() => router.push('/login')} style={({ pressed }) => [styles.textButton, pressed && styles.pressed]}>
@@ -107,30 +124,30 @@ export default function LandingScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}>
-        <LinearGradient colors={['#F4F8FF', '#FFFFFF']} start={{ x: 0, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.heroSection}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}>
+        <View style={styles.heroSection}>
           <View style={[styles.content, styles.hero, !desktop && styles.heroStack, { paddingHorizontal: pagePadding }]}>
             <View style={styles.heroCopy}>
               <View style={styles.productPill}>
-                <View style={styles.productPillIcon}><Feather name="activity" size={14} color="#1D63ED" /></View>
-                <Text style={styles.productPillText}>DELIVERY OPERATIONS, CONNECTED</Text>
+                <View style={styles.productPillIcon}><Feather name="navigation" size={14} color="#2563EB" /></View>
+                <Text style={styles.productPillText}>ROUTE PLANNING & DISPATCH</Text>
               </View>
-              <Text style={[styles.heroTitle, !tablet && styles.heroTitleMobile]}>Run every route from one clear workspace.</Text>
-              <Text style={styles.heroText}>Plan smarter routes, coordinate drivers, verify deliveries and understand performance—without stitching together separate tools.</Text>
+              <Text style={[styles.heroTitle, !tablet && styles.heroTitleMobile]}>Plan smarter routes. Dispatch with confidence.</Text>
+              <Text style={styles.heroText}>Create and optimise multi-stop routes, assign them to drivers, and keep every delivery organised from one clear workspace.</Text>
               <View style={styles.heroActions}>
                 <Pressable onPress={() => router.push('/signup')} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                  <Text style={styles.primaryButtonLabel}>Create your account</Text>
-                  <Feather name="arrow-up-right" size={18} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonLabel}>Start planning routes</Text>
+                  <Feather name="arrow-right" size={18} color="#FFFFFF" />
                 </Pressable>
-                <Pressable onPress={() => openExternalUrl(LEGAL_URLS.PLAY_STORE_APP)} style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
-                  <Feather name="smartphone" size={18} color="#143A69" />
-                  <Text style={styles.outlineButtonLabel}>Get the driver app</Text>
+                <Pressable onPress={() => scrollRef.current?.scrollTo({ y: howItWorksY, animated: true })} style={({ pressed }) => [styles.outlineButton, pressed && styles.pressed]}>
+                  <Feather name="play-circle" size={18} color="#173B64" />
+                  <Text style={styles.outlineButtonLabel}>See how it works</Text>
                 </Pressable>
               </View>
               <View style={styles.heroAssurances}>
-                {['No card to start', 'Built for drivers and teams', 'Proof-ready delivery records'].map((item) => (
+                {['Built for delivery teams', 'Clear driver hand-off', 'Routes and history in one place'].map((item) => (
                   <View key={item} style={styles.assurance}>
-                    <View style={styles.assuranceCheck}><Feather name="check" size={11} color="#FFFFFF" /></View>
+                    <Feather name="check" size={14} color="#168462" />
                     <Text style={styles.assuranceText}>{item}</Text>
                   </View>
                 ))}
@@ -138,33 +155,12 @@ export default function LandingScreen() {
             </View>
 
             <View style={[styles.heroMedia, !desktop && styles.heroMediaStack]}>
-              <View style={styles.imageFrame}>
-                <Image source={HERO_IMAGE} resizeMode="cover" accessibilityLabel="Courier checking a delivery route beside a loaded van" style={styles.heroImage} />
-                <View style={styles.imageShade} />
-                <View style={styles.routeStatusCard}>
-                  <View style={styles.routeStatusTop}>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.routeStatusKicker}>LIVE ROUTE</Text>
-                    <Text style={styles.routeStatusTime}>09:42</Text>
-                  </View>
-                  <Text style={styles.routeStatusTitle}>Delivery day in motion</Text>
-                  <View style={styles.progressTrack}><View style={styles.progressFill} /></View>
-                  <View style={styles.routeStatusMeta}>
-                    <Text style={styles.routeStatusMetaText}>18 of 26 stops</Text>
-                    <Text style={styles.routeStatusMetaText}>Next ETA 12 min</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.mediaSignals}>
-                <Signal icon="map-pin" label="Route optimized" tone="blue" />
-                <Signal icon="briefcase" label="Driver covered" tone="violet" />
-                <Signal icon="shield" label="Proof verified" tone="green" />
-              </View>
+              <DispatchPreview compact={!tablet} />
             </View>
           </View>
-        </LinearGradient>
+        </View>
 
-        <View style={styles.trustSection}>
+        <View style={styles.trustSection} onLayout={(event) => setHowItWorksY(event.nativeEvent.layout.y + 88)}>
           <View style={[styles.content, styles.trustRow, { paddingHorizontal: pagePadding }]}>
             <Text style={styles.trustLead}>One platform for the complete delivery lifecycle</Text>
             <View style={styles.trustItems}>
@@ -347,30 +343,78 @@ function FooterLink({ label, onPress }: { label: string; onPress: () => void }) 
   return <Pressable onPress={onPress} style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}><Text style={styles.footerLinkText}>{label}</Text></Pressable>;
 }
 
+function DispatchPreview({ compact }: { compact: boolean }) {
+  return (
+    <View accessibilityLabel="RouteFloww dispatch workspace showing an assigned multi-stop route" style={styles.dispatchFrame}>
+      <View style={styles.dispatchToolbar}>
+        <View style={styles.dispatchToolbarBrand}><View style={styles.dispatchMark}><Feather name="navigation" size={12} color="#FFFFFF" /></View><Text style={styles.dispatchToolbarTitle}>Delivery operations</Text></View>
+        <View style={styles.dispatchToolbarActions}><View style={styles.dispatchSearch}><Feather name="search" size={12} color="#718096" /><Text style={styles.dispatchSearchText}>Search routes</Text></View><View style={styles.dispatchAvatar}><Text style={styles.dispatchAvatarText}>AD</Text></View></View>
+      </View>
+      <View style={styles.dispatchBody}>
+        {!compact ? (
+          <View style={styles.dispatchRail}>
+            <Text style={styles.dispatchRailLabel}>TODAY</Text>
+            <View style={styles.metricCard}><Text style={styles.metricValue}>6</Text><Text style={styles.metricLabel}>Routes</Text></View>
+            <View style={styles.metricCard}><Text style={[styles.metricValue, { color: '#168462' }]}>2</Text><Text style={styles.metricLabel}>In progress</Text></View>
+            <Text style={styles.dispatchRailLabel}>ROUTES</Text>
+            <View style={styles.routeMiniCardActive}><View style={styles.routeMiniTop}><View style={styles.routeMiniDot} /><Text style={styles.routeMiniStatus}>IN PROGRESS</Text></View><Text style={styles.routeMiniTitle}>North London AM</Text><Text style={styles.routeMiniMeta}>12 stops · Alex D.</Text></View>
+            <View style={styles.routeMiniCard}><Text style={styles.routeMiniTitle}>Central deliveries</Text><Text style={styles.routeMiniMeta}>8 stops · Unassigned</Text></View>
+          </View>
+        ) : null}
+        <View style={styles.dispatchMap}>
+          <Svg width="100%" height="100%" viewBox="0 0 620 390" preserveAspectRatio="xMidYMid slice">
+            <Path d="M-20 85 C120 40 185 145 320 92 S515 54 660 112" stroke="#DCE5ED" strokeWidth="18" fill="none" />
+            <Path d="M48 355 C126 270 182 250 278 242 S458 258 670 196" stroke="#E4EAF0" strokeWidth="15" fill="none" />
+            <Path d="M62 -20 C90 120 132 185 206 232 S304 334 336 430" stroke="#E7EDF2" strokeWidth="12" fill="none" />
+            <Path d="M500 -25 C456 96 470 145 535 222 S585 326 560 420" stroke="#DFE7EE" strokeWidth="16" fill="none" />
+            <Path d="M138 326 C182 280 226 260 270 242 C326 218 380 184 418 132 C447 94 489 87 538 116" stroke="#2563EB" strokeWidth="7" strokeLinecap="round" fill="none" />
+            <Path d="M138 326 C182 280 226 260 270 242 C326 218 380 184 418 132 C447 94 489 87 538 116" stroke="#8BB6FF" strokeWidth="2" strokeLinecap="round" fill="none" strokeDasharray="3 12" />
+            <Circle cx="138" cy="326" r="13" fill="#173B64" stroke="#FFFFFF" strokeWidth="5" />
+            <Circle cx="270" cy="242" r="12" fill="#FFFFFF" stroke="#2563EB" strokeWidth="6" />
+            <Circle cx="418" cy="132" r="12" fill="#FFFFFF" stroke="#2563EB" strokeWidth="6" />
+            <Circle cx="538" cy="116" r="13" fill="#168462" stroke="#FFFFFF" strokeWidth="5" />
+          </Svg>
+          <View style={styles.mapZoom}><View style={styles.mapZoomButton}><Feather name="plus" size={14} color="#425466" /></View><View style={styles.mapZoomDivider} /><View style={styles.mapZoomButton}><Feather name="minus" size={14} color="#425466" /></View></View>
+          <View style={styles.mapRouteCard}>
+            <View style={styles.mapRouteHeader}><View><Text style={styles.mapRouteEyebrow}>ROUTE RF-1042</Text><Text style={styles.mapRouteTitle}>North London AM</Text></View><View style={styles.liveStatus}><View style={styles.liveStatusDot} /><Text style={styles.liveStatusText}>In progress</Text></View></View>
+            <View style={styles.mapProgressTrack}><View style={styles.mapProgressFill} /></View>
+            <View style={styles.mapRouteFooter}><Text style={styles.mapRouteMeta}>7 of 12 stops complete</Text><Text style={styles.mapRouteDriver}>Alex D.</Text></View>
+          </View>
+          <View style={styles.vehiclePin}><Feather name="truck" size={16} color="#FFFFFF" /></View>
+        </View>
+      </View>
+      <View style={styles.dispatchFooter}><View style={styles.dispatchFooterItem}><View style={styles.footerStatusDot} /><Text style={styles.dispatchFooterText}>Driver route active</Text></View><View style={styles.dispatchFooterItem}><Feather name="clock" size={12} color="#718096" /><Text style={styles.dispatchFooterText}>Updated just now</Text></View></View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { width: '100%', maxWidth: 1240, alignSelf: 'center' },
   header: { zIndex: 20, backgroundColor: 'rgba(255,255,255,0.98)', borderBottomWidth: 1, borderBottomColor: '#E5ECF5' },
-  headerInner: { width: '100%', maxWidth: 1240, minHeight: 70, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18 },
+  headerInner: { width: '100%', maxWidth: 1240, minHeight: 70, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 18 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   logo: { width: 31, height: 31, borderRadius: 8 },
   brandName: { color: '#102B4E', fontSize: 21, fontWeight: '600', letterSpacing: -0.6 },
   brandAccent: { color: '#1D63ED' },
+  navLinks: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 2 },
+  navLink: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 13, borderRadius: 9 },
+  navLinkText: { color: '#405873', fontSize: 14, fontWeight: '500' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   textButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 10 },
   textButtonLabel: { color: '#34506F', fontSize: 14, fontWeight: '500' },
   headerButton: { minHeight: 43, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 17, borderRadius: 11, backgroundColor: '#1D63ED' },
   headerButtonLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
-  heroSection: { borderBottomWidth: 1, borderBottomColor: '#DDE8F6' },
-  hero: { minHeight: 690, flexDirection: 'row', alignItems: 'center', gap: 58, paddingVertical: 68 },
+  heroSection: { borderBottomWidth: 1, borderBottomColor: '#DCE6F0', backgroundColor: '#F4F8FC' },
+  hero: { minHeight: 664, flexDirection: 'row', alignItems: 'center', gap: 54, paddingVertical: 48 },
   heroStack: { minHeight: 0, flexDirection: 'column', alignItems: 'stretch', gap: 46, paddingVertical: 48 },
   heroCopy: { flex: 0.94, minWidth: 300 },
-  productPill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 999, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D6E3F5' },
+  productPill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 7, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D5E1EE' },
   productPillIcon: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#E9F1FF' },
   productPillText: { color: '#245A9E', fontSize: 11, fontWeight: '600', letterSpacing: 0.9 },
-  heroTitle: { color: '#102B4E', fontSize: 61, lineHeight: 67, fontWeight: '500', letterSpacing: -2.4, marginTop: 24 },
-  heroTitleMobile: { fontSize: 42, lineHeight: 48, letterSpacing: -1.45 },
+  heroTitle: { color: '#102A49', fontSize: 56, lineHeight: 62, fontWeight: '600', letterSpacing: -2.15, marginTop: 22 },
+  heroTitleMobile: { fontSize: 40, lineHeight: 46, letterSpacing: -1.35 },
   heroText: { color: '#516B87', fontSize: 18, lineHeight: 29, maxWidth: 610, marginTop: 20 },
   heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 11, marginTop: 30 },
   primaryButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 21, borderRadius: 12, backgroundColor: '#1D63ED' },
@@ -379,10 +423,53 @@ const styles = StyleSheet.create({
   outlineButtonLabel: { color: '#143A69', fontSize: 15, fontWeight: '500' },
   heroAssurances: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 24 },
   assurance: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  assuranceCheck: { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1E9B69' },
   assuranceText: { color: '#5D728A', fontSize: 13, lineHeight: 18 },
   heroMedia: { flex: 1.06, minWidth: 390 },
   heroMediaStack: { width: '100%', minWidth: 0, maxWidth: 760, alignSelf: 'center' },
+  dispatchFrame: { width: '100%', minHeight: 500, borderRadius: 20, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#C9D6E3', shadowColor: '#163C68', shadowOffset: { width: 0, height: 22 }, shadowOpacity: 0.16, shadowRadius: 36, elevation: 7 },
+  dispatchToolbar: { height: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#E5EBF1', backgroundColor: '#FFFFFF' },
+  dispatchToolbarBrand: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dispatchMark: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2563EB' },
+  dispatchToolbarTitle: { color: '#193653', fontSize: 12, fontWeight: '600' },
+  dispatchToolbarActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dispatchSearch: { minWidth: 118, height: 30, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, borderRadius: 8, backgroundColor: '#F4F7FA', borderWidth: 1, borderColor: '#E5EBF1' },
+  dispatchSearchText: { color: '#8795A5', fontSize: 10 },
+  dispatchAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF1FF' },
+  dispatchAvatarText: { color: '#2258B8', fontSize: 9, fontWeight: '700' },
+  dispatchBody: { minHeight: 410, flexDirection: 'row' },
+  dispatchRail: { width: 178, padding: 13, gap: 9, borderRightWidth: 1, borderRightColor: '#E5EBF1', backgroundColor: '#F9FBFD' },
+  dispatchRailLabel: { color: '#8998A9', fontSize: 8, fontWeight: '700', letterSpacing: 0.9, marginTop: 2 },
+  metricCard: { paddingHorizontal: 11, paddingVertical: 9, borderRadius: 9, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5EBF1' },
+  metricValue: { color: '#173B64', fontSize: 18, fontWeight: '700' },
+  metricLabel: { color: '#708195', fontSize: 9, marginTop: 2 },
+  routeMiniCardActive: { padding: 10, borderRadius: 10, backgroundColor: '#ECF3FF', borderWidth: 1, borderColor: '#BDD2F4' },
+  routeMiniCard: { padding: 10, borderRadius: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5EBF1' },
+  routeMiniTop: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  routeMiniDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#168462' },
+  routeMiniStatus: { color: '#168462', fontSize: 7, fontWeight: '700', letterSpacing: 0.5 },
+  routeMiniTitle: { color: '#223E59', fontSize: 10, fontWeight: '600' },
+  routeMiniMeta: { color: '#7D8B9A', fontSize: 8, marginTop: 3 },
+  dispatchMap: { flex: 1, minWidth: 0, minHeight: 410, overflow: 'hidden', backgroundColor: '#F5F7F8' },
+  mapZoom: { position: 'absolute', top: 12, right: 12, width: 30, borderRadius: 8, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DDE5EC' },
+  mapZoomButton: { height: 27, alignItems: 'center', justifyContent: 'center' },
+  mapZoomDivider: { height: 1, backgroundColor: '#E5EBF1' },
+  mapRouteCard: { position: 'absolute', left: 14, right: 14, bottom: 14, padding: 13, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.97)', borderWidth: 1, borderColor: '#D6E0E9', shadowColor: '#18395D', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 3 },
+  mapRouteHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  mapRouteEyebrow: { color: '#2563EB', fontSize: 8, fontWeight: '700', letterSpacing: 0.7 },
+  mapRouteTitle: { color: '#173B64', fontSize: 13, fontWeight: '700', marginTop: 3 },
+  liveStatus: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7, paddingVertical: 5, borderRadius: 999, backgroundColor: '#E8F6F1' },
+  liveStatusDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#168462' },
+  liveStatusText: { color: '#147455', fontSize: 8, fontWeight: '700' },
+  mapProgressTrack: { height: 5, overflow: 'hidden', borderRadius: 3, backgroundColor: '#E6ECF1', marginTop: 11 },
+  mapProgressFill: { width: '58%', height: '100%', borderRadius: 3, backgroundColor: '#2563EB' },
+  mapRouteFooter: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 7 },
+  mapRouteMeta: { color: '#708195', fontSize: 9 },
+  mapRouteDriver: { color: '#42566B', fontSize: 9, fontWeight: '600' },
+  vehiclePin: { position: 'absolute', left: '57%', top: '39%', width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2563EB', borderWidth: 3, borderColor: '#FFFFFF', shadowColor: '#173B64', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 7, elevation: 4 },
+  dispatchFooter: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: '#E5EBF1', backgroundColor: '#FFFFFF' },
+  dispatchFooterItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  footerStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#168462' },
+  dispatchFooterText: { color: '#718096', fontSize: 9 },
   imageFrame: { height: 500, borderRadius: 27, overflow: 'hidden', backgroundColor: '#D9E7F7', borderWidth: 1, borderColor: '#C9D9EB', shadowColor: '#194274', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.14, shadowRadius: 30, elevation: 5 },
   heroImage: { width: '100%', height: '100%' },
   imageShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(10,38,72,0.08)' },
