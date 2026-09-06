@@ -1207,9 +1207,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               handleHome,
               pathname === "/" || pathname?.includes("route-preview"),
             ) : null}
-            {!isFleetDriver ? renderQuickAction(
-              "briefcase",
-              isBusinessOwner ? "Fleet driver pool" : "Driver Marketplace",
+            {isBusinessOwner ? renderQuickAction(
+              "users",
+              "Fleet driver pool",
               handleMarketplace,
               pathname?.includes("marketplace"),
               marketplaceIndicator,

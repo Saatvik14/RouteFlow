@@ -530,48 +530,18 @@ export default function MarketplaceScreen() {
     );
   }
 
-  // INDEPENDENT DRIVER VIEW (Fallback / Public)
+  // RESTRICTED VIEW FOR INDEPENDENT DRIVERS / NON-FLEET
   return (
     <OperationsShell
       active="marketplace"
-      title="Driver Marketplace"
-      subtitle="Discover open delivery work and place bids."
-      actions={
-        <View style={styles.headerActions}>
-          <ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={manualRefresh} />
-        </View>
-      }
+      title="Fleet Route Pool"
+      subtitle="Internal organization route pool"
     >
-      <View accessibilityRole="tablist" style={styles.tabs}>
-        <Tab label="Open work" count={publicRoutes.length} selected={driverTab === 'available'} onPress={() => setDriverTab('available')} />
-        <Tab label="My bids" count={myBids.length} selected={driverTab === 'my_bids'} onPress={() => setDriverTab('my_bids')} />
-      </View>
-
-      {driverTab === 'available' ? (
-        publicRoutes.length ? (
-          <View style={styles.list}>
-            {publicRoutes.map((route) => (
-              <View key={route.routeId} style={styles.card}>
-                <Text style={styles.cardTitle}>{route.name}</Text>
-                <Text style={styles.eyebrow}>{route.organizationName}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <StatePanel icon="search" title="No public routes available" message="No marketplace routes are currently open for bidding." />
-        )
-      ) : myBids.length ? (
-        <View style={styles.list}>
-          {myBids.map((bid) => (
-            <View key={bid.bidId} style={styles.card}>
-              <Text style={styles.cardTitle}>{bid.route?.name || `Route #${bid.routeId}`}</Text>
-              <Text style={styles.bidAmount}>{money(bid.currency, bid.amount)}</Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <StatePanel icon="inbox" title="No bids yet" message="Your bids will appear here." />
-      )}
+      <StatePanel
+        icon="lock"
+        title="Fleet Route Pool Restricted"
+        message="The route pool is exclusively available for business organizations and their fleet team drivers."
+      />
     </OperationsShell>
   );
 }
