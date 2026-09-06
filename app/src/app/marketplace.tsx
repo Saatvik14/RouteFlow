@@ -844,6 +844,9 @@ function ReviewOptInsModal({
   onClose: () => void;
   onSelectDriver: (driver: RouteOptIn) => void;
 }) {
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 580;
+
   const optedInDrivers = useMemo(
     () => (optInsData?.optIns || []).filter((d) => d.response === 'opt_in'),
     [optInsData]
@@ -857,7 +860,7 @@ function ReviewOptInsModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <Pressable accessibilityLabel="Close candidate modal" onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View accessibilityViewIsModal style={styles.reviewModalCard}>
+        <View accessibilityViewIsModal style={[styles.reviewModalCard, isNarrow && { padding: 16, maxHeight: '90%' }]}>
           <View style={styles.modalHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.modalEyebrow}>FLEET CANDIDATE SELECTION</Text>
@@ -885,27 +888,37 @@ function ReviewOptInsModal({
                   {optedInDrivers.map((driver) => {
                     const isSelected = optInsData?.route?.awardedDriverId === driver.driverUserId;
                     return (
-                      <View key={driver.optInId} style={[styles.candidateCard, isSelected && styles.candidateCardSelected]}>
-                        <View style={styles.avatar}>
-                          <Text style={styles.avatarText}>{driver.driverName?.charAt(0).toUpperCase() || 'D'}</Text>
-                        </View>
-                        <View style={{ flex: 1, minWidth: 160 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={styles.candidateName}>{driver.driverName}</Text>
-                            <View style={styles.optInPill}>
-                              <Text style={styles.optInPillText}>Available</Text>
-                            </View>
+                      <View
+                        key={driver.optInId}
+                        style={[
+                          styles.candidateCard,
+                          isSelected && styles.candidateCardSelected,
+                          isNarrow && { flexDirection: 'column', alignItems: 'stretch', gap: 10 },
+                        ]}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                          <View style={styles.avatar}>
+                            <Text style={styles.avatarText}>{driver.driverName?.charAt(0).toUpperCase() || 'D'}</Text>
                           </View>
-                          <Text style={styles.candidateContact}>
-                            {driver.driverPhone || driver.driverEmail || 'No contact provided'}
-                          </Text>
-                          {driver.notes ? (
-                            <Text style={styles.candidateNote}>“{driver.notes}”</Text>
-                          ) : null}
-                          <Text style={styles.respondedTimeText}>
-                            Responded: {dateTime(driver.respondedAt)}
-                          </Text>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <Text style={styles.candidateName}>{driver.driverName}</Text>
+                              <View style={styles.optInPill}>
+                                <Text style={styles.optInPillText}>Available</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.candidateContact}>
+                              {driver.driverPhone || driver.driverEmail || 'No contact provided'}
+                            </Text>
+                          </View>
                         </View>
+
+                        {driver.notes ? (
+                          <Text style={styles.candidateNote}>“{driver.notes}”</Text>
+                        ) : null}
+                        <Text style={styles.respondedTimeText}>
+                          Responded: {dateTime(driver.respondedAt)}
+                        </Text>
 
                         {isSelected ? (
                           <View style={styles.awardedBadge}>
@@ -917,6 +930,7 @@ function ReviewOptInsModal({
                             compact
                             icon="user-check"
                             label="Select & Assign"
+                            style={isNarrow ? { width: '100%' } : undefined}
                             onPress={() => onSelectDriver(driver)}
                           />
                         )}

@@ -8,8 +8,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { InAppNotification } from '../services/api/notifications';
 
@@ -46,12 +48,15 @@ export function NotificationModal({
   onNotificationPress,
 }: NotificationModalProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isMobile = width < 640;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, isMobile && { padding: 12, paddingBottom: Math.max(insets.bottom + 12, 16) }]}>
         <Pressable accessibilityLabel="Close notifications" onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View accessibilityViewIsModal style={styles.card}>
+        <View accessibilityViewIsModal style={[styles.card, isMobile && { maxHeight: '90%', borderRadius: 16, padding: 16 }]}>
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={styles.iconCircle}>

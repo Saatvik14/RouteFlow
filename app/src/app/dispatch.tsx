@@ -21,6 +21,7 @@ export default function DispatchLandingScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
+  const isMobile = width < 640;
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
 
@@ -42,41 +43,45 @@ export default function DispatchLandingScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Top Header Navbar matching Screenshot 2 */}
+      {/* Top Header Navbar */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
         <View style={styles.headerInner}>
           <Pressable style={styles.logoRow} onPress={() => router.push('/')}>
             <Image source={IMAGES.LOGO} style={styles.logoImage} />
             <Text style={styles.logoText}>
-              Dispatch <Text style={{ color: '#2563EB', fontSize: 14, fontWeight: '600' }}>by RouteFloww</Text>
+              Dispatch {!isMobile ? <Text style={{ color: '#2563EB', fontSize: 14, fontWeight: '600' }}>by RouteFloww</Text> : null}
             </Text>
           </Pressable>
 
           <View style={styles.headerLinks}>
-            <Pressable style={styles.navLink} onPress={() => router.push('/')}>
-              <Text style={styles.navLinkText}>All Products</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.navLink, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}
-              onPress={() => openExternalUrl(LEGAL_URLS.PLAY_STORE_APP)}
-            >
-              <Feather name="download" size={13} color="#16A34A" />
-              <Text style={[styles.navLinkText, { color: '#16A34A', fontWeight: '600' }]}>Get Driver App</Text>
-            </Pressable>
+            {!isMobile ? (
+              <>
+                <Pressable style={styles.navLink} onPress={() => router.push('/')}>
+                  <Text style={styles.navLinkText}>All Products</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.navLink, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}
+                  onPress={() => openExternalUrl(LEGAL_URLS.PLAY_STORE_APP)}
+                >
+                  <Feather name="download" size={13} color="#16A34A" />
+                  <Text style={[styles.navLinkText, { color: '#16A34A', fontWeight: '600' }]}>Get Driver App</Text>
+                </Pressable>
+              </>
+            ) : null}
 
             <Pressable style={styles.loginBtn} onPress={() => router.push('/login')}>
               <Text style={styles.loginBtnText}>Log in</Text>
             </Pressable>
 
             <Pressable style={styles.startTrialBtn} onPress={handleGetStarted}>
-              <Text style={styles.startTrialBtnText}>Start free trial</Text>
+              <Text style={styles.startTrialBtnText}>{isMobile ? 'Free trial' : 'Start free trial'}</Text>
             </Pressable>
           </View>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Main Hero Section matching Screenshot 2 */}
+        {/* Main Hero Section */}
         <View style={[styles.heroContainer, isWide && styles.heroContainerWide]}>
           {/* Left Column: Headline & Email CTA */}
           <View style={[styles.heroLeft, isWide && { flex: 1 }]}>
@@ -89,10 +94,10 @@ export default function DispatchLandingScreen() {
             </Text>
 
             {/* Work Email CTA Form */}
-            <View style={styles.ctaForm}>
-              <View style={styles.inputWrapper}>
+            <View style={[styles.ctaForm, isMobile && { flexDirection: 'column', width: '100%', gap: 10, padding: 6 }]}>
+              <View style={[styles.inputWrapper, isMobile && { width: '100%' }]}>
                 <TextInput
-                  style={styles.emailInput}
+                  style={[styles.emailInput, isMobile && { width: '100%' }]}
                   placeholder="Your work email"
                   placeholderTextColor="#94A3B8"
                   value={email}
@@ -106,7 +111,7 @@ export default function DispatchLandingScreen() {
                 />
               </View>
 
-              <Pressable style={styles.getStartedBtn} onPress={handleGetStarted}>
+              <Pressable style={[styles.getStartedBtn, isMobile && { width: '100%', justifyContent: 'center' }]} onPress={handleGetStarted}>
                 <Text style={styles.getStartedBtnText}>Get started</Text>
               </Pressable>
             </View>

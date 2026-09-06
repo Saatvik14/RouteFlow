@@ -53,7 +53,7 @@ export function AuthShell({ children, wide = false }: { children: ReactNode; wid
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, compact && { paddingHorizontal: 12, paddingVertical: 16 }]}
         >
           <View style={[styles.card, wide && styles.cardWide, compact && styles.cardCompact]}>
             <View style={styles.brandRow}>

@@ -402,10 +402,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const sidebarWidth = useMemo(() => {
     if (width < 640) {
-      return Math.min(Math.max(width * 0.94, 330), 420);
+      return Math.min(Math.max(width * 0.88, 280), 380);
     }
 
-    return Math.min(Math.max(width * 0.3, 350), 400);
+    return Math.min(Math.max(width * 0.3, 320), 400);
   }, [width]);
 
   const completedRoutes = useMemo(
