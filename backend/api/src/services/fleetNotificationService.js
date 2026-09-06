@@ -56,11 +56,24 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
   if (!organizationId || !route) return;
 
   try {
-    // 1. Fetch organization details and all active drivers
+    // 1. Fetch organization details and all active drivers (both from drivers table and organization_memberships)
     const [orgResult, driversResult] = await Promise.all([
       runQuery(`SELECT name FROM organizations WHERE organization_id = $1`, [organizationId]),
       runQuery(
-        `SELECT u.user_id, u.name, u.email
+        `SELECT DISTINCT
+           COALESCE(u.user_id, d.account_user_id) AS user_id,
+           COALESCE(u.name, d.name, 'Fleet Driver') AS name,
+           COALESCE(u.email, d.email) AS email
+         FROM drivers d
+         LEFT JOIN users u ON (u.user_id = d.account_user_id OR (d.email IS NOT NULL AND LOWER(u.email) = LOWER(d.email)))
+         WHERE d.organization_id = $1
+           AND d.is_active = TRUE
+           AND d.removed_at IS NULL
+         UNION
+         SELECT DISTINCT
+           u.user_id,
+           u.name,
+           u.email
          FROM organization_memberships om
          JOIN users u ON u.user_id = om.user_id
          WHERE om.organization_id = $1
@@ -72,6 +85,8 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
 
     const organizationName = orgResult.rows[0]?.name || 'Your fleet organization';
     const drivers = driversResult.rows;
+
+    console.log(`[fleetNotificationService] Found ${drivers.length} active fleet drivers for org ${organizationId}:`, drivers.map(d => ({ id: d.user_id, email: d.email })));
 
     if (!drivers || drivers.length === 0) {
       console.log(`[fleetNotificationService] No active fleet drivers found for org ${organizationId}`);
@@ -98,14 +113,16 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
       organizationName,
     });
 
-    // 2. Batch insert in-app notifications for all active drivers
+    // 2. Batch insert in-app notifications for drivers with user_id
     const insertValues = [];
     const params = [organizationId, title, message, 'fleet_pool_route', notificationData];
 
     drivers.forEach((driver) => {
-      params.push(driver.user_id);
-      const userParamIdx = params.length;
-      insertValues.push(`($${userParamIdx}, $1, $2, $3, $4, $5::jsonb, FALSE, NOW())`);
+      if (driver.user_id) {
+        params.push(driver.user_id);
+        const userParamIdx = params.length;
+        insertValues.push(`($${userParamIdx}, $1, $2, $3, $4, $5::jsonb, FALSE, NOW())`);
+      }
     });
 
     if (insertValues.length > 0) {
@@ -120,34 +137,36 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
     }
 
     // 3. Dispatch Expo Push Notifications to all active drivers with registered devices
-    const driverIds = drivers.map((d) => d.user_id);
-    const pushTokensResult = await runQuery(
-      `SELECT push_token FROM user_push_tokens WHERE user_id = ANY($1::int[])`,
-      [driverIds]
-    );
+    const driverUserIds = drivers.map((d) => d.user_id).filter(Boolean);
+    if (driverUserIds.length > 0) {
+      const pushTokensResult = await runQuery(
+        `SELECT push_token FROM user_push_tokens WHERE user_id = ANY($1::int[])`,
+        [driverUserIds]
+      );
 
-    if (pushTokensResult.rows.length > 0) {
-      const pushMessages = pushTokensResult.rows
-        .map((r) => r.push_token)
-        .filter((token) => token && typeof token === 'string' && (token.startsWith('ExponentPushToken') || token.startsWith('ExpoPushToken')))
-        .map((token) => ({
-          to: token,
-          sound: 'default',
-          title: `New Route in Fleet Pool: ${routeName}`,
-          body: `${organizationName} posted "${routeName}". Opt in before ${deadline}!`,
-          data: {
-            routeId: route.route_id,
-            type: 'fleet_pool_route',
-            screen: 'marketplace',
-          },
-          channelId: 'fleet-routes',
-          priority: 'high',
-        }));
+      if (pushTokensResult.rows.length > 0) {
+        const pushMessages = pushTokensResult.rows
+          .map((r) => r.push_token)
+          .filter((token) => token && typeof token === 'string' && (token.startsWith('ExponentPushToken') || token.startsWith('ExpoPushToken')))
+          .map((token) => ({
+            to: token,
+            sound: 'default',
+            title: `New Route in Fleet Pool: ${routeName}`,
+            body: `${organizationName} posted "${routeName}". Opt in before ${deadline}!`,
+            data: {
+              routeId: route.route_id,
+              type: 'fleet_pool_route',
+              screen: 'marketplace',
+            },
+            channelId: 'fleet-routes',
+            priority: 'high',
+          }));
 
-      if (pushMessages.length > 0) {
-        sendExpoPushNotifications(pushMessages).catch((pushErr) => {
-          console.error('[fleetNotificationService] Background push notification error:', pushErr);
-        });
+        if (pushMessages.length > 0) {
+          sendExpoPushNotifications(pushMessages).catch((pushErr) => {
+            console.error('[fleetNotificationService] Background push notification error:', pushErr);
+          });
+        }
       }
     }
 

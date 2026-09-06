@@ -1,10 +1,15 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { notificationService } from '../api/notifications';
 
 const PUSH_TOKEN_STORAGE_KEY = 'expo_push_token';
+const EAS_PROJECT_ID =
+  Constants?.expoConfig?.extra?.eas?.projectId ??
+  Constants?.easConfig?.projectId ??
+  'da6e074b-2c2f-405b-9e3e-3468536d474a';
 
 // Configure default notification presentation behavior for foreground alerts
 Notifications.setNotificationHandler({
@@ -44,10 +49,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   try {
     await setupNotificationChannels();
 
-    if (!Device.isDevice) {
-      console.log('[PushNotifications] Must use physical device for native Push Notifications');
-    }
-
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -61,8 +62,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
 
-    // Get the Expo push token
-    const tokenResponse = await Notifications.getExpoPushTokenAsync();
+    // Get the Expo push token with explicit projectId
+    const tokenResponse = await Notifications.getExpoPushTokenAsync({
+      projectId: EAS_PROJECT_ID,
+    });
     const pushToken = tokenResponse?.data;
 
     if (pushToken) {
@@ -71,6 +74,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
       // Register with the backend
       await notificationService.registerPushToken(pushToken, Platform.OS, Device.modelName || undefined);
+      console.log('[PushNotifications] Token registered with backend successfully.');
     }
 
     return pushToken;

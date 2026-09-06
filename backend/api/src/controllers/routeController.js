@@ -96,8 +96,21 @@ const createRoute = async (req, res) => {
     cost_currency,
     saveAddressDefault
   } = req.body;
-  const user_id = req.user?.user_id; // Assuming user_id is available from authentication middleware
-  const organization_id = req.organization?.id;
+  const user_id = req.user?.user_id;
+  let organization_id = req.organization?.id;
+  if (!organization_id && user_id) {
+    const orgRes = await runQuery(
+      `SELECT om.organization_id FROM organization_memberships om
+       JOIN organizations o ON o.organization_id = om.organization_id
+       WHERE om.user_id = $1 AND om.status = 'active'
+       ORDER BY CASE om.role WHEN 'owner' THEN 1 WHEN 'admin' THEN 2 ELSE 3 END, om.created_at ASC
+       LIMIT 1`,
+      [user_id]
+    );
+    if (orgRes.rows.length > 0) {
+      organization_id = Number(orgRes.rows[0].organization_id);
+    }
+  }
   if (!user_id) {
     return res.status(401).json({ message: 'User not authenticated.' });
   }

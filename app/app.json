@@ -5,10 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/image.png",
-    "scheme": "app",
+    "scheme": ["routefloww", "routeflow", "app"],
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/image.png",
+      "associatedDomains": [
+        "applinks:routefloww.com"
+      ],
       "config": {
         "googleMapsApiKey": "AIzaSyBbhFTDRhO22qBezZlC1YbHS-z3mviuIPE"
       },
@@ -30,6 +33,26 @@
           "apiKey": "AIzaSyBbhFTDRhO22qBezZlC1YbHS-z3mviuIPE"
         }
       },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "routefloww.com",
+              "pathPrefix": "/marketplace"
+            },
+            {
+              "scheme": "routefloww"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",

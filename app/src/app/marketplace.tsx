@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
+  Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -306,6 +308,54 @@ export default function MarketplaceScreen() {
     );
   }
 
+  const isMobileBrowser =
+    Platform.OS === 'web' &&
+    typeof navigator !== 'undefined' &&
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+
+  const renderMobileAppBanner = () => {
+    if (!isMobileBrowser) return null;
+    return (
+      <View
+        style={{
+          backgroundColor: '#EFF6FF',
+          borderColor: '#BFDBFE',
+          borderWidth: 1,
+          borderRadius: 12,
+          padding: 14,
+          marginBottom: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+          <Feather name="smartphone" size={20} color="#2563EB" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E40AF' }}>Open in RouteFloww App</Text>
+            <Text style={{ fontSize: 11, color: '#3B82F6' }}>View and opt in with push alerts & live GPS</Text>
+          </View>
+        </View>
+        <Pressable
+          onPress={() => {
+            if (typeof window !== 'undefined') {
+              window.location.href = 'routefloww://marketplace';
+            }
+          }}
+          style={{
+            backgroundColor: '#2563EB',
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>Open App</Text>
+        </Pressable>
+      </View>
+    );
+  };
+
   // BUSINESS OWNER VIEW
   if (isBusinessOwner) {
     const activeListings = businessFleetRoutes.filter((r) => r.marketplaceStatus === 'open');
@@ -328,6 +378,7 @@ export default function MarketplaceScreen() {
           </View>
         }
       >
+        {renderMobileAppBanner()}
         <View style={[styles.hero, compact && styles.heroCompact]}>
           <View style={styles.heroCopy}>
             <View style={styles.heroKicker}>
@@ -447,6 +498,7 @@ export default function MarketplaceScreen() {
           </View>
         }
       >
+        {renderMobileAppBanner()}
         <View style={[styles.hero, compact && styles.heroCompact]}>
           <View style={styles.heroCopy}>
             <View style={styles.heroKicker}>

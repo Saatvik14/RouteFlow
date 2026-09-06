@@ -99,6 +99,20 @@ const registerPushToken = async (req, res) => {
 
   const cleanToken = pushToken.trim();
 
+  // Ensure table exists defensively
+  await runQuery(
+    `CREATE TABLE IF NOT EXISTS user_push_tokens (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+      push_token TEXT NOT NULL,
+      platform VARCHAR(32) DEFAULT 'mobile',
+      device_id TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_user_push_token UNIQUE (user_id, push_token)
+    )`
+  ).catch(() => {});
+
   await runQuery(
     `INSERT INTO user_push_tokens (user_id, push_token, platform, device_id, updated_at)
      VALUES ($1, $2, $3, $4, NOW())
@@ -106,6 +120,8 @@ const registerPushToken = async (req, res) => {
      DO UPDATE SET platform = EXCLUDED.platform, device_id = EXCLUDED.device_id, updated_at = NOW()`,
     [userId, cleanToken, String(platform || 'mobile').slice(0, 32), deviceId || null]
   );
+
+  console.log(`[PushToken] Successfully registered push token for user_id=${userId} (platform=${platform || 'mobile'})`);
 
   return res.json({
     success: true,
