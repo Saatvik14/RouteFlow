@@ -648,10 +648,52 @@ export default function RoutePointsScreen() {
   const scheduleMessage = !hasValidRouteWindow
     ? 'End time must be after start time, with a route window of no more than 24 hours.'
     : isPublicMarketplace && !hasPublicLeadTime
-      ? 'Marketplace routes must start at least 30 minutes from now. Bids close 15 minutes before departure.'
+      ? 'Marketplace routes must start at least 30 minutes from now (bids close 15 min before departure). Please update start time or toggle off Marketplace.'
       : isPublicMarketplace && !hasValidPublicCost
         ? 'Enter a maximum driver cost greater than 0, using no more than two decimal places.'
         : '';
+
+  const validationHint = useMemo(() => {
+    if (isSubmitting) return null;
+    if (isFetchingSuggestions) return 'Searching address suggestions...';
+    if (!isStartValid) {
+      if (!startLocation.address.trim()) return 'Please enter or select a start location.';
+      if (!startLocation.selectedFromSuggestion) return 'Please select your start address from the suggestion dropdown.';
+    }
+    if (!isEndValid) {
+      if (!endLocation.address.trim()) return 'Please enter or select an end location.';
+      if (!endLocation.selectedFromSuggestion) return 'Please select your end address from the suggestion dropdown.';
+    }
+    if (!hasValidRouteWindow) {
+      return 'End date & time must be after start date & time (within a 24-hour window).';
+    }
+    if (isPublicMarketplace) {
+      if (!hasPublicLeadTime) {
+        return 'Marketplace routes must start at least 30 minutes from now. Adjust start time or turn off Marketplace.';
+      }
+      if (!hasValidPublicCost) {
+        return 'Please enter a valid maximum driver cost (e.g. 85.00).';
+      }
+      if (selectedDriver) {
+        return 'Cannot assign a specific driver when listing in Marketplace.';
+      }
+    }
+    return null;
+  }, [
+    isSubmitting,
+    isFetchingSuggestions,
+    isStartValid,
+    isEndValid,
+    startLocation.address,
+    startLocation.selectedFromSuggestion,
+    endLocation.address,
+    endLocation.selectedFromSuggestion,
+    hasValidRouteWindow,
+    isPublicMarketplace,
+    hasPublicLeadTime,
+    hasValidPublicCost,
+    selectedDriver,
+  ]);
 
   console.log('[DEBUG canSubmit]', {
     canSubmit,
@@ -1309,7 +1351,7 @@ export default function RoutePointsScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.marketplaceTitle}>List in Driver Marketplace</Text>
-                    <Text style={styles.marketplaceSubtitle}>Independent drivers can view the schedule and place a bid. No driver is assigned until you select one.</Text>
+                    <Text style={styles.marketplaceSubtitle}>Independent drivers can view the schedule and place a bid. Requires route start time to be at least 30 minutes in advance.</Text>
                   </View>
                   <View style={[styles.switchTrack, isPublicMarketplace && styles.switchTrackActive]}>
                     <View style={[styles.switchThumb, isPublicMarketplace && styles.switchThumbActive]} />
@@ -1369,41 +1411,50 @@ export default function RoutePointsScreen() {
               </View>
             ) : null}
 
-            {/* Web Inline Action Row */}
+            {/* Web Validation Hint & Inline Action Row */}
             {isWeb && (
-              <View style={styles.webActionRow}>
-                <Pressable
-                  style={styles.webDefaultRow}
-                  onPress={() => setSaveAsDefault(prev => !prev)}
-                >
-                  <View style={[styles.checkbox, saveAsDefault && styles.checkboxActive]}>
-                    {saveAsDefault ? <Text style={styles.checkText}>✓</Text> : null}
+              <View style={{ marginTop: 24 }}>
+                {!canSubmit && validationHint ? (
+                  <View style={styles.validationHintRow}>
+                    <Feather name="info" size={15} color="#92400E" />
+                    <Text style={styles.validationHintText}>{validationHint}</Text>
                   </View>
-                  <Text style={styles.webDefaultText}>Save as default</Text>
-                </Pressable>
+                ) : null}
 
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <Pressable style={styles.webCancelBtn} onPress={() => router.back()}>
-                    <Text style={styles.webCancelBtnText}>Cancel</Text>
-                  </Pressable>
-
+                <View style={styles.webActionRow}>
                   <Pressable
-                    style={[
-                      styles.webDoneBtn,
-                      !canSubmit && styles.webDoneBtnDisabled,
-                    ]}
-                    disabled={!canSubmit}
-                    onPress={handleDone}
+                    style={styles.webDefaultRow}
+                    onPress={() => setSaveAsDefault(prev => !prev)}
                   >
-                    {isSubmitting ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                      <>
-                        <Text style={styles.webDoneBtnText}>Done</Text>
-                        <Feather name="arrow-right" size={15} color="#FFFFFF" />
-                      </>
-                    )}
+                    <View style={[styles.checkbox, saveAsDefault && styles.checkboxActive]}>
+                      {saveAsDefault ? <Text style={styles.checkText}>✓</Text> : null}
+                    </View>
+                    <Text style={styles.webDefaultText}>Save as default</Text>
                   </Pressable>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Pressable style={styles.webCancelBtn} onPress={() => router.back()}>
+                      <Text style={styles.webCancelBtnText}>Cancel</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[
+                        styles.webDoneBtn,
+                        !canSubmit && styles.webDoneBtnDisabled,
+                      ]}
+                      disabled={!canSubmit}
+                      onPress={handleDone}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                      ) : (
+                        <>
+                          <Text style={styles.webDoneBtnText}>Done</Text>
+                          <Feather name="arrow-right" size={15} color="#FFFFFF" />
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             )}
@@ -1420,6 +1471,13 @@ export default function RoutePointsScreen() {
               },
             ]}
           >
+            {!canSubmit && validationHint ? (
+              <View style={styles.validationHintRow}>
+                <Feather name="info" size={14} color="#92400E" />
+                <Text style={styles.validationHintText}>{validationHint}</Text>
+              </View>
+            ) : null}
+
             <Pressable
               style={[
                 styles.doneButton,
@@ -2795,6 +2853,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  validationHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  validationHintText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#92400E',
+    fontWeight: '500',
   },
 });
 

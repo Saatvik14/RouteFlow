@@ -20,6 +20,14 @@ const {
   reverseGeocode: reverseGeocodeLocation,
   resolvePlaceDetails,
 } = require('../services/locationProviderService');
+const https = require('https');
+
+// Force IPv4 and keepalive to prevent timeouts on cloud hosts
+const httpsAgent = new https.Agent({
+  family: 4,
+  keepAlive: true,
+  timeout: 30000,
+});
 
 // Dynamic import for node-fetch as it is an ESM-only package (v3+)
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -1199,9 +1207,14 @@ const optimizeRoute = async (req, res) => {
         process.env.PHARMDEL_MAPS_API_URL || 'https://routes.pharmdel.com/maps',
         {
           method: 'POST',
+          agent: httpsAgent,
           headers: {
-            'X-API-KEY': process.env.PHARMDEL_API_KEY,
-            Authorization: `Bearer ${process.env.PHARMDEL_TOKEN}`,
+            'User-Agent': 'PostmanRuntime/7.39.0',
+            Accept: '*/*',
+            'Accept-Encoding': 'gzip, deflate, br',
+            Connection: 'keep-alive',
+            'X-API-KEY': process.env.PHARMDEL_API_KEY || '',
+            Authorization: `Bearer ${process.env.PHARMDEL_TOKEN || ''}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload),

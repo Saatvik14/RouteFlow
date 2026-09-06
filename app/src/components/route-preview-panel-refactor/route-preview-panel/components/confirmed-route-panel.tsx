@@ -78,20 +78,61 @@ export function ConfirmedRoutePanel({
 
   const normalizedStatus = String(routeStatus || '').toLowerCase();
   const isReadyToStart =
-    normalizedStatus === 'optimized' || normalizedStatus === 'confirmed';
+    ['optimized', 'confirmed', 'assigned', 'accepted'].includes(normalizedStatus);
 
   const isInTransit = normalizedStatus === 'in_transit';
   const canOpenReorderStops = Boolean(onOpenReorderStops);
   const numericRouteId = Number(routeId);
-  const canAssignDriver = isBusinessOwner && isReadyToStart && Number.isInteger(numericRouteId) && numericRouteId > 0;
+  const canAssignDriver = isBusinessOwner && !isInTransit && Number.isInteger(numericRouteId) && numericRouteId > 0;
+
+  const parseDriverDetails = (data: any): { id: number; name: string } | null => {
+    if (!data) return null;
+    const currentRoute = data.route || data;
+    if (currentRoute.driver && (currentRoute.driver.id || currentRoute.driver.driverId || currentRoute.driver.driver_id)) {
+      const id = Number(currentRoute.driver.id || currentRoute.driver.driverId || currentRoute.driver.driver_id);
+      const name = String(currentRoute.driver.name || currentRoute.driver_name || 'Driver');
+      if (Number.isFinite(id) && id > 0) return { id, name };
+    }
+    if (currentRoute.driver_id || currentRoute.driverId) {
+      const id = Number(currentRoute.driver_id || currentRoute.driverId);
+      const name = String(currentRoute.driver_name || currentRoute.driverName || 'Driver');
+      if (Number.isFinite(id) && id > 0) return { id, name };
+    }
+    return null;
+  };
 
   useEffect(() => {
+    let isCancelled = false;
+
     setAssignedDriver(null);
     setSelectedDriverId(null);
     setAssignmentVersion(0);
     setAssignmentError('');
     setIsAssignmentOpen(false);
-  }, [routeId]);
+
+    if (canAssignDriver) {
+      enterpriseService
+        .getRouteDetail(numericRouteId)
+        .then((routeResponse) => {
+          if (isCancelled) return;
+          if (routeResponse.success && routeResponse.data) {
+            const currentRoute = routeResponse.data.route || routeResponse.data;
+            const currentDriver = parseDriverDetails(currentRoute);
+            const version = Number(currentRoute.assignmentVersion ?? currentRoute.assignment_version ?? 0);
+            setAssignedDriver(currentDriver);
+            setSelectedDriverId(currentDriver?.id || null);
+            setAssignmentVersion(Number.isFinite(version) ? version : 0);
+          }
+        })
+        .catch(() => {
+          // Ignore background load error on mount
+        });
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [routeId, canAssignDriver, numericRouteId]);
 
   const openAssignment = async () => {
     if (!canAssignDriver) return;
@@ -111,14 +152,13 @@ export function ConfirmedRoutePanel({
       setDrivers((teamResponse.data.drivers || []).filter((driver) => driver.active));
     }
 
-    if (routeResponse.success && routeResponse.data?.route) {
-      const currentRoute = routeResponse.data.route;
-      const currentDriver = currentRoute.driver
-        ? { id: Number(currentRoute.driver.id), name: String(currentRoute.driver.name || 'Driver') }
-        : null;
+    if (routeResponse.success && routeResponse.data) {
+      const currentRoute = routeResponse.data.route || routeResponse.data;
+      const currentDriver = parseDriverDetails(currentRoute);
+      const version = Number(currentRoute.assignmentVersion ?? currentRoute.assignment_version ?? 0);
       setAssignedDriver(currentDriver);
       setSelectedDriverId(currentDriver?.id || null);
-      setAssignmentVersion(Number(currentRoute.assignmentVersion || 0));
+      setAssignmentVersion(Number.isFinite(version) ? version : 0);
     } else if (!assignmentError) {
       setAssignmentError(routeResponse.error || 'Route assignment details could not be loaded.');
     }
