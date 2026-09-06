@@ -82,7 +82,18 @@ export default function DriverAssignmentsScreen() {
               <Text style={styles.title}>My routes</Text>
               <Text style={styles.subtitle}>Assigned routes from your dispatcher</Text>
             </View>
-            {!loading ? <View style={styles.countPill}><Text style={styles.countText}>{routes.length}</Text></View> : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open Fleet Route Pool"
+                onPress={() => router.push('/marketplace' as any)}
+                style={styles.poolHeaderButton}
+              >
+                <Feather name="users" size={13} color="#2563EB" />
+                <Text style={styles.poolHeaderButtonText}>Route Pool</Text>
+              </Pressable>
+              {!loading ? <View style={styles.countPill}><Text style={styles.countText}>{routes.length}</Text></View> : null}
+            </View>
           </View>
 
           <ScrollView
@@ -90,12 +101,37 @@ export default function DriverAssignmentsScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom + 24, 32) }]}
           >
+            {/* Quick Link to Fleet Route Pool */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View Fleet Route Pool"
+              onPress={() => router.push('/marketplace' as any)}
+              style={({ pressed }) => [styles.poolBanner, pressed && styles.pressed]}
+            >
+              <View style={styles.poolBannerIcon}>
+                <Feather name="users" size={18} color="#2563EB" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.poolBannerTitle}>Fleet Route Pool</Text>
+                <Text style={styles.poolBannerSubtitle}>View open routes posted for your team and opt in before deadline.</Text>
+              </View>
+              <View style={styles.poolBannerArrow}>
+                <Feather name="arrow-right" size={15} color="#2563EB" />
+              </View>
+            </Pressable>
+
             {loading ? (
               <DriverPanelState icon="loader" title="Loading assignments" message="Checking for routes from dispatch…" loading />
             ) : error ? (
               <DriverPanelState icon="wifi-off" title="Assignments unavailable" message={error} actionLabel="Try again" onAction={() => load()} />
             ) : routes.length === 0 ? (
-              <DriverPanelState icon="truck" title="No routes assigned" message="New assignments will appear here after your dispatcher assigns a route." actionLabel="Refresh" onAction={() => load()} />
+              <DriverPanelState
+                icon="truck"
+                title="No routes assigned"
+                message="New assignments will appear here after your dispatcher assigns a route, or check open work in the route pool."
+                actionLabel="Explore Route Pool"
+                onAction={() => router.push('/marketplace' as any)}
+              />
             ) : (
               <>
                 {groups.active.length ? <RouteSection title="Active now" detail="Continue from your current stop" routes={groups.active} accent onOpen={openRoute} /> : null}
@@ -177,8 +213,49 @@ const styles = StyleSheet.create({
   panelHeaderCopy: { flex: 1, minWidth: 0 },
   title: { color: C.ink, fontSize: 20, lineHeight: 26, fontWeight: '600', letterSpacing: -0.2 },
   subtitle: { color: C.inkMuted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  poolHeaderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: R.pill,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  poolHeaderButtonText: { color: '#2563EB', fontSize: 12, fontWeight: '600' },
   countPill: { minWidth: 30, height: 30, paddingHorizontal: 9, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },
   countText: { color: C.primaryDark, fontSize: 12, fontWeight: '600' },
+  poolBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#F0F7FF',
+    borderWidth: 1,
+    borderColor: '#D0E1FD',
+    marginBottom: 16,
+  },
+  poolBannerIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  poolBannerTitle: { color: '#1E3A8A', fontSize: 14, fontWeight: '600' },
+  poolBannerSubtitle: { color: '#475569', fontSize: 11, marginTop: 2 },
+  poolBannerArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 18 },
   state: { minHeight: 250, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   stateIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primarySoft },

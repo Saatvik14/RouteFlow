@@ -473,6 +473,7 @@ const listFleetPoolRoutes = async (req, res) => {
       organizationId: Number(row.organization_id),
       organizationName: row.organization_name,
       name: row.name,
+      routeName: row.name,
       startAddress: row.start_full_address,
       endAddress: row.end_full_address,
       plannedStart: row.start_datetime,
@@ -481,9 +482,11 @@ const listFleetPoolRoutes = async (req, res) => {
       marketplaceStatus: row.marketplace_status,
       optInCount: Number(row.opt_in_count || 0),
       optOutCount: Number(row.opt_out_count || 0),
-      myResponse: row.my_response || null,
-      myNotes: row.my_notes || null,
-      myResponseAt: row.my_response_at || null,
+      myResponse: row.my_response ? {
+        response: row.my_response,
+        notes: row.my_notes || null,
+        respondedAt: row.my_response_at,
+      } : null,
     })),
   });
 };

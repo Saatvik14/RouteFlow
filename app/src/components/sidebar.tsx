@@ -1194,6 +1194,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               handleAssignedRoutes,
               pathname?.includes("fleet-routes"),
             ) : null}
+            {isFleetDriver ? renderQuickAction(
+              "users",
+              "Fleet route pool",
+              handleMarketplace,
+              pathname?.includes("marketplace"),
+              marketplaceIndicator,
+            ) : null}
             {!isFleetDriver ? renderQuickAction(
               "map",
               "Map workspace",
@@ -1202,7 +1209,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             ) : null}
             {!isFleetDriver ? renderQuickAction(
               "briefcase",
-              "Driver Marketplace",
+              isBusinessOwner ? "Fleet driver pool" : "Driver Marketplace",
               handleMarketplace,
               pathname?.includes("marketplace"),
               marketplaceIndicator,
