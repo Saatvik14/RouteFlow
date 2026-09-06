@@ -1,6 +1,14 @@
 module.exports = ({ config }) => {
-  const androidKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY || '';
-  const iosKey = process.env.GOOGLE_MAPS_IOS_API_KEY || '';
+  const androidKey =
+    process.env.GOOGLE_MAPS_ANDROID_API_KEY ||
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY ||
+    process.env.GOOGLE_MAPS_API_KEY ||
+    '';
+  const iosKey =
+    process.env.GOOGLE_MAPS_IOS_API_KEY ||
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY ||
+    process.env.GOOGLE_MAPS_API_KEY ||
+    '';
 
   return {
     ...config,
