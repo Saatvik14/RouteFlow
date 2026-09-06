@@ -547,6 +547,7 @@ export default function RoutePointsScreen() {
   const [showEndSheet, setShowEndSheet] = useState(false);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [isPublicMarketplace, setIsPublicMarketplace] = useState(false);
+  const [optInDeadlinePreset, setOptInDeadlinePreset] = useState<'15m' | '30m' | '1h' | '2h'>('30m');
   const [maxDriverCost, setMaxDriverCost] = useState('');
   const [costCurrency, setCostCurrency] = useState<'GBP' | 'INR'>('GBP');
 
@@ -1023,26 +1024,36 @@ export default function RoutePointsScreen() {
           ? null
           : buildLocationPayload(endLocation);
 
-   return {
-  // Backend required fields
-  name: routeName,
-  start_location: buildBackendLocationPayload(startLocation, 'Start Location'),
-  end_location: buildBackendLocationPayload(finalEndLocation, 'End Location'),
-  start_datetime: buildDateTimeISOString(startDate, startTime),
-  end_datetime: buildDateTimeISOString(endDate, endTime),
-  driver_id: selectedDriver?.driver_id || null,
-  is_public: isBusinessOwner && isPublicMarketplace,
-  max_driver_cost: isBusinessOwner && isPublicMarketplace ? Number(maxDriverCost) : null,
-  cost_currency: isBusinessOwner && isPublicMarketplace ? costCurrency : null,
+    const startISO = buildDateTimeISOString(startDate, startTime);
+    let computedDeadline: string | null = null;
+    if (startISO && isBusinessOwner && isPublicMarketplace) {
+      const startMs = new Date(startISO).getTime();
+      const offsetMin = optInDeadlinePreset === '15m' ? 15 : optInDeadlinePreset === '1h' ? 60 : optInDeadlinePreset === '2h' ? 120 : 30;
+      computedDeadline = new Date(startMs - offsetMin * 60 * 1000).toISOString();
+    }
 
-  // Extra frontend fields
-  routeName,
-  routeDate,
-  routeDateLabel,
-  carryPastStops,
-  end_mode: endMode,
-  saveAddressDefault: saveAsDefault,
-};
+    return {
+      // Backend required fields
+      name: routeName,
+      start_location: buildBackendLocationPayload(startLocation, 'Start Location'),
+      end_location: buildBackendLocationPayload(finalEndLocation, 'End Location'),
+      start_datetime: startISO,
+      end_datetime: buildDateTimeISOString(endDate, endTime),
+      driver_id: selectedDriver?.driver_id || null,
+      is_public: isBusinessOwner && isPublicMarketplace,
+      marketplace_scope: 'fleet',
+      opt_in_deadline: computedDeadline,
+      max_driver_cost: isBusinessOwner && isPublicMarketplace && maxDriverCost ? Number(maxDriverCost) : null,
+      cost_currency: isBusinessOwner && isPublicMarketplace && maxDriverCost ? costCurrency : null,
+
+      // Extra frontend fields
+      routeName,
+      routeDate,
+      routeDateLabel,
+      carryPastStops,
+      end_mode: endMode,
+      saveAddressDefault: saveAsDefault,
+    };
   };
 
   const handleDone = async () => {
@@ -1333,7 +1344,7 @@ export default function RoutePointsScreen() {
 
             {isBusinessOwner ? (
               <View style={[styles.section, isWeb && styles.webSection]}>
-                <Text style={[styles.sectionTitle, isWeb && styles.webSectionTitle]}>DRIVER MARKETPLACE</Text>
+                <Text style={[styles.sectionTitle, isWeb && styles.webSectionTitle]}>FLEET DRIVER POOL</Text>
                 <Pressable
                   accessibilityRole="switch"
                   accessibilityState={{ checked: isPublicMarketplace }}
@@ -1347,11 +1358,11 @@ export default function RoutePointsScreen() {
                   style={[styles.marketplaceToggle, isPublicMarketplace && styles.marketplaceToggleActive]}
                 >
                   <View style={[styles.marketplaceIcon, isPublicMarketplace && styles.marketplaceIconActive]}>
-                    <Feather name="globe" size={18} color={isPublicMarketplace ? '#FFFFFF' : '#2563EB'} />
+                    <Feather name="users" size={18} color={isPublicMarketplace ? '#FFFFFF' : '#2563EB'} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.marketplaceTitle}>List in Driver Marketplace</Text>
-                    <Text style={styles.marketplaceSubtitle}>Independent drivers can view the schedule and place a bid. Requires route start time to be at least 30 minutes in advance.</Text>
+                    <Text style={styles.marketplaceTitle}>Post to Fleet Driver Pool</Text>
+                    <Text style={styles.marketplaceSubtitle}>Let your fleet drivers opt in or out. You can select and assign any available driver after the deadline.</Text>
                   </View>
                   <View style={[styles.switchTrack, isPublicMarketplace && styles.switchTrackActive]}>
                     <View style={[styles.switchThumb, isPublicMarketplace && styles.switchThumbActive]} />
@@ -1360,32 +1371,38 @@ export default function RoutePointsScreen() {
 
                 {isPublicMarketplace ? (
                   <View style={styles.marketplaceBudgetCard}>
-                    <Text style={styles.marketplaceBudgetLabel}>MAXIMUM DRIVER COST</Text>
-                    <View style={styles.marketplaceBudgetRow}>
-                      <View style={styles.currencyOptions}>
-                        {(['GBP', 'INR'] as const).map((currency) => (
-                          <Pressable
-                            key={currency}
-                            accessibilityRole="radio"
-                            accessibilityState={{ selected: costCurrency === currency }}
-                            onPress={() => setCostCurrency(currency)}
-                            style={[styles.currencyOption, costCurrency === currency && styles.currencyOptionActive]}
+                    <Text style={styles.marketplaceBudgetLabel}>OPT-IN DEADLINE</Text>
+                    <Text style={{ fontSize: 13, color: '#475467', marginBottom: 10 }}>
+                      Deadline for fleet drivers to respond before departure:
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                      {[
+                        { id: '15m', label: '15m before' },
+                        { id: '30m', label: '30m before' },
+                        { id: '1h', label: '1h before' },
+                        { id: '2h', label: '2h before' },
+                      ].map((preset) => (
+                        <Pressable
+                          key={preset.id}
+                          onPress={() => setOptInDeadlinePreset(preset.id as any)}
+                          style={[
+                            styles.currencyOption,
+                            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+                            optInDeadlinePreset === preset.id && styles.currencyOptionActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.currencyOptionText,
+                              optInDeadlinePreset === preset.id && styles.currencyOptionTextActive,
+                            ]}
                           >
-                            <Text style={[styles.currencyOptionText, costCurrency === currency && styles.currencyOptionTextActive]}>{currency}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                      <TextInput
-                        accessibilityLabel="Maximum driver cost"
-                        value={maxDriverCost}
-                        onChangeText={(value) => setMaxDriverCost(value.replace(/[^0-9.]/g, ''))}
-                        keyboardType="decimal-pad"
-                        placeholder="e.g. 85.00"
-                        placeholderTextColor="#98A2B3"
-                        style={styles.marketplaceCostInput}
-                      />
+                            {preset.label}
+                          </Text>
+                        </Pressable>
+                      ))}
                     </View>
-                    <Text style={styles.marketplaceFootnote}>Drivers cannot bid above this amount. Bids close automatically 15 minutes before the start time.</Text>
+                    <Text style={styles.marketplaceFootnote}>Drivers can opt in or opt out until this deadline. You can then award the route to any candidate.</Text>
                   </View>
                 ) : null}
               </View>

@@ -133,23 +133,35 @@ const createRoute = async (req, res) => {
   }
 
   const wantsPublicListing = is_public === true || is_public === 'true';
+  const marketplaceScope = req.body.marketplace_scope === 'public' ? 'public' : 'fleet';
+  let optInDeadline = req.body.opt_in_deadline ? new Date(req.body.opt_in_deadline) : null;
   let publicListing = null;
   try {
     const routeWindow = validateRouteWindow({ startValue: start_datetime, endValue: end_datetime });
     if (wantsPublicListing) {
       const platformRole = String(req.user?.role || '').toUpperCase();
       if (!['BUSINESS_OWNER', 'PLATFORM_ADMIN'].includes(platformRole)) {
-        return res.status(403).json({ message: 'Only business accounts can publish routes to the driver marketplace.' });
+        return res.status(403).json({ message: 'Only business accounts can publish routes to the driver pool.' });
       }
       if (driver_id !== undefined && driver_id !== null && driver_id !== '') {
-        return res.status(400).json({ message: 'A public marketplace route must be unassigned. Remove the selected driver first.' });
+        return res.status(400).json({ message: 'A pooled route must be unassigned. Remove the selected driver first.' });
       }
-      publicListing = buildPublicListing({
-        startValue: routeWindow.start,
-        endValue: routeWindow.end,
-        maxCost: max_driver_cost,
-        currency: cost_currency,
-      });
+
+      if (marketplaceScope === 'public') {
+        publicListing = buildPublicListing({
+          startValue: routeWindow.start,
+          endValue: routeWindow.end,
+          maxCost: max_driver_cost,
+          currency: cost_currency,
+        });
+        if (!optInDeadline || Number.isNaN(optInDeadline.getTime())) {
+          optInDeadline = publicListing.biddingClosesAt;
+        }
+      } else {
+        if (!optInDeadline || Number.isNaN(optInDeadline.getTime())) {
+          optInDeadline = new Date(new Date(routeWindow.start).getTime() - 15 * 60 * 1000);
+        }
+      }
     }
   } catch (error) {
     if (error?.statusCode) {
@@ -206,14 +218,14 @@ const createRoute = async (req, res) => {
       INSERT INTO routes (
         user_id, organization_id, name, start_full_address, end_full_address,
         start_datetime, end_datetime, status, driver_id, assigned_at, assignment_version,
-        is_public, marketplace_status, max_driver_cost, cost_currency,
+        is_public, marketplace_status, marketplace_scope, opt_in_deadline, max_driver_cost, cost_currency,
         bidding_closes_at, marketplace_published_at
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9,
         CASE WHEN $9::integer IS NULL THEN NULL ELSE NOW() END,
         CASE WHEN $9::integer IS NULL THEN 0 ELSE 1 END,
-        $10, $11, $12, $13, $14,
+        $10, $11, $12, $13, $14, $15, $16,
         CASE WHEN $10::boolean THEN NOW() ELSE NULL END
       )
       RETURNING *
@@ -230,9 +242,11 @@ const createRoute = async (req, res) => {
       validatedDriverId,
       wantsPublicListing,
       wantsPublicListing ? 'open' : 'private',
-      publicListing?.maxCost || null,
-      publicListing?.currency || null,
-      publicListing?.biddingClosesAt?.toISOString() || null
+      marketplaceScope,
+      optInDeadline ? optInDeadline.toISOString() : null,
+      publicListing?.maxCost || (max_driver_cost ? Number(max_driver_cost) : null),
+      publicListing?.currency || cost_currency || null,
+      optInDeadline ? optInDeadline.toISOString() : (publicListing?.biddingClosesAt?.toISOString() || null)
     ]);
     // If saveAddressDefault is true, update the user's default addresses in config_model
     if (saveAddressDefault) {

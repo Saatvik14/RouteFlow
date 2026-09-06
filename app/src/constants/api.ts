@@ -179,6 +179,13 @@ export const API_ENDPOINTS = {
     ROUTE_BIDS: (routeId: number) => `/api/marketplace/business/routes/${routeId}/bids`,
     ACCEPT_BID: (bidId: number) => `/api/marketplace/business/bids/${bidId}/accept`,
     CLOSE_LISTING: (routeId: number) => `/api/marketplace/business/routes/${routeId}/close`,
+    // Fleet Opt-In Pool Endpoints
+    FLEET_ROUTES: '/api/marketplace/fleet/routes',
+    FLEET_RESPOND: (routeId: number) => `/api/marketplace/fleet/routes/${routeId}/respond`,
+    FLEET_BUSINESS_ROUTES: '/api/marketplace/fleet/business/routes',
+    FLEET_ROUTE_OPT_INS: (routeId: number) => `/api/marketplace/fleet/business/routes/${routeId}/opt-ins`,
+    FLEET_SELECT_DRIVER: (routeId: number) => `/api/marketplace/fleet/business/routes/${routeId}/select-driver`,
+    FLEET_CLOSE_LISTING: (routeId: number) => `/api/marketplace/fleet/business/routes/${routeId}/close`,
   },
 };
 

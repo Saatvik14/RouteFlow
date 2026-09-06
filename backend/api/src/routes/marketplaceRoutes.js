@@ -23,4 +23,12 @@ router.get('/business/routes/:routeId/bids', asyncHandler(marketplace.listRouteB
 router.post('/business/bids/:bidId/accept', asyncHandler(marketplace.acceptBid));
 router.post('/business/routes/:routeId/close', asyncHandler(marketplace.closeListing));
 
+// Fleet Driver Pool & Opt-In Routes
+router.get('/fleet/routes', asyncHandler(marketplace.listFleetPoolRoutes));
+router.post('/fleet/routes/:routeId/respond', asyncHandler(marketplace.respondToFleetRoute));
+router.get('/fleet/business/routes', asyncHandler(marketplace.listBusinessFleetListings));
+router.get('/fleet/business/routes/:routeId/opt-ins', asyncHandler(marketplace.listRouteOptIns));
+router.post('/fleet/business/routes/:routeId/select-driver', asyncHandler(marketplace.selectDriverForRoute));
+router.post('/fleet/business/routes/:routeId/close', asyncHandler(marketplace.closeListing));
+
 module.exports = router;

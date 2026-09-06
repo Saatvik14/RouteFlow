@@ -28,6 +28,7 @@ const assignRouteWithClient = async (client, {
   expectedVersion = null,
   auditMetadata = {},
   marketplaceBidId = null,
+  allowPoolSelection = false,
 }) => {
   const routeResult = await client.query(
     `SELECT * FROM routes
@@ -40,7 +41,7 @@ const assignRouteWithClient = async (client, {
   }
 
   const current = routeResult.rows[0];
-  if (current.marketplace_status === 'open' && !marketplaceBidId) {
+  if (current.marketplace_status === 'open' && !marketplaceBidId && !allowPoolSelection) {
     throw new HttpError(
       409,
       'MARKETPLACE_ROUTE_REQUIRES_BID',

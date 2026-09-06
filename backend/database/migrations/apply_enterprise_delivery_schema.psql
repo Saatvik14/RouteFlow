@@ -12,3 +12,4 @@
 \ir 20260826_009_add_role_aware_authentication.sql
 \ir 20260901_010_create_driver_marketplace.sql
 \ir 20260904_011_add_delivery_otp_proof.sql
+\ir 20260907_012_fleet_driver_marketplace_opt_in.sql

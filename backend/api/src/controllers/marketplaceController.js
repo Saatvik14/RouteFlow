@@ -435,6 +435,308 @@ const closeListing = async (req, res) => {
   return res.json({ success: true, message: 'Listing closed. The route remains unassigned.' });
 };
 
+// ==========================================
+// Fleet Driver Pool & Opt-In Controller Methods
+// ==========================================
+
+const listFleetPoolRoutes = async (req, res) => {
+  await expireStartedListings();
+  const result = await runQuery(
+    `SELECT r.*, o.name AS organization_name,
+            counts.opt_in_count, counts.opt_out_count,
+            mine.response AS my_response, mine.notes AS my_notes,
+            mine.updated_at AS my_response_at
+     FROM organization_memberships om
+     JOIN organizations o ON o.organization_id = om.organization_id
+     JOIN routes r ON r.organization_id = om.organization_id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*) FILTER (WHERE response = 'opt_in')::integer AS opt_in_count,
+              COUNT(*) FILTER (WHERE response = 'opt_out')::integer AS opt_out_count
+       FROM route_opt_ins WHERE route_id = r.route_id
+     ) counts ON TRUE
+     LEFT JOIN route_opt_ins mine ON mine.route_id = r.route_id AND mine.driver_user_id = $1
+     WHERE om.user_id = $1 AND om.status = 'active' AND om.role = 'driver'
+       AND r.marketplace_status = 'open' AND r.marketplace_scope = 'fleet'
+       AND r.status IN ('draft', 'optimized')
+       AND r.driver_id IS NULL
+       AND (r.opt_in_deadline IS NULL OR r.opt_in_deadline > NOW())
+       AND r.start_datetime > NOW()
+     ORDER BY r.start_datetime ASC, r.created_at DESC
+     LIMIT 250`,
+    [req.user.user_id]
+  );
+
+  return res.json({
+    success: true,
+    routes: result.rows.map((row) => ({
+      routeId: Number(row.route_id),
+      organizationId: Number(row.organization_id),
+      organizationName: row.organization_name,
+      name: row.name,
+      startAddress: row.start_full_address,
+      endAddress: row.end_full_address,
+      plannedStart: row.start_datetime,
+      plannedEnd: row.end_datetime,
+      optInDeadline: row.opt_in_deadline,
+      marketplaceStatus: row.marketplace_status,
+      optInCount: Number(row.opt_in_count || 0),
+      optOutCount: Number(row.opt_out_count || 0),
+      myResponse: row.my_response || null,
+      myNotes: row.my_notes || null,
+      myResponseAt: row.my_response_at || null,
+    })),
+  });
+};
+
+const respondToFleetRoute = async (req, res) => {
+  const routeId = positiveInteger(req.params.routeId, 'routeId');
+  const response = requireString(req.body.response, 'Response', { min: 6, max: 7 }).toLowerCase();
+  if (!['opt_in', 'opt_out'].includes(response)) {
+    throw new HttpError(400, 'INVALID_RESPONSE', 'Response must be either "opt_in" or "opt_out".');
+  }
+  const notes = req.body.notes ? requireString(req.body.notes, 'Notes', { min: 0, max: 500 }) : null;
+
+  const optIn = await withTransaction(async (client) => {
+    const routeResult = await client.query(
+      `SELECT r.*, om.organization_id AS driver_org_id
+       FROM routes r
+       JOIN organization_memberships om
+         ON om.organization_id = r.organization_id
+        AND om.user_id = $2
+        AND om.status = 'active'
+        AND om.role = 'driver'
+       WHERE r.route_id = $1 FOR UPDATE OF r`,
+      [routeId, req.user.user_id]
+    );
+    const route = routeResult.rows[0];
+    if (!route || route.marketplace_status !== 'open' || route.driver_id || !['draft', 'optimized'].includes(route.status)) {
+      throw new HttpError(404, 'ROUTE_NOT_AVAILABLE', 'This route pool listing is no longer open.');
+    }
+    if (route.opt_in_deadline && new Date(route.opt_in_deadline).getTime() <= Date.now()) {
+      throw new HttpError(409, 'DEADLINE_PASSED', 'The opt-in deadline for this route has passed.');
+    }
+    if (new Date(route.start_datetime).getTime() <= Date.now()) {
+      throw new HttpError(409, 'ROUTE_ALREADY_STARTED', 'This route has already started.');
+    }
+
+    const upsertResult = await client.query(
+      `INSERT INTO route_opt_ins (route_id, driver_user_id, organization_id, response, notes, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (route_id, driver_user_id) DO UPDATE
+       SET response = EXCLUDED.response, notes = EXCLUDED.notes, updated_at = NOW()
+       RETURNING *`,
+      [routeId, req.user.user_id, route.organization_id, response, notes]
+    );
+
+    return upsertResult.rows[0];
+  });
+
+  return res.json({
+    success: true,
+    message: response === 'opt_in' ? 'You have opted in for this route.' : 'You have opted out of this route.',
+    optIn: {
+      optInId: Number(optIn.opt_in_id),
+      routeId: Number(optIn.route_id),
+      response: optIn.response,
+      notes: optIn.notes,
+      updatedAt: optIn.updated_at,
+    },
+  });
+};
+
+const listBusinessFleetListings = async (req, res) => {
+  await expireStartedListings();
+  const result = await runQuery(
+    `SELECT r.*, o.name AS organization_name,
+            u.name AS awarded_driver_name,
+            counts.opt_in_count, counts.opt_out_count
+     FROM organization_memberships om
+     JOIN organizations o ON o.organization_id = om.organization_id
+     JOIN routes r ON r.organization_id = om.organization_id AND r.marketplace_status <> 'private' AND r.marketplace_scope = 'fleet'
+     LEFT JOIN users u ON u.user_id = r.awarded_driver_id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*) FILTER (WHERE response = 'opt_in')::integer AS opt_in_count,
+              COUNT(*) FILTER (WHERE response = 'opt_out')::integer AS opt_out_count
+       FROM route_opt_ins WHERE route_id = r.route_id
+     ) counts ON TRUE
+     WHERE om.user_id = $1 AND om.status = 'active' AND om.role = ANY($2::text[])
+     ORDER BY CASE r.marketplace_status WHEN 'open' THEN 1 WHEN 'awarded' THEN 2 ELSE 3 END,
+              r.start_datetime ASC
+     LIMIT 250`,
+    [req.user.user_id, BUSINESS_ROLES]
+  );
+
+  return res.json({
+    success: true,
+    routes: result.rows.map((row) => ({
+      routeId: Number(row.route_id),
+      organizationName: row.organization_name,
+      name: row.name,
+      startAddress: row.start_full_address,
+      endAddress: row.end_full_address,
+      plannedStart: row.start_datetime,
+      plannedEnd: row.end_datetime,
+      optInDeadline: row.opt_in_deadline,
+      marketplaceStatus: row.marketplace_status,
+      optInCount: Number(row.opt_in_count || 0),
+      optOutCount: Number(row.opt_out_count || 0),
+      awardedDriverName: row.awarded_driver_name || null,
+      driverId: row.driver_id ? Number(row.driver_id) : null,
+    })),
+  });
+};
+
+const listRouteOptIns = async (req, res) => {
+  const routeId = positiveInteger(req.params.routeId, 'routeId');
+  await expireStartedListings();
+  await assertBusinessListingAccess({ query: runQuery }, routeId, req.user.user_id);
+
+  const result = await runQuery(
+    `SELECT roi.*, u.name AS driver_name, u.email AS driver_email, u.phone_no AS driver_phone,
+            d.driver_id, d.is_active AS driver_is_active,
+            stats.completed_routes, stats.active_routes
+     FROM route_opt_ins roi
+     JOIN users u ON u.user_id = roi.driver_user_id
+     LEFT JOIN drivers d ON d.account_user_id = roi.driver_user_id AND d.organization_id = roi.organization_id
+     LEFT JOIN LATERAL (
+       SELECT
+         COUNT(DISTINCT r.route_id) FILTER (WHERE r.status = 'completed')::integer AS completed_routes,
+         COUNT(DISTINCT r.route_id) FILTER (WHERE r.status IN ('assigned', 'accepted', 'in_progress'))::integer AS active_routes
+       FROM routes r
+       WHERE r.driver_id = d.driver_id
+     ) stats ON TRUE
+     WHERE roi.route_id = $1
+     ORDER BY CASE roi.response WHEN 'opt_in' THEN 1 ELSE 2 END,
+              roi.is_selected DESC, roi.created_at ASC`,
+    [routeId]
+  );
+
+  return res.json({
+    success: true,
+    optIns: result.rows.map((row) => ({
+      optInId: Number(row.opt_in_id),
+      routeId: Number(row.route_id),
+      driverUserId: Number(row.driver_user_id),
+      driverId: row.driver_id ? Number(row.driver_id) : null,
+      driverName: row.driver_name,
+      driverEmail: row.driver_email,
+      driverPhone: row.driver_phone,
+      response: row.response,
+      notes: row.notes,
+      isSelected: Boolean(row.is_selected),
+      completedRoutes: Number(row.completed_routes || 0),
+      activeRoutes: Number(row.active_routes || 0),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })),
+  });
+};
+
+const selectDriverForRoute = async (req, res) => {
+  const routeId = positiveInteger(req.params.routeId, 'routeId');
+  const driverUserId = positiveInteger(req.body.driverUserId, 'driverUserId');
+
+  const selected = await withTransaction(async (client) => {
+    const lockedRoute = await assertBusinessListingAccess(
+      client,
+      routeId,
+      req.user.user_id,
+      { lock: true }
+    );
+
+    if (lockedRoute.marketplace_status !== 'open' || lockedRoute.driver_id || !['draft', 'optimized'].includes(lockedRoute.status)) {
+      throw new HttpError(409, 'LISTING_NOT_OPEN', 'This route pool listing is no longer open.');
+    }
+
+    if (new Date(lockedRoute.start_datetime).getTime() <= Date.now()) {
+      throw new HttpError(409, 'ROUTE_ALREADY_STARTED', 'This route cannot be assigned because its start time has passed.');
+    }
+
+    // Verify the driver belongs to the organization
+    const memberResult = await client.query(
+      `SELECT om.*, u.name, u.email, u.phone_no
+       FROM organization_memberships om
+       JOIN users u ON u.user_id = om.user_id
+       WHERE om.organization_id = $1 AND om.user_id = $2 AND om.status = 'active' AND om.role = 'driver'`,
+      [lockedRoute.organization_id, driverUserId]
+    );
+    if (!memberResult.rows.length) {
+      throw new HttpError(404, 'DRIVER_NOT_IN_FLEET', 'The selected driver is not an active fleet driver in your organization.');
+    }
+
+    // Find or create driver profile in drivers table
+    let driverResult = await client.query(
+      `SELECT * FROM drivers
+       WHERE organization_id = $1 AND account_user_id = $2 AND removed_at IS NULL
+       FOR UPDATE`,
+      [lockedRoute.organization_id, driverUserId]
+    );
+
+    if (!driverResult.rows.length) {
+      const member = memberResult.rows[0];
+      driverResult = await client.query(
+        `INSERT INTO drivers (
+           organization_id, membership_id, account_user_id,
+           name, email, phone, is_active, permissions,
+           created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7::jsonb, NOW(), NOW())
+         RETURNING *`,
+        [
+          lockedRoute.organization_id,
+          member.membership_id,
+          driverUserId,
+          member.name,
+          member.email,
+          member.phone_no,
+          JSON.stringify(DEFAULT_DRIVER_PERMISSIONS),
+        ]
+      );
+    } else {
+      await client.query(
+        `UPDATE drivers SET is_active = TRUE, removed_at = NULL, deactivated_at = NULL, updated_at = NOW()
+         WHERE driver_id = $1`,
+        [driverResult.rows[0].driver_id]
+      );
+    }
+
+    const assignedDriverId = Number(driverResult.rows[0].driver_id);
+
+    const route = await assignRouteWithClient(client, {
+      organizationId: Number(lockedRoute.organization_id),
+      routeId: Number(routeId),
+      driverId: assignedDriverId,
+      actorUserId: req.user.user_id,
+      allowPoolSelection: true,
+      auditMetadata: { poolSelection: true, selectedDriverUserId: driverUserId },
+    });
+
+    await client.query(
+      `UPDATE route_opt_ins
+       SET is_selected = (driver_user_id = $1), updated_at = NOW()
+       WHERE route_id = $2`,
+      [driverUserId, routeId]
+    );
+
+    await client.query(
+      `UPDATE routes
+       SET marketplace_status = 'awarded', awarded_driver_id = $1,
+           marketplace_closed_at = NOW(), updated_at = NOW()
+       WHERE route_id = $2`,
+      [driverUserId, routeId]
+    );
+
+    return { route, driverName: memberResult.rows[0].name };
+  });
+
+  return res.json({
+    success: true,
+    routeId,
+    driverUserId,
+    driverName: selected.driverName,
+    message: `${selected.driverName} has been assigned to the route.`,
+  });
+};
+
 module.exports = {
   acceptBid,
   closeListing,
@@ -445,4 +747,10 @@ module.exports = {
   listRouteBids,
   placeBid,
   withdrawBid,
+  listFleetPoolRoutes,
+  respondToFleetRoute,
+  listBusinessFleetListings,
+  listRouteOptIns,
+  selectDriverForRoute,
 };
+
