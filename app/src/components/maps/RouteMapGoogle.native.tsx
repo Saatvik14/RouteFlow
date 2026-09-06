@@ -37,10 +37,10 @@ type DisplayMarker = {
 };
 
 const DEFAULT_REGION = {
-  latitude: 28.6139,
-  longitude: 77.209,
-  latitudeDelta: 0.12,
-  longitudeDelta: 0.12,
+  latitude: 54.5,
+  longitude: -2.5,
+  latitudeDelta: 8.5,
+  longitudeDelta: 7.0,
 };
 
 const isValidPoint = (point: RoutePoint) =>
@@ -202,8 +202,7 @@ export default function GoogleRouteMap({
   useEffect(() => {
     if (!mapReady) return;
     if (confirmedRoute) fitRoute();
-    else moveToCurrentLocation();
-  }, [confirmedRoute, fitRoute, mapReady, moveToCurrentLocation]);
+  }, [confirmedRoute, fitRoute, mapReady]);
 
   useEffect(() => {
     if (!mapReady || centerSignal <= 0) return;

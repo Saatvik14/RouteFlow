@@ -87,6 +87,9 @@ const toLatLng = (point: RoutePoint) => ({
   lng: Number(point.longitude),
 });
 
+const UK_CENTER = { lat: 54.5, lng: -2.5 };
+const UK_ZOOM = 6;
+
 export default function GoogleRouteMap({
   mapType = 'standard',
   centerSignal = 0,
@@ -99,7 +102,6 @@ export default function GoogleRouteMap({
   const mapRef = useRef<any>(null);
   const overlaysRef = useRef<any[]>([]);
   const [googleApi, setGoogleApi] = useState<any>(null);
-  const [browserLocation, setBrowserLocation] = useState<RoutePoint | null>(null);
 
   const routePoints = useMemo<RoutePoint[]>(() => {
     if (!confirmedRoute) return [];
@@ -141,8 +143,8 @@ export default function GoogleRouteMap({
         if (!mounted || !containerRef.current) return;
         setGoogleApi(api);
         mapRef.current = new api.maps.Map(containerRef.current, {
-          center: { lat: 28.6139, lng: 77.209 },
-          zoom: 12,
+          center: UK_CENTER,
+          zoom: UK_ZOOM,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
@@ -217,11 +219,10 @@ export default function GoogleRouteMap({
       });
     }
 
-    const visibleUserLocation = userLocation || browserLocation;
-    if (visibleUserLocation && isValidPoint(visibleUserLocation)) {
+    if (userLocation && isValidPoint(userLocation)) {
       const marker = new googleApi.maps.Marker({
         map: mapRef.current,
-        position: toLatLng(visibleUserLocation),
+        position: toLatLng(userLocation),
         title: 'Your position',
         zIndex: 1000,
         icon: {
@@ -241,29 +242,16 @@ export default function GoogleRouteMap({
       const bounds = new googleApi.maps.LatLngBounds();
       routeCoordinates.forEach(point => bounds.extend(toLatLng(point)));
       mapRef.current.fitBounds(bounds, { top: 70, right: 70, bottom: 300, left: 70 });
-    } else if (visibleUserLocation) {
-      mapRef.current.setCenter(toLatLng(visibleUserLocation));
-      mapRef.current.setZoom(14);
+    } else if (isNavigating && userLocation) {
+      mapRef.current.setCenter(toLatLng(userLocation));
+      mapRef.current.setZoom(17);
     }
 
     return () => {
       overlaysRef.current.forEach(overlay => overlay.setMap?.(null));
       overlaysRef.current = [];
     };
-  }, [activeRouteCoordinates, browserLocation, confirmedRoute, googleApi, isOptimized, routeCoordinates, userLocation]);
-
-  useEffect(() => {
-    if (confirmedRoute || userLocation || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      position =>
-        setBrowserLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        }),
-      () => undefined,
-      { enableHighAccuracy: false, timeout: 8000 },
-    );
-  }, [confirmedRoute, userLocation]);
+  }, [activeRouteCoordinates, confirmedRoute, googleApi, isNavigating, isOptimized, routeCoordinates, userLocation]);
 
   useEffect(() => {
     if (!mapRef.current || centerSignal <= 0) return;
@@ -276,11 +264,14 @@ export default function GoogleRouteMap({
       const bounds = new googleApi.maps.LatLngBounds();
       routeCoordinates.forEach(point => bounds.extend(toLatLng(point)));
       mapRef.current.fitBounds(bounds, { top: 70, right: 70, bottom: 300, left: 70 });
-    } else if (userLocation || browserLocation) {
-      mapRef.current.setCenter(toLatLng((userLocation || browserLocation) as RoutePoint));
+    } else if (userLocation) {
+      mapRef.current.setCenter(toLatLng(userLocation));
       mapRef.current.setZoom(14);
+    } else {
+      mapRef.current.setCenter(UK_CENTER);
+      mapRef.current.setZoom(UK_ZOOM);
     }
-  }, [browserLocation, centerSignal, googleApi, isNavigating, routeCoordinates, userLocation]);
+  }, [centerSignal, googleApi, isNavigating, routeCoordinates, userLocation]);
 
   return (
     <View style={styles.container}>

@@ -55,7 +55,7 @@ type MapScreenProps = {
   } | null;
 };
 
-const DEFAULT_CENTER_COORDINATE: [number, number] = [77.209, 28.6139]; // Delhi [lng, lat]
+const DEFAULT_CENTER_COORDINATE: [number, number] = [-2.5, 54.5]; // UK [lng, lat]
 
 const GOOGLE_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED || '').toLowerCase(),
@@ -418,10 +418,8 @@ function MapLibreMapScreen({
     if (!isTokenChecked) return;
     if (confirmedRoute) {
       fitRouteOnMap();
-    } else {
-      moveToCurrentLocation();
     }
-  }, [isTokenChecked, confirmedRoute, fitRouteOnMap, moveToCurrentLocation]);
+  }, [isTokenChecked, confirmedRoute, fitRouteOnMap]);
 
   useEffect(() => {
     if (isNavigating && userLocation) {
@@ -492,7 +490,7 @@ function MapLibreMapScreen({
           ref={cameraRef}
           initialViewState={{
             center: DEFAULT_CENTER_COORDINATE,
-            zoom: 10,
+            zoom: 5.5,
           }}
           maxZoom={18}
         />

@@ -76,9 +76,10 @@ type MapScreenProps = {
 };
 
 const FALLBACK_REGION = {
-  latitude: 28.6139,
-  longitude: 77.209,
+  latitude: 54.5,
+  longitude: -2.5,
 };
+const UK_DEFAULT_ZOOM = 6;
 
 type DisplayMarker = {
   key: string;
@@ -314,7 +315,7 @@ function ChangeMapView({
       return;
     }
 
-    map.setView([position.lat, position.lng], 13);
+    map.setView([position.lat, position.lng], position.lat === FALLBACK_REGION.latitude ? UK_DEFAULT_ZOOM : 13);
   }, [map, position.lat, position.lng, confirmedRoute, routeCoordinates, isNavigating, userLocation]);
 
   useEffect(() => {
@@ -329,11 +330,13 @@ function ChangeMapView({
           paddingTopLeft: [70, 120],
           paddingBottomRight: [70, 390],
         });
+      } else if (userLocation) {
+        map.setView([userLocation.latitude, userLocation.longitude], 14);
       } else {
-        map.setView([position.lat, position.lng], 13);
+        map.setView([position.lat, position.lng], UK_DEFAULT_ZOOM);
       }
     }
-  }, [centerSignal, map, position.lat, position.lng, confirmedRoute, routeCoordinates]);
+  }, [centerSignal, map, position.lat, position.lng, confirmedRoute, routeCoordinates, userLocation]);
 
   return null;
 }
@@ -486,9 +489,7 @@ function LeafletMapScreen({
     }
   }, []);
 
-  useEffect(() => {
-    moveToCurrentLocation();
-  }, [moveToCurrentLocation]);
+  // Do not auto-locate on initial mount so UK overview remains visible until a route is loaded or requested
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !document.getElementById('leaflet-css')) {
@@ -516,7 +517,7 @@ function LeafletMapScreen({
     <View style={styles.container}>
       <MapContainer
         center={[position.lat, position.lng]}
-        zoom={13}
+        zoom={UK_DEFAULT_ZOOM}
         maxZoom={18}
         style={styles.leafletMap}
         zoomControl={false}>

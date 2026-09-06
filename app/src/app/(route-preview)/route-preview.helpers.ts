@@ -16,10 +16,10 @@ import type {
 } from './route-preview.types';
 
 export const DEFAULT_POINT: RoutePoint = {
-  latitude: 28.6139,
-  longitude: 77.209,
-  title: 'Delhi',
-  description: 'Delhi',
+  latitude: 51.5074,
+  longitude: -0.1278,
+  title: 'London',
+  description: 'London, United Kingdom',
 };
 
 export const DEFAULT_STOP_DETAILS: StopDetails = {
