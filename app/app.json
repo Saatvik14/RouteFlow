@@ -9,6 +9,9 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/image.png",
+      "config": {
+        "googleMapsApiKey": "AIzaSyBbhFTDRhO22qBezZlC1YbHS-z3mviuIPE"
+      },
       "infoPlist": {
         "NSFaceIDUsageDescription": "RouteFloww uses Face ID to secure your account and protect your delivery data.",
         "NSSpeechRecognitionUsageDescription": "Allow RouteFloww to use speech recognition.",
@@ -21,6 +24,11 @@
         "foregroundImage": "./assets/images/image.png",
         "backgroundImage": "./assets/images/image.png",
         "monochromeImage": "./assets/images/image.png"
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBbhFTDRhO22qBezZlC1YbHS-z3mviuIPE"
+        }
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

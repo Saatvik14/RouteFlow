@@ -4,8 +4,8 @@ import { StyleSheet, View } from 'react-native';
 import { getActiveRouteCoordinates } from '../../utils/routePolyline';
 import GoogleRouteMap from './RouteMapGoogle.web';
 
-const GOOGLE_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
-  String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED || '').toLowerCase(),
+const GOOGLE_MAPS_ENABLED = !['0', 'false', 'no', 'off'].includes(
+  String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED || 'true').toLowerCase(),
 );
 const TOMTOM_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.EXPO_PUBLIC_TOMTOM_MAPS_ENABLED || '').toLowerCase(),

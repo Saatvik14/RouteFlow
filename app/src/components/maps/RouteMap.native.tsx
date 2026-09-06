@@ -57,12 +57,8 @@ type MapScreenProps = {
 
 const DEFAULT_CENTER_COORDINATE: [number, number] = [-2.5, 54.5]; // UK [lng, lat]
 
-const GOOGLE_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
-  String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED || '').toLowerCase(),
-) && Boolean(
-  Platform.OS === 'ios'
-    ? Constants.expoConfig?.extra?.googleMapsIosConfigured
-    : Constants.expoConfig?.extra?.googleMapsAndroidConfigured,
+const GOOGLE_MAPS_ENABLED = !['0', 'false', 'no', 'off'].includes(
+  String(process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED || 'true').toLowerCase(),
 );
 const TOMTOM_MAPS_ENABLED = ['1', 'true', 'yes', 'on'].includes(
   String(process.env.EXPO_PUBLIC_TOMTOM_MAPS_ENABLED || '').toLowerCase(),
