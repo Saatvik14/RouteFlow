@@ -530,9 +530,12 @@ const completeStop = async (req, res) => {
     if (DELIVERY_PHOTO_PROOF_ENABLED && !photo) {
       throw new HttpError(400, 'PHOTO_PROOF_REQUIRED', 'Take a delivery photo before completing this stop.');
     }
+    // [OPTIONAL STEP COMMENTED OUT] OTP PIN verification is bypassed to keep only Photo & Signature evidence capture
+    /*
     if (DELIVERY_OTP_PROOF_ENABLED && !/^\d{6}$/.test(deliveryOtp)) {
       throw new HttpError(400, 'DELIVERY_OTP_REQUIRED', 'Enter the 6-digit code sent to the recipient.', { field: 'deliveryOtp' });
     }
+    */
   }
   if (['failed', 'reschedule_required'].includes(status) && !FAILURE_REASONS.includes(failureReason)) {
     throw new HttpError(400, 'FAILURE_REASON_REQUIRED', 'Select a valid delivery failure reason.', { field: 'failureReason' });
@@ -565,6 +568,8 @@ const completeStop = async (req, res) => {
         }
       }
 
+      // [OPTIONAL STEP COMMENTED OUT] Customer OTP verification bypassed in favor of Photo + Digital Signature
+      /*
       if (status === 'delivered' && DELIVERY_OTP_PROOF_ENABLED) {
         if (!current.delivery_otp_hash) {
           return {
@@ -618,6 +623,7 @@ const completeStop = async (req, res) => {
           [orderId]
         );
       }
+      */
 
       for (const [proofType, file] of [
         [status === 'delivered' ? 'photo' : 'failure_photo', photo],

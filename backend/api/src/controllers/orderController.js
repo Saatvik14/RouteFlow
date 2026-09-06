@@ -285,12 +285,12 @@ const hasLocationPatch = body => {
 
   return Boolean(
     location &&
-      (
-        hasOwn(location, 'address') ||
-        hasOwn(location, 'full_address') ||
-        hasOwn(location, 'fullAddress') ||
-        (details && Object.keys(details).length > 0)
-      )
+    (
+      hasOwn(location, 'address') ||
+      hasOwn(location, 'full_address') ||
+      hasOwn(location, 'fullAddress') ||
+      (details && Object.keys(details).length > 0)
+    )
   );
 };
 
@@ -368,12 +368,12 @@ const buildLocationData = (
 
   const fullAddress =
     suppliedFullAddress !== undefined &&
-    suppliedFullAddress !== null &&
-    String(suppliedFullAddress).trim() !== ''
+      suppliedFullAddress !== null &&
+      String(suppliedFullAddress).trim() !== ''
       ? String(suppliedFullAddress).trim()
       : generatedFullAddress ||
-        currentLocation.full_address ||
-        null;
+      currentLocation.full_address ||
+      null;
 
   return {
     name: name ?? null,
@@ -579,7 +579,7 @@ const createOrderFromInput = async (body, userEmail) => {
   const packageValue = normalizePositiveInteger(packages, 'packages', 1)
   const stop_type_value = normalizeStopType(stop_type)
   const order_preference_value = normalizeOrderPreference(order_preference)
-  const time_at_stop_value = normalizePositiveInteger(time_at_stop,'time_at_stop',1)
+  const time_at_stop_value = normalizePositiveInteger(time_at_stop, 'time_at_stop', 1)
   const arrival_time_value = normalizeArrivalTime(arrival_time)
 
   const result = await runQuery(
@@ -607,7 +607,7 @@ const createOrderFromInput = async (body, userEmail) => {
       locationId,
       status || ROUTE_STATUS.PENDING,
       route_id,
-      sequence || null ,
+      sequence || null,
       notes ?? null,
       packageValue,
       stop_type_value,
@@ -798,11 +798,11 @@ const buildOrderUpdate = (
     addField(
       'order_details',
       orderDetails.value === null ||
-      orderDetails.value === undefined
+        orderDetails.value === undefined
         ? null
         : serializeJsonField(
-            orderDetails.value
-          )
+          orderDetails.value
+        )
     );
   }
 
@@ -1170,7 +1170,7 @@ const fetchOrdersByRoute = async (req, res) => {
         ordersResult.rows,
         routeResult.rows[0]?.start_datetime
       );
-    
+
     return res
       .status(200)
       .json(stopsWithApproximateEta);
