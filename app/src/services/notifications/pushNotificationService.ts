@@ -27,14 +27,21 @@ Notifications.setNotificationHandler({
  */
 export async function setupNotificationChannels(): Promise<void> {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('fleet-routes', {
-      name: 'Fleet Route Pool Alerts',
-      description: 'Instant alerts when your dispatcher posts a new route to the driver pool',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#2563EB',
-      sound: 'default',
-    });
+    try {
+      await Notifications.setNotificationChannelAsync('fleet-routes', {
+        name: 'Fleet Route Pool Alerts',
+        description: 'Instant alerts when your dispatcher posts a new route to the driver pool',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#2563EB',
+        sound: 'default',
+        enableLights: true,
+        enableVibrate: true,
+        showBadge: true,
+      });
+    } catch (chanErr) {
+      console.warn('[PushNotifications] Channel setup warning:', chanErr);
+    }
   }
 }
 
@@ -62,19 +69,40 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
 
-    // Get the Expo push token with explicit projectId
-    const tokenResponse = await Notifications.getExpoPushTokenAsync({
-      projectId: EAS_PROJECT_ID,
-    });
-    const pushToken = tokenResponse?.data;
+    // Try resolving token with EAS project ID, fallback to default if project ID isn't matched
+    let pushToken: string | null = null;
+    try {
+      const tokenResponse = await Notifications.getExpoPushTokenAsync({
+        projectId: EAS_PROJECT_ID,
+      });
+      pushToken = tokenResponse?.data ?? null;
+    } catch (tokenErr) {
+      console.warn('[PushNotifications] getExpoPushTokenAsync with projectId failed, trying default:', tokenErr);
+      try {
+        const tokenResponse = await Notifications.getExpoPushTokenAsync();
+        pushToken = tokenResponse?.data ?? null;
+      } catch (fallbackErr) {
+        console.error('[PushNotifications] Fallback token retrieval failed:', fallbackErr);
+      }
+    }
 
     if (pushToken) {
       console.log('[PushNotifications] Successfully obtained Expo Push Token:', pushToken);
       await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, pushToken);
 
       // Register with the backend
-      await notificationService.registerPushToken(pushToken, Platform.OS, Device.modelName || undefined);
-      console.log('[PushNotifications] Token registered with backend successfully.');
+      const regResponse = await notificationService.registerPushToken(
+        pushToken,
+        Platform.OS,
+        Device.modelName || Device.deviceName || 'mobile'
+      ).catch((apiErr) => {
+        console.error('[PushNotifications] Failed registering push token on backend:', apiErr);
+        return null;
+      });
+
+      if (regResponse?.success) {
+        console.log('[PushNotifications] Push token registered on backend successfully.');
+      }
     }
 
     return pushToken;

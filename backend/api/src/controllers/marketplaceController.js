@@ -8,7 +8,9 @@ const { positiveInteger, requireString } = require('../utils/validation');
 const isIndependentDriver = (req) => String(req.user?.role || '').toUpperCase() === 'INDEPENDENT_DRIVER';
 
 const assertIndependentDriver = (req) => {
-  throw new HttpError(403, 'MARKETPLACE_RESTRICTED', 'Public driver bidding is disabled. Route pooling is restricted to fleet team drivers.');
+  if (!isIndependentDriver(req)) {
+    throw new HttpError(403, 'INDEPENDENT_DRIVER_REQUIRED', 'Only independent drivers can browse open listings and place bids.');
+  }
 };
 
 const expireStartedListings = () => runQuery(

@@ -36,15 +36,30 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "routefloww"
+            },
+            {
+              "scheme": "routeflow"
+            },
+            {
+              "scheme": "app"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": false,
           "data": [
             {
               "scheme": "https",
               "host": "routefloww.com",
               "pathPrefix": "/marketplace"
-            },
-            {
-              "scheme": "routefloww"
             }
           ],
           "category": [
@@ -59,7 +74,8 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.USE_BIOMETRIC",
         "android.permission.RECORD_AUDIO",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "package": "com.vvdevill.app"
     },
@@ -69,6 +85,13 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/image.png",
+          "color": "#2563EB"
+        }
+      ],
       [
         "expo-splash-screen",
         {

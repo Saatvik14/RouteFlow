@@ -25,6 +25,7 @@ const sendExpoPushNotifications = async (messages) => {
   for (let i = 0; i < messages.length; i += chunkSize) {
     const chunk = messages.slice(i, i + chunkSize);
     try {
+      console.log(`[fleetNotificationService] Dispatching ${chunk.length} Expo push notifications to:`, chunk.map(m => m.to));
       const response = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: {
@@ -40,7 +41,7 @@ const sendExpoPushNotifications = async (messages) => {
         console.error(`[fleetNotificationService] Expo Push API responded with status ${response.status}:`, errorText);
       } else {
         const result = await response.json();
-        console.log(`[fleetNotificationService] Dispatched ${chunk.length} Expo push notifications. Result:`, result?.data?.length || 0, 'tickets.');
+        console.log(`[fleetNotificationService] Dispatched Expo push notifications. Tickets:`, JSON.stringify(result?.data));
       }
     } catch (pushErr) {
       console.error('[fleetNotificationService] Failed sending Expo push notifications:', pushErr?.message || pushErr);
@@ -77,7 +78,7 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
          FROM organization_memberships om
          JOIN users u ON u.user_id = om.user_id
          WHERE om.organization_id = $1
-           AND om.role = 'driver'
+           AND om.role IN ('driver', 'fleet_driver', 'member')
            AND om.status = 'active'`,
         [organizationId]
       ),
@@ -86,7 +87,7 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
     const organizationName = orgResult.rows[0]?.name || 'Your fleet organization';
     const drivers = driversResult.rows;
 
-    console.log(`[fleetNotificationService] Found ${drivers.length} active fleet drivers for org ${organizationId}:`, drivers.map(d => ({ id: d.user_id, email: d.email })));
+    console.log(`[fleetNotificationService] Found ${drivers.length} active fleet drivers for org ${organizationId}:`, drivers.map(d => ({ id: d.user_id, name: d.name, email: d.email })));
 
     if (!drivers || drivers.length === 0) {
       console.log(`[fleetNotificationService] No active fleet drivers found for org ${organizationId}`);
@@ -140,14 +141,16 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
     const driverUserIds = drivers.map((d) => d.user_id).filter(Boolean);
     if (driverUserIds.length > 0) {
       const pushTokensResult = await runQuery(
-        `SELECT push_token FROM user_push_tokens WHERE user_id = ANY($1::int[])`,
+        `SELECT DISTINCT user_id, push_token FROM user_push_tokens WHERE user_id = ANY($1::int[])`,
         [driverUserIds]
       );
+
+      console.log(`[fleetNotificationService] Found ${pushTokensResult.rows.length} push tokens for driver user IDs [${driverUserIds.join(', ')}]`);
 
       if (pushTokensResult.rows.length > 0) {
         const pushMessages = pushTokensResult.rows
           .map((r) => r.push_token)
-          .filter((token) => token && typeof token === 'string' && (token.startsWith('ExponentPushToken') || token.startsWith('ExpoPushToken')))
+          .filter((token) => token && typeof token === 'string' && (token.startsWith('ExponentPushToken') || token.startsWith('ExpoPushToken') || token.includes('ExponentPushToken')))
           .map((token) => ({
             to: token,
             sound: 'default',
@@ -160,6 +163,7 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
             },
             channelId: 'fleet-routes',
             priority: 'high',
+            _displayInForeground: true,
           }));
 
         if (pushMessages.length > 0) {
@@ -182,7 +186,9 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
         + `Start Location: ${startAddress}\n`
         + `End Location: ${endAddress}\n`
         + `Opt-In Deadline: ${deadline}\n\n`
-        + `Log in to RouteFlow to mark your availability (Opt In) or decline.\n\n`
+        + `Open the RouteFloww App on your mobile phone or click below to opt in:\n`
+        + `App Link: routefloww://marketplace\n`
+        + `Web Link: https://routefloww.com/marketplace\n\n`
         + `Best regards,\n${organizationName} Dispatch`;
 
       const emailHtml = `
@@ -203,10 +209,15 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
             </div>
           </div>
 
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="https://routefloww.com/marketplace" style="display: inline-block; background: #2563EB; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; text-decoration: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(37,99,235,0.2);">
-              Open App & Opt In
+          <div style="text-align: center; margin: 28px 0; display: flex; flex-direction: column; gap: 12px; align-items: center;">
+            <a href="routefloww://marketplace" style="display: inline-block; background: #2563EB; color: #FFFFFF; font-weight: 700; font-size: 15px; padding: 14px 32px; text-decoration: none; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37,99,235,0.25);">
+              🚀 Open in RouteFloww App
             </a>
+            <div style="margin-top: 10px;">
+              <a href="https://routefloww.com/marketplace?openApp=true" style="color: #2563EB; font-size: 13px; font-weight: 600; text-decoration: underline;">
+                Or click here to open in browser / mobile web
+              </a>
+            </div>
           </div>
 
           <p style="font-size: 12px; color: #94A3B8; text-align: center; margin: 0;">

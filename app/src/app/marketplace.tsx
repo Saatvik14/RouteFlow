@@ -24,6 +24,7 @@ import {
 } from '../components/operations/operations-ui';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { useUserRole } from '../hooks/useUserRole';
+import { registerForPushNotificationsAsync } from '../services/notifications/pushNotificationService';
 import {
   BusinessFleetListing,
   FleetPoolRoute,
@@ -203,6 +204,24 @@ export default function MarketplaceScreen() {
   useEffect(() => {
     mountedRef.current = true;
     load();
+
+    if (Platform.OS !== 'web') {
+      registerForPushNotificationsAsync().catch(() => {});
+    } else if (typeof window !== 'undefined' && typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '')) {
+      // If opened on mobile browser (from email or link), attempt to launch native app automatically
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('openApp') !== 'false') {
+          const isAndroid = /Android/i.test(navigator.userAgent || '');
+          if (isAndroid) {
+            window.location.href = 'routefloww://marketplace';
+          } else {
+            window.location.href = 'routefloww://marketplace';
+          }
+        }
+      } catch {}
+    }
+
     return () => { mountedRef.current = false; };
   }, [load]);
 
@@ -340,7 +359,15 @@ export default function MarketplaceScreen() {
         <Pressable
           onPress={() => {
             if (typeof window !== 'undefined') {
-              window.location.href = 'routefloww://marketplace';
+              const isAndroid = /Android/i.test(navigator.userAgent || '');
+              if (isAndroid) {
+                window.location.href = 'routefloww://marketplace';
+                setTimeout(() => {
+                  window.location.href = 'intent://marketplace#Intent;scheme=routefloww;package=com.vvdevill.app;end';
+                }, 400);
+              } else {
+                window.location.href = 'routefloww://marketplace';
+              }
             }
           }}
           style={{
