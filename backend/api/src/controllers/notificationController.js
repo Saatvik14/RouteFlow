@@ -86,8 +86,59 @@ const markAllAsRead = async (req, res) => {
   });
 };
 
+/**
+ * Register or update an Expo Push Token for the authenticated user.
+ */
+const registerPushToken = async (req, res) => {
+  const userId = req.user.user_id;
+  const { pushToken, platform, deviceId } = req.body || {};
+
+  if (!pushToken || typeof pushToken !== 'string' || !pushToken.trim()) {
+    throw new HttpError(400, 'INVALID_PUSH_TOKEN', 'A valid pushToken string is required.');
+  }
+
+  const cleanToken = pushToken.trim();
+
+  await runQuery(
+    `INSERT INTO user_push_tokens (user_id, push_token, platform, device_id, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (user_id, push_token)
+     DO UPDATE SET platform = EXCLUDED.platform, device_id = EXCLUDED.device_id, updated_at = NOW()`,
+    [userId, cleanToken, String(platform || 'mobile').slice(0, 32), deviceId || null]
+  );
+
+  return res.json({
+    success: true,
+    message: 'Push token registered successfully.',
+  });
+};
+
+/**
+ * Remove an Expo Push Token on logout or device reset.
+ */
+const unregisterPushToken = async (req, res) => {
+  const userId = req.user.user_id;
+  const { pushToken } = req.body || {};
+
+  if (!pushToken || typeof pushToken !== 'string') {
+    throw new HttpError(400, 'INVALID_PUSH_TOKEN', 'pushToken is required.');
+  }
+
+  await runQuery(
+    `DELETE FROM user_push_tokens WHERE user_id = $1 AND push_token = $2`,
+    [userId, pushToken.trim()]
+  );
+
+  return res.json({
+    success: true,
+    message: 'Push token removed successfully.',
+  });
+};
+
 module.exports = {
   listNotifications,
   markAsRead,
   markAllAsRead,
+  registerPushToken,
+  unregisterPushToken,
 };

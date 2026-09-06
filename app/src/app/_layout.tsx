@@ -19,6 +19,11 @@ import { AnimatedSplashOverlay } from './../components/animated-icon';
 import { SecurityLockScreen } from './../components/security-lock-screen';
 import { fetchAndStoreConfig, restoreAuthToken, setAuthToken, userService } from './../services/api';
 import { getMySubscription } from './../services/api/subscriptionApi';
+import {
+  registerForPushNotificationsAsync,
+  unregisterPushNotificationsAsync,
+  setupNotificationListeners,
+} from './../services/notifications/pushNotificationService';
 
 // Simple Auth Context for demonstration
 const AuthContext = createContext({
@@ -106,6 +111,18 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
 
+  // Setup push notification interaction listeners
+  useEffect(() => {
+    const cleanup = setupNotificationListeners((path) => {
+      if (path) {
+        router.push(path as any);
+      }
+    });
+    return () => {
+      cleanup();
+    };
+  }, [router]);
+
   // Restore auth state on app load
   useEffect(() => {
     const bootstrapAsync = async () => {
@@ -118,6 +135,9 @@ export default function RootLayout() {
             setIsAppLocked(true);
           }
           await fetchAndStoreConfig();
+          registerForPushNotificationsAsync().catch((err) => {
+            console.log('[Push] Registration on startup error:', err);
+          });
         }
       } catch (err) {
         console.error('Failed to restore session', err);
@@ -206,8 +226,12 @@ export default function RootLayout() {
       setIsAppLocked(false);
       fetchAndStoreConfig();
       checkTrial();
+      registerForPushNotificationsAsync().catch((err) => {
+        console.log('[Push] Registration on login error:', err);
+      });
     },
     logout: async () => {
+      await unregisterPushNotificationsAsync().catch(() => {});
       await setAuthToken(null);
       setIsLoggedIn(false);
     },

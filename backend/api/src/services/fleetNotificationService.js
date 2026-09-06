@@ -15,8 +15,42 @@ const formatDateTime = (value) => {
 };
 
 /**
+ * Sends push notification chunks to the official Expo Push Notification API.
+ */
+const sendExpoPushNotifications = async (messages) => {
+  if (!messages || messages.length === 0) return;
+
+  // Expo push service accepts arrays of up to 100 tickets
+  const chunkSize = 100;
+  for (let i = 0; i < messages.length; i += chunkSize) {
+    const chunk = messages.slice(i, i + chunkSize);
+    try {
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Accept-Encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(chunk),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[fleetNotificationService] Expo Push API responded with status ${response.status}:`, errorText);
+      } else {
+        const result = await response.json();
+        console.log(`[fleetNotificationService] Dispatched ${chunk.length} Expo push notifications. Result:`, result?.data?.length || 0, 'tickets.');
+      }
+    } catch (pushErr) {
+      console.error('[fleetNotificationService] Failed sending Expo push notifications:', pushErr?.message || pushErr);
+    }
+  }
+};
+
+/**
  * Notifies all active fleet drivers in the organization about a new route in the fleet pool.
- * Creates both in-app notification records and dispatches email notifications.
+ * Creates in-app notification records, dispatches Expo push notifications, and sends email notifications.
  */
 const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creatorUser }) => {
   if (!organizationId || !route) return;
@@ -68,7 +102,7 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
     const insertValues = [];
     const params = [organizationId, title, message, 'fleet_pool_route', notificationData];
 
-    drivers.forEach((driver, idx) => {
+    drivers.forEach((driver) => {
       params.push(driver.user_id);
       const userParamIdx = params.length;
       insertValues.push(`($${userParamIdx}, $1, $2, $3, $4, $5::jsonb, FALSE, NOW())`);
@@ -85,7 +119,39 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
       console.log(`[fleetNotificationService] Created ${insertValues.length} in-app notifications for org ${organizationId}`);
     }
 
-    // 3. Dispatch Email notifications asynchronously to drivers with email
+    // 3. Dispatch Expo Push Notifications to all active drivers with registered devices
+    const driverIds = drivers.map((d) => d.user_id);
+    const pushTokensResult = await runQuery(
+      `SELECT push_token FROM user_push_tokens WHERE user_id = ANY($1::int[])`,
+      [driverIds]
+    );
+
+    if (pushTokensResult.rows.length > 0) {
+      const pushMessages = pushTokensResult.rows
+        .map((r) => r.push_token)
+        .filter((token) => token && typeof token === 'string' && (token.startsWith('ExponentPushToken') || token.startsWith('ExpoPushToken')))
+        .map((token) => ({
+          to: token,
+          sound: 'default',
+          title: `New Route in Fleet Pool: ${routeName}`,
+          body: `${organizationName} posted "${routeName}". Opt in before ${deadline}!`,
+          data: {
+            routeId: route.route_id,
+            type: 'fleet_pool_route',
+            screen: 'marketplace',
+          },
+          channelId: 'fleet-routes',
+          priority: 'high',
+        }));
+
+      if (pushMessages.length > 0) {
+        sendExpoPushNotifications(pushMessages).catch((pushErr) => {
+          console.error('[fleetNotificationService] Background push notification error:', pushErr);
+        });
+      }
+    }
+
+    // 4. Dispatch Email notifications asynchronously to drivers with email
     const emailDrivers = drivers.filter((d) => d.email && d.email.includes('@'));
     for (const driver of emailDrivers) {
       const firstName = driver.name ? driver.name.split(' ')[0] : 'Driver';

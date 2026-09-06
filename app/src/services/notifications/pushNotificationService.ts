@@ -1,0 +1,127 @@
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { notificationService } from '../api/notifications';
+
+const PUSH_TOKEN_STORAGE_KEY = 'expo_push_token';
+
+// Configure default notification presentation behavior for foreground alerts
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+/**
+ * Configure Android notification channels for high-priority fleet alerts
+ */
+export async function setupNotificationChannels(): Promise<void> {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('fleet-routes', {
+      name: 'Fleet Route Pool Alerts',
+      description: 'Instant alerts when your dispatcher posts a new route to the driver pool',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#2563EB',
+      sound: 'default',
+    });
+  }
+}
+
+/**
+ * Requests notification permissions and registers the Expo Push Token on the backend
+ */
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
+  try {
+    await setupNotificationChannels();
+
+    if (!Device.isDevice) {
+      console.log('[PushNotifications] Must use physical device for native Push Notifications');
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log('[PushNotifications] Permission not granted for push notifications.');
+      return null;
+    }
+
+    // Get the Expo push token
+    const tokenResponse = await Notifications.getExpoPushTokenAsync();
+    const pushToken = tokenResponse?.data;
+
+    if (pushToken) {
+      console.log('[PushNotifications] Successfully obtained Expo Push Token:', pushToken);
+      await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, pushToken);
+
+      // Register with the backend
+      await notificationService.registerPushToken(pushToken, Platform.OS, Device.modelName || undefined);
+    }
+
+    return pushToken;
+  } catch (error) {
+    console.error('[PushNotifications] Error registering for push notifications:', error);
+    return null;
+  }
+}
+
+/**
+ * Unregisters the push token on logout
+ */
+export async function unregisterPushNotificationsAsync(): Promise<void> {
+  if (Platform.OS === 'web') return;
+
+  try {
+    const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_STORAGE_KEY);
+    if (pushToken) {
+      await notificationService.unregisterPushToken(pushToken).catch(() => {});
+      await AsyncStorage.removeItem(PUSH_TOKEN_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.error('[PushNotifications] Error unregistering push token:', error);
+  }
+}
+
+/**
+ * Sets up listeners for incoming notifications and user tap interactions
+ */
+export function setupNotificationListeners(onNavigate?: (screen: string, params?: Record<string, any>) => void) {
+  if (Platform.OS === 'web') {
+    return () => {};
+  }
+
+  // Listener for notifications received while app is foregrounded
+  const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
+    console.log('[PushNotifications] Notification received foreground:', notification.request.content.title);
+  });
+
+  // Listener for user tapping on a notification (from lock screen, background shade, or banner)
+  const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+    const data = response.notification.request.content.data;
+    console.log('[PushNotifications] User tapped notification with data:', data);
+
+    if (data?.screen === 'marketplace' || data?.type === 'fleet_pool_route') {
+      onNavigate?.('/marketplace', { routeId: data?.routeId });
+    }
+  });
+
+  return () => {
+    notificationListener.remove();
+    responseListener.remove();
+  };
+}

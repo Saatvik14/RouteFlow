@@ -1,5 +1,5 @@
 import { API_ENDPOINTS } from '../../constants/api';
-import { apiGet, apiPatch, apiPost } from './client';
+import { apiGet, apiPatch, apiPost, makeRequest } from './client';
 
 export interface InAppNotification {
   notificationId: number;
@@ -33,4 +33,15 @@ export const notificationService = {
     apiPatch<{ success: boolean; message: string }>(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId)),
   markAllAsRead: () =>
     apiPost<{ success: boolean; message: string }>(API_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ),
+  registerPushToken: (pushToken: string, platform?: string, deviceId?: string) =>
+    apiPost<{ success: boolean; message: string }>(API_ENDPOINTS.NOTIFICATIONS.REGISTER_PUSH_TOKEN, {
+      pushToken,
+      platform,
+      deviceId,
+    }),
+  unregisterPushToken: (pushToken: string) =>
+    makeRequest<{ success: boolean; message: string }>(API_ENDPOINTS.NOTIFICATIONS.UNREGISTER_PUSH_TOKEN, {
+      method: 'DELETE',
+      body: { pushToken },
+    }),
 };

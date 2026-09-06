@@ -191,6 +191,8 @@ export const API_ENDPOINTS = {
     LIST: '/api/notifications',
     MARK_READ: (id: number) => `/api/notifications/${id}/read`,
     MARK_ALL_READ: '/api/notifications/read-all',
+    REGISTER_PUSH_TOKEN: '/api/notifications/push-token',
+    UNREGISTER_PUSH_TOKEN: '/api/notifications/push-token',
   },
 };
 
