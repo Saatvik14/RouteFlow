@@ -640,19 +640,16 @@ export default function RoutePointsScreen() {
   const endTimestamp = new Date(buildDateTimeISOString(endDate, endTime)).getTime();
   const routeDurationMs = endTimestamp - startTimestamp;
   const hasValidRouteWindow = Number.isFinite(routeDurationMs) && routeDurationMs > 0 && routeDurationMs <= 24 * 60 * 60 * 1000;
-  const publicCost = Number(maxDriverCost);
-  const hasValidPublicCost = Number.isFinite(publicCost) && publicCost > 0 && publicCost <= 1000000 && Number(publicCost.toFixed(2)) === publicCost;
-  const hasPublicLeadTime = startTimestamp >= Date.now() + 30 * 60 * 1000;
-  const marketplaceFieldsValid = !isPublicMarketplace || (hasValidPublicCost && hasPublicLeadTime && !selectedDriver);
+  const parsedCost = maxDriverCost.trim() ? Number(maxDriverCost) : null;
+  const hasValidDriverCost = parsedCost === null || (Number.isFinite(parsedCost) && parsedCost >= 0 && parsedCost <= 1000000);
+  const marketplaceFieldsValid = !isPublicMarketplace || (hasValidDriverCost && !selectedDriver);
   const canSubmit = isStartValid && isEndValid && hasValidRouteWindow && marketplaceFieldsValid && !isSubmitting && !isFetchingSuggestions;
 
   const scheduleMessage = !hasValidRouteWindow
     ? 'End time must be after start time, with a route window of no more than 24 hours.'
-    : isPublicMarketplace && !hasPublicLeadTime
-      ? 'Marketplace routes must start at least 30 minutes from now (bids close 15 min before departure). Please update start time or toggle off Marketplace.'
-      : isPublicMarketplace && !hasValidPublicCost
-        ? 'Enter a maximum driver cost greater than 0, using no more than two decimal places.'
-        : '';
+    : isPublicMarketplace && !hasValidDriverCost
+      ? 'Please enter a valid driver cost number or leave it blank.'
+      : '';
 
   const validationHint = useMemo(() => {
     if (isSubmitting) return null;
@@ -669,14 +666,11 @@ export default function RoutePointsScreen() {
       return 'End date & time must be after start date & time (within a 24-hour window).';
     }
     if (isPublicMarketplace) {
-      if (!hasPublicLeadTime) {
-        return 'Marketplace routes must start at least 30 minutes from now. Adjust start time or turn off Marketplace.';
-      }
-      if (!hasValidPublicCost) {
-        return 'Please enter a valid maximum driver cost (e.g. 85.00).';
+      if (!hasValidDriverCost) {
+        return 'Please enter a valid driver cost number (e.g. 85.00) or leave it blank.';
       }
       if (selectedDriver) {
-        return 'Cannot assign a specific driver when listing in Marketplace.';
+        return 'A pooled route must be unassigned. Remove the selected driver to use Fleet Pool.';
       }
     }
     return null;
@@ -691,8 +685,7 @@ export default function RoutePointsScreen() {
     endLocation.selectedFromSuggestion,
     hasValidRouteWindow,
     isPublicMarketplace,
-    hasPublicLeadTime,
-    hasValidPublicCost,
+    hasValidDriverCost,
     selectedDriver,
   ]);
 
@@ -1403,6 +1396,36 @@ export default function RoutePointsScreen() {
                       ))}
                     </View>
                     <Text style={styles.marketplaceFootnote}>Drivers can opt in or opt out until this deadline. You can then award the route to any candidate.</Text>
+
+                    <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#DBEAFE' }}>
+                      <Text style={styles.marketplaceBudgetLabel}>DRIVER COST / PAY (OPTIONAL)</Text>
+                      <Text style={{ fontSize: 13, color: '#475467', marginBottom: 10 }}>
+                        Set an optional compensation or rate for the driver assigned to this route:
+                      </Text>
+                      <View style={styles.marketplaceBudgetRow}>
+                        <View style={styles.currencyOptions}>
+                          {(['GBP', 'INR'] as const).map((curr) => (
+                            <Pressable
+                              key={curr}
+                              onPress={() => setCostCurrency(curr)}
+                              style={[styles.currencyOption, costCurrency === curr && styles.currencyOptionActive]}
+                            >
+                              <Text style={[styles.currencyOptionText, costCurrency === curr && styles.currencyOptionTextActive]}>
+                                {curr === 'GBP' ? '£' : '₹'}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                        <TextInput
+                          style={styles.marketplaceCostInput}
+                          placeholder="e.g. 85.00 (Optional)"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="decimal-pad"
+                          value={maxDriverCost}
+                          onChangeText={setMaxDriverCost}
+                        />
+                      </View>
+                    </View>
                   </View>
                 ) : null}
               </View>
