@@ -14,6 +14,7 @@ const { assertRouteReadable, assertRouteMutable } = require('../services/accessC
 const { normalizeRouteState } = require('../services/routeLifecycleService');
 const { buildPublicListing, validateRouteWindow } = require('../services/marketplacePolicyService');
 const { HttpError } = require('../utils/httpError');
+const fleetNotificationService = require('../services/fleetNotificationService');
 const {
   autocomplete: autocompleteLocation,
   geocodeText,
@@ -260,6 +261,20 @@ const createRoute = async (req, res) => {
       );
     }
 
+
+    // If published to fleet pool, notify fleet drivers in background
+    const createdRoute = routeRes.rows[0];
+    if (wantsPublicListing && marketplaceScope === 'fleet' && organization_id) {
+      setImmediate(() => {
+        fleetNotificationService.notifyFleetDriversOfNewPoolRoute({
+          organizationId: organization_id,
+          route: createdRoute,
+          creatorUser: req.user,
+        }).catch((notifErr) => {
+          console.error('[createRoute] Error dispatching fleet notifications:', notifErr);
+        });
+      });
+    }
 
     res.status(201).json({
       message: 'Route created successfully',

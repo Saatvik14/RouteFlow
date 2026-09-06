@@ -13,11 +13,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import RouteMap from '../components/maps/RouteMap';
+import { NotificationModal } from '../components/NotificationModal';
 import { StatusBadge } from '../components/operations/operations-ui';
 import { DraggableRouteSheet } from '../components/route-preview-panel-refactor/route-preview-panel/components/draggable-route-sheet';
 import { Sidebar } from '../components/sidebar';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { DriverAssignment, enterpriseService } from '../services/api/enterprise';
+import { InAppNotification, notificationService } from '../services/api/notifications';
 
 const sameDay = (left: Date, right: Date) => left.toISOString().slice(0, 10) === right.toISOString().slice(0, 10);
 const dateLabel = (value: string) => new Date(value).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -34,6 +36,12 @@ export default function DriverAssignmentsScreen() {
   const [error, setError] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // In-App Notifications State
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [showNotifModal, setShowNotifModal] = useState(false);
+
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
     setError('');
@@ -44,7 +52,46 @@ export default function DriverAssignmentsScreen() {
     setRefreshing(false);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  const loadNotifications = useCallback(async () => {
+    try {
+      const res = await notificationService.getNotifications();
+      if (res.success && res.data) {
+        setNotifications(res.data.notifications || []);
+        setUnreadCount(res.data.unreadCount || 0);
+      }
+    } catch {
+      // Background poll silently fails
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    void loadNotifications();
+    const timer = setInterval(() => {
+      void loadNotifications();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [load, loadNotifications]);
+
+  const handleNotificationPress = async (item: InAppNotification) => {
+    if (!item.isRead) {
+      await notificationService.markAsRead(item.notificationId).catch(() => undefined);
+      setNotifications((prev) =>
+        prev.map((n) => (n.notificationId === item.notificationId ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+    setShowNotifModal(false);
+    if (item.type === 'fleet_pool_route') {
+      router.push('/marketplace' as any);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    await notificationService.markAllAsRead().catch(() => undefined);
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+  };
 
   const groups = useMemo(() => {
     const now = new Date();
@@ -62,6 +109,7 @@ export default function DriverAssignmentsScreen() {
     <View style={styles.root}>
       <RouteMap />
 
+      {/* Menu / Hamburger Button */}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Open navigation"
@@ -73,6 +121,26 @@ export default function DriverAssignmentsScreen() {
           <View style={styles.hamburgerBar} />
           <View style={styles.hamburgerBar} />
         </View>
+      </Pressable>
+
+      {/* Notifications Bell Button */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open notifications"
+        onPress={() => {
+          setShowNotifModal(true);
+          void loadNotifications();
+        }}
+        style={[styles.bellButton, { top: insets.top + 16 }]}
+      >
+        <Feather name="bell" size={20} color="#1E293B" />
+        {unreadCount > 0 ? (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadBadgeText}>
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </Text>
+          </View>
+        ) : null}
       </Pressable>
 
       <DraggableRouteSheet isWide={isWide} initialSnap="middle" collapsedHeight={112}>
@@ -145,6 +213,16 @@ export default function DriverAssignmentsScreen() {
       </DraggableRouteSheet>
 
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+      <NotificationModal
+        visible={showNotifModal}
+        loading={loadingNotifs}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        onClose={() => setShowNotifModal(false)}
+        onMarkAllRead={handleMarkAllRead}
+        onNotificationPress={handleNotificationPress}
+      />
     </View>
   );
 }
@@ -206,6 +284,9 @@ function LocationLine({ icon, label, value }: { icon: any; label: string; value:
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.canvas },
   menuButton: { position: 'absolute', left: 24, zIndex: 80, elevation: 12, width: 58, height: 58, borderRadius: 29, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.16, shadowRadius: 14 },
+  bellButton: { position: 'absolute', right: 24, zIndex: 80, elevation: 12, width: 54, height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.16, shadowRadius: 14 },
+  unreadBadge: { position: 'absolute', top: 8, right: 8, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: '#FFFFFF' },
+  unreadBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   hamburger: { width: 24, gap: 5 },
   hamburgerBar: { width: 24, height: 3, borderRadius: 999, backgroundColor: '#111827' },
   sheetInner: { flex: 1, minHeight: 0, backgroundColor: '#FFFFFF' },

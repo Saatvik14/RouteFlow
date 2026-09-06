@@ -187,6 +187,11 @@ export const API_ENDPOINTS = {
     FLEET_SELECT_DRIVER: (routeId: number) => `/api/marketplace/fleet/business/routes/${routeId}/select-driver`,
     FLEET_CLOSE_LISTING: (routeId: number) => `/api/marketplace/fleet/business/routes/${routeId}/close`,
   },
+  NOTIFICATIONS: {
+    LIST: '/api/notifications',
+    MARK_READ: (id: number) => `/api/notifications/${id}/read`,
+    MARK_ALL_READ: '/api/notifications/read-all',
+  },
 };
 
 /**

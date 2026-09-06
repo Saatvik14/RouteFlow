@@ -511,14 +511,23 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || isFleetDriver) return;
+    if (!isOpen) return;
     let mounted = true;
-    marketplaceService.getSummary().then((response) => {
-      if (!mounted || !response.success) return;
-      const data: any = response.data || {};
-      const count = isBusinessOwner ? data.pending_bids : data.available;
-      setMarketplaceIndicator(Math.max(0, Number(count) || 0));
-    }).catch(() => undefined);
+    if (isFleetDriver) {
+      marketplaceService.getFleetPoolRoutes().then((response) => {
+        if (!mounted || !response.success) return;
+        const poolRoutes = response.data?.routes || [];
+        const unresponded = poolRoutes.filter((r) => !r.myResponse && r.marketplaceStatus === 'open').length;
+        setMarketplaceIndicator(unresponded);
+      }).catch(() => undefined);
+    } else if (isBusinessOwner) {
+      marketplaceService.getBusinessFleetListings().then((response) => {
+        if (!mounted || !response.success) return;
+        const listings = response.data?.routes || [];
+        const totalOptIns = listings.reduce((acc, r) => acc + (r.optInCount || 0), 0);
+        setMarketplaceIndicator(totalOptIns);
+      }).catch(() => undefined);
+    }
     return () => { mounted = false; };
   }, [isBusinessOwner, isFleetDriver, isOpen]);
 
