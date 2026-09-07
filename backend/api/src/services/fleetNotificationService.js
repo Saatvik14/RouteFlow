@@ -78,7 +78,6 @@ const notifyFleetDriversOfNewPoolRoute = async ({ organizationId, route, creator
          FROM organization_memberships om
          JOIN users u ON u.user_id = om.user_id
          WHERE om.organization_id = $1
-           AND om.role IN ('driver', 'fleet_driver', 'member')
            AND om.status = 'active'`,
         [organizationId]
       ),

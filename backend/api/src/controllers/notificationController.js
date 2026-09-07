@@ -151,10 +151,84 @@ const unregisterPushToken = async (req, res) => {
   });
 };
 
+/**
+ * Send an immediate test push notification to the authenticated user's and/or organization's registered devices.
+ */
+const sendTestPushNotification = async (req, res) => {
+  const userId = req.user.user_id;
+
+  // 1. Find user's active organization if any
+  const userOrg = await runQuery(
+    `SELECT organization_id FROM organization_memberships WHERE user_id = $1 AND status = 'active' LIMIT 1`,
+    [userId]
+  );
+  const organizationId = userOrg.rows[0]?.organization_id;
+
+  let query = `SELECT DISTINCT push_token, platform, user_id FROM user_push_tokens WHERE user_id = $1`;
+  let params = [userId];
+
+  if (organizationId) {
+    query = `
+      SELECT DISTINCT upt.push_token, upt.platform, upt.user_id
+      FROM user_push_tokens upt
+      WHERE upt.user_id = $1
+         OR upt.user_id IN (
+           SELECT om.user_id FROM organization_memberships om WHERE om.organization_id = $2 AND om.status = 'active'
+           UNION
+           SELECT d.account_user_id FROM drivers d WHERE d.organization_id = $2 AND d.is_active = TRUE AND d.removed_at IS NULL AND d.account_user_id IS NOT NULL
+         )
+    `;
+    params = [userId, organizationId];
+  }
+
+  const result = await runQuery(query, params);
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({
+      success: false,
+      message: 'No registered mobile devices found in the database for your account or fleet. Open the RouteFloww mobile app on your phone and allow notification permissions first.',
+      registeredTokens: 0,
+    });
+  }
+
+  const tokens = result.rows.map((r) => r.push_token);
+  const messages = tokens.map((token) => ({
+    to: token,
+    sound: 'default',
+    title: '🎉 RouteFloww Test Alert',
+    body: 'Push notifications are connected and working on your device!',
+    data: { screen: 'marketplace', test: true },
+    channelId: 'fleet-routes',
+    priority: 'high',
+    _displayInForeground: true,
+  }));
+
+  const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Accept-Encoding': 'gzip, deflate',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(messages),
+  });
+
+  const responseData = await expoResponse.json().catch(() => ({}));
+
+  return res.json({
+    success: true,
+    message: `Dispatched test push notification to ${tokens.length} registered mobile device(s).`,
+    registeredTokens: tokens.length,
+    tokens: tokens.map((t) => `${t.slice(0, 22)}...`),
+    expoResult: responseData,
+  });
+};
+
 module.exports = {
   listNotifications,
   markAsRead,
   markAllAsRead,
   registerPushToken,
   unregisterPushToken,
+  sendTestPushNotification,
 };

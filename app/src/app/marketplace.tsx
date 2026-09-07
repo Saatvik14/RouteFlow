@@ -25,6 +25,7 @@ import {
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { useUserRole } from '../hooks/useUserRole';
 import { registerForPushNotificationsAsync } from '../services/notifications/pushNotificationService';
+import { notificationService } from '../services/api/notifications';
 import {
   BusinessFleetListing,
   FleetPoolRoute,
@@ -128,6 +129,26 @@ export default function MarketplaceScreen() {
   const [busy, setBusy] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState('');
+  const [testPushLoading, setTestPushLoading] = useState(false);
+  const [pushStatusMessage, setPushStatusMessage] = useState('');
+
+  const handleTestPush = async () => {
+    setTestPushLoading(true);
+    setPushStatusMessage('');
+    try {
+      await registerForPushNotificationsAsync();
+      const response = await notificationService.sendTestPush();
+      if (response.success) {
+        setPushStatusMessage(response.message || 'Test notification sent!');
+      } else {
+        setPushStatusMessage(response.message || 'Could not send test push.');
+      }
+    } catch (err: any) {
+      setPushStatusMessage(err?.message || 'Failed to send test push.');
+    } finally {
+      setTestPushLoading(false);
+    }
+  };
 
   // Fleet Driver State
   const [fleetRoutes, setFleetRoutes] = useState<FleetPoolRoute[]>([]);
@@ -401,11 +422,30 @@ export default function MarketplaceScreen() {
                 {syncError ? 'Sync delayed' : lastUpdatedAt ? `Live · ${formatTimeOnly(lastUpdatedAt.toISOString())}` : 'Live updates'}
               </Text>
             </View>
+            <ActionButton
+              compact
+              variant="quiet"
+              icon="bell"
+              label={testPushLoading ? 'Testing…' : 'Test Push'}
+              loading={testPushLoading}
+              onPress={handleTestPush}
+            />
             <ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={manualRefresh} />
           </View>
         }
       >
         {renderMobileAppBanner()}
+        {pushStatusMessage ? (
+          <View style={{ backgroundColor: '#EFF6FF', borderColor: '#93C5FD', borderWidth: 1, padding: 12, borderRadius: 10, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Feather name="bell" size={16} color="#2563EB" />
+              <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '600', flex: 1 }}>{pushStatusMessage}</Text>
+            </View>
+            <Pressable onPress={() => setPushStatusMessage('')} hitSlop={8}>
+              <Feather name="x" size={16} color="#6B7280" />
+            </Pressable>
+          </View>
+        ) : null}
         <View style={[styles.hero, compact && styles.heroCompact]}>
           <View style={styles.heroCopy}>
             <View style={styles.heroKicker}>
@@ -521,11 +561,30 @@ export default function MarketplaceScreen() {
                 {syncError ? 'Sync delayed' : lastUpdatedAt ? `Live · ${formatTimeOnly(lastUpdatedAt.toISOString())}` : 'Live updates'}
               </Text>
             </View>
+            <ActionButton
+              compact
+              variant="quiet"
+              icon="bell"
+              label={testPushLoading ? 'Testing…' : 'Test Push'}
+              loading={testPushLoading}
+              onPress={handleTestPush}
+            />
             <ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={manualRefresh} />
           </View>
         }
       >
         {renderMobileAppBanner()}
+        {pushStatusMessage ? (
+          <View style={{ backgroundColor: '#EFF6FF', borderColor: '#93C5FD', borderWidth: 1, padding: 12, borderRadius: 10, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <Feather name="bell" size={16} color="#2563EB" />
+              <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '600', flex: 1 }}>{pushStatusMessage}</Text>
+            </View>
+            <Pressable onPress={() => setPushStatusMessage('')} hitSlop={8}>
+              <Feather name="x" size={16} color="#6B7280" />
+            </Pressable>
+          </View>
+        ) : null}
         <View style={[styles.hero, compact && styles.heroCompact]}>
           <View style={styles.heroCopy}>
             <View style={styles.heroKicker}>

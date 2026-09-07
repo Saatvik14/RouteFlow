@@ -193,6 +193,7 @@ export const API_ENDPOINTS = {
     MARK_ALL_READ: '/api/notifications/read-all',
     REGISTER_PUSH_TOKEN: '/api/notifications/push-token',
     UNREGISTER_PUSH_TOKEN: '/api/notifications/push-token',
+    TEST_PUSH: '/api/notifications/test-push',
   },
 };
 

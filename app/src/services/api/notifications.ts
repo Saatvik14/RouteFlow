@@ -44,4 +44,8 @@ export const notificationService = {
       method: 'DELETE',
       body: { pushToken },
     }),
+  sendTestPush: () =>
+    apiPost<{ success: boolean; message: string; registeredTokens: number; tokens?: string[] }>(
+      API_ENDPOINTS.NOTIFICATIONS.TEST_PUSH
+    ),
 };

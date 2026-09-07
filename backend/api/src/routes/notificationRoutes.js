@@ -12,5 +12,6 @@ router.patch('/:id/read', asyncHandler(notificationController.markAsRead));
 router.post('/read-all', asyncHandler(notificationController.markAllAsRead));
 router.post('/push-token', asyncHandler(notificationController.registerPushToken));
 router.delete('/push-token', asyncHandler(notificationController.unregisterPushToken));
+router.post('/test-push', asyncHandler(notificationController.sendTestPushNotification));
 
 module.exports = router;
