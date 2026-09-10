@@ -1149,7 +1149,8 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
               Select how you want to navigate to this stop:
             </Text>
 
-            <Pressable
+            {/* RouteFloww Navigation option commented out */}
+            {/* <Pressable
               style={({ pressed }) => [
                 localStyles.modalOptionButton,
                 localStyles.routeFlowBtn,
@@ -1167,7 +1168,7 @@ export function TransitStopPanel(props: TransitStopPanelProps) {
                 <Text style={localStyles.btnTitleLight}>RouteFloww Navigation</Text>
                 <Text style={localStyles.btnDescLight}>Stay in app with live GPS follow</Text>
               </View>
-            </Pressable>
+            </Pressable> */}
 
             <Pressable
               style={({ pressed }) => [

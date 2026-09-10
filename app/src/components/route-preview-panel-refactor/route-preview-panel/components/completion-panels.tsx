@@ -614,7 +614,8 @@ export function RouteCompletionPromptPanel({
               {end?.title || end?.address || end?.fullAddress || 'Final Destination'}
             </Text>
 
-            <Pressable
+            {/* RouteFloww Navigation option commented out */}
+            {/* <Pressable
               style={({ pressed }) => [
                 navModalStyles.optionButton,
                 navModalStyles.routeflowBtn,
@@ -633,7 +634,7 @@ export function RouteCompletionPromptPanel({
                 <Text style={navModalStyles.btnTitleLight}>RouteFloww Navigation</Text>
                 <Text style={navModalStyles.btnDescLight}>Stay in app with live GPS follow</Text>
               </View>
-            </Pressable>
+            </Pressable> */}
 
             <Pressable
               style={({ pressed }) => [
