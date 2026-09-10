@@ -161,7 +161,7 @@ const sendTestPushNotification = async (req, res) => {
   const orgsRes = await runQuery(
     `SELECT organization_id FROM organization_memberships WHERE user_id = $1 AND status = 'active'
      UNION
-     SELECT organization_id FROM organizations WHERE owner_id = $1
+     SELECT organization_id FROM organizations WHERE legacy_owner_user_id = $1
      UNION
      SELECT organization_id FROM drivers WHERE account_user_id = $1 AND is_active = TRUE AND removed_at IS NULL`,
     [userId]
@@ -177,11 +177,11 @@ const sendTestPushNotification = async (req, res) => {
       FROM user_push_tokens upt
       WHERE upt.user_id = $1
          OR upt.user_id IN (
-           SELECT om.user_id FROM organization_memberships om WHERE om.organization_id = ANY($2::int[]) AND om.status = 'active'
+           SELECT om.user_id FROM organization_memberships om WHERE om.organization_id = ANY($2::bigint[]) AND om.status = 'active'
            UNION
-           SELECT d.account_user_id FROM drivers d WHERE d.organization_id = ANY($2::int[]) AND d.is_active = TRUE AND d.removed_at IS NULL AND d.account_user_id IS NOT NULL
+           SELECT d.account_user_id FROM drivers d WHERE d.organization_id = ANY($2::bigint[]) AND d.is_active = TRUE AND d.removed_at IS NULL AND d.account_user_id IS NOT NULL
            UNION
-           SELECT o.owner_id FROM organizations o WHERE o.organization_id = ANY($2::int[]) AND o.owner_id IS NOT NULL
+           SELECT o.legacy_owner_user_id FROM organizations o WHERE o.organization_id = ANY($2::bigint[]) AND o.legacy_owner_user_id IS NOT NULL
          )
     `;
     params = [userId, organizationIds];
