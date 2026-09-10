@@ -157,34 +157,40 @@ const unregisterPushToken = async (req, res) => {
 const sendTestPushNotification = async (req, res) => {
   const userId = req.user.user_id;
 
-  // 1. Find user's active organization if any
-  const userOrg = await runQuery(
-    `SELECT organization_id FROM organization_memberships WHERE user_id = $1 AND status = 'active' LIMIT 1`,
+  // 1. Find user's active organizations if any (as member, owner, or driver)
+  const orgsRes = await runQuery(
+    `SELECT organization_id FROM organization_memberships WHERE user_id = $1 AND status = 'active'
+     UNION
+     SELECT organization_id FROM organizations WHERE owner_id = $1
+     UNION
+     SELECT organization_id FROM drivers WHERE account_user_id = $1 AND is_active = TRUE AND removed_at IS NULL`,
     [userId]
   );
-  const organizationId = userOrg.rows[0]?.organization_id;
+  const organizationIds = orgsRes.rows.map((r) => r.organization_id).filter(Boolean);
 
   let query = `SELECT DISTINCT push_token, platform, user_id FROM user_push_tokens WHERE user_id = $1`;
   let params = [userId];
 
-  if (organizationId) {
+  if (organizationIds.length > 0) {
     query = `
       SELECT DISTINCT upt.push_token, upt.platform, upt.user_id
       FROM user_push_tokens upt
       WHERE upt.user_id = $1
          OR upt.user_id IN (
-           SELECT om.user_id FROM organization_memberships om WHERE om.organization_id = $2 AND om.status = 'active'
+           SELECT om.user_id FROM organization_memberships om WHERE om.organization_id = ANY($2::int[]) AND om.status = 'active'
            UNION
-           SELECT d.account_user_id FROM drivers d WHERE d.organization_id = $2 AND d.is_active = TRUE AND d.removed_at IS NULL AND d.account_user_id IS NOT NULL
+           SELECT d.account_user_id FROM drivers d WHERE d.organization_id = ANY($2::int[]) AND d.is_active = TRUE AND d.removed_at IS NULL AND d.account_user_id IS NOT NULL
+           UNION
+           SELECT o.owner_id FROM organizations o WHERE o.organization_id = ANY($2::int[]) AND o.owner_id IS NOT NULL
          )
     `;
-    params = [userId, organizationId];
+    params = [userId, organizationIds];
   }
 
   const result = await runQuery(query, params);
 
   if (result.rows.length === 0) {
-    return res.status(404).json({
+    return res.status(200).json({
       success: false,
       message: 'No registered mobile devices found in the database for your account or fleet. Open the RouteFloww mobile app on your phone and allow notification permissions first.',
       registeredTokens: 0,

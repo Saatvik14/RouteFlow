@@ -208,6 +208,9 @@ export default function RootLayout() {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
         checkTrial();
+        if (isLoggedIn) {
+          registerForPushNotificationsAsync().catch(() => {});
+        }
       }
       appStateRef.current = nextAppState;
     });
@@ -215,7 +218,7 @@ export default function RootLayout() {
     return () => {
       subscription.remove();
     };
-  }, [checkTrial]);
+  }, [checkTrial, isLoggedIn]);
 
   const authContext = useMemo(() => ({
     isLoggedIn,

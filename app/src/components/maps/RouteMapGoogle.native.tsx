@@ -193,7 +193,7 @@ export default function GoogleRouteMap({
   }, []);
 
   useEffect(() => {
-    readyTimeoutRef.current = setTimeout(onUnavailable, 10000);
+    readyTimeoutRef.current = setTimeout(onUnavailable, 4000);
     return () => {
       if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
     };
@@ -245,7 +245,6 @@ export default function GoogleRouteMap({
       mapType={nativeMapType}
       showsUserLocation={hasLocationPermission && !userLocation}
       showsMyLocationButton={false}
-      loadingEnabled
       onMapReady={() => {
         if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
         setMapReady(true);

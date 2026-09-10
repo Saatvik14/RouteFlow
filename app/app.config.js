@@ -1,3 +1,7 @@
+try {
+  require('dotenv').config();
+} catch {}
+
 module.exports = ({ config }) => {
   const androidKey =
     process.env.GOOGLE_MAPS_ANDROID_API_KEY ||
