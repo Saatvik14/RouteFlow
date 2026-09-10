@@ -48,72 +48,112 @@ export async function setupNotificationChannels(): Promise<void> {
   }
 }
 
-/**
- * Requests notification permissions and registers the Expo Push Token on the backend
- */
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
+export interface PushDiagnosticResult {
+  isSupported: boolean;
+  permissionStatus: string;
+  projectId: string;
+  pushToken: string | null;
+  backendRegistered: boolean;
+  error?: string;
+}
+
+export async function diagnosePushNotificationsAsync(): Promise<PushDiagnosticResult> {
   if (Platform.OS === 'web') {
-    return null;
+    return {
+      isSupported: false,
+      permissionStatus: 'web_unsupported',
+      projectId: '',
+      pushToken: null,
+      backendRegistered: false,
+      error: 'Push notifications are only supported on physical iOS and Android mobile devices, not on web browsers.',
+    };
   }
 
   try {
     await setupNotificationChannels();
-
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    const { status: permStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = permStatus;
+    if (permStatus !== 'granted') {
+      const { status: reqStatus } = await Notifications.requestPermissionsAsync();
+      finalStatus = reqStatus;
     }
 
     if (finalStatus !== 'granted') {
-      console.log('[PushNotifications] Permission not granted for push notifications (status=' + finalStatus + ').');
-      return null;
+      return {
+        isSupported: true,
+        permissionStatus: finalStatus,
+        projectId: getProjectId(),
+        pushToken: null,
+        backendRegistered: false,
+        error: `Notification permission is "${finalStatus}". Please enable notifications in your phone Settings -> Apps -> RouteFloww.`,
+      };
     }
 
     const projectId = getProjectId();
     let pushToken: string | null = null;
+    let tokenError = '';
 
     try {
       const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
       pushToken = tokenResponse?.data ?? null;
     } catch (tokenErr: any) {
-      console.warn('[PushNotifications] getExpoPushTokenAsync with projectId failed:', tokenErr?.message || tokenErr);
+      tokenError = tokenErr?.message || String(tokenErr);
       try {
         const tokenResponse = await Notifications.getExpoPushTokenAsync();
         pushToken = tokenResponse?.data ?? null;
       } catch (fallbackErr: any) {
-        console.error('[PushNotifications] Fallback token retrieval failed:', fallbackErr?.message || fallbackErr);
+        tokenError = `${tokenError} | Fallback: ${fallbackErr?.message || String(fallbackErr)}`;
       }
     }
 
-    if (pushToken) {
-      console.log('[PushNotifications] Successfully obtained Expo Push Token:', pushToken);
-      await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, pushToken);
-
-      // Register with the backend
-      const regResponse = await notificationService.registerPushToken(
-        pushToken,
-        Platform.OS,
-        Device.modelName || Device.deviceName || 'mobile'
-      ).catch((apiErr) => {
-        console.error('[PushNotifications] Failed registering push token on backend:', apiErr);
-        return null;
-      });
-
-      if (regResponse?.success) {
-        console.log('[PushNotifications] Push token registered on backend successfully.');
-      }
-    } else {
-      console.warn('[PushNotifications] No push token generated.');
+    if (!pushToken) {
+      return {
+        isSupported: true,
+        permissionStatus: finalStatus,
+        projectId,
+        pushToken: null,
+        backendRegistered: false,
+        error: `Could not generate push token: ${tokenError || 'Unknown error'}. Ensure Google Play Services are active.`,
+      };
     }
 
-    return pushToken;
-  } catch (error: any) {
-    console.error('[PushNotifications] Error registering for push notifications:', error?.message || error);
-    return null;
+    await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, pushToken);
+
+    // Register on backend
+    const regResponse = await notificationService.registerPushToken(
+      pushToken,
+      Platform.OS,
+      Device.modelName || Device.deviceName || 'mobile'
+    ).catch((apiErr: any) => {
+      return { success: false, message: apiErr?.message || 'Network error registering push token on backend' };
+    });
+
+    return {
+      isSupported: true,
+      permissionStatus: finalStatus,
+      projectId,
+      pushToken,
+      backendRegistered: Boolean(regResponse?.success),
+      error: regResponse?.success ? undefined : (regResponse?.message || 'Failed to save push token to server database.'),
+    };
+  } catch (err: any) {
+    return {
+      isSupported: true,
+      permissionStatus: 'error',
+      projectId: getProjectId(),
+      pushToken: null,
+      backendRegistered: false,
+      error: err?.message || String(err),
+    };
   }
+}
+
+/**
+ * Requests notification permissions and registers the Expo Push Token on the backend
+ */
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  const result = await diagnosePushNotificationsAsync();
+  return result.pushToken;
 }
 
 /**

@@ -24,7 +24,7 @@ import {
 } from '../components/operations/operations-ui';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { useUserRole } from '../hooks/useUserRole';
-import { registerForPushNotificationsAsync } from '../services/notifications/pushNotificationService';
+import { diagnosePushNotificationsAsync, registerForPushNotificationsAsync } from '../services/notifications/pushNotificationService';
 import { notificationService } from '../services/api/notifications';
 import {
   BusinessFleetListing,
@@ -137,9 +137,11 @@ export default function MarketplaceScreen() {
     setPushStatusMessage('');
     try {
       if (Platform.OS !== 'web') {
-        const token = await registerForPushNotificationsAsync();
-        if (!token) {
-          setPushStatusMessage('Could not obtain push token from device. Ensure notification permissions are allowed in system settings.');
+        const diag = await diagnosePushNotificationsAsync();
+        if (!diag.pushToken || !diag.backendRegistered) {
+          setPushStatusMessage(diag.error || `Push setup issue. Token: ${diag.pushToken ? 'Generated' : 'Failed'}, Saved to server: ${diag.backendRegistered ? 'Yes' : 'No'}`);
+          setTestPushLoading(false);
+          return;
         }
       }
       const response = await notificationService.sendTestPush();

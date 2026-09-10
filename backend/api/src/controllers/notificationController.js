@@ -121,6 +121,28 @@ const registerPushToken = async (req, res) => {
     [userId, cleanToken, String(platform || 'mobile').slice(0, 32), deviceId || null]
   );
 
+  // Auto-link driver row and organization membership if not linked yet
+  if (req.user?.email) {
+    await runQuery(
+      `UPDATE drivers
+       SET account_user_id = $1
+       WHERE account_user_id IS NULL
+         AND email IS NOT NULL
+         AND LOWER(email) = LOWER($2)`,
+      [userId, req.user.email]
+    ).catch(() => {});
+
+    await runQuery(
+      `INSERT INTO organization_memberships (organization_id, user_id, role, status, joined_at)
+       SELECT d.organization_id, $1, 'driver', 'active', NOW()
+       FROM drivers d
+       WHERE d.account_user_id = $1 AND d.organization_id IS NOT NULL AND d.is_active = TRUE
+       ON CONFLICT (organization_id, user_id) DO UPDATE
+       SET status = 'active', updated_at = NOW()`,
+      [userId]
+    ).catch(() => {});
+  }
+
   console.log(`[PushToken] Successfully registered push token for user_id=${userId} (platform=${platform || 'mobile'})`);
 
   return res.json({
@@ -180,6 +202,8 @@ const sendTestPushNotification = async (req, res) => {
            SELECT om.user_id FROM organization_memberships om WHERE om.organization_id = ANY($2::bigint[]) AND om.status = 'active'
            UNION
            SELECT d.account_user_id FROM drivers d WHERE d.organization_id = ANY($2::bigint[]) AND d.is_active = TRUE AND d.removed_at IS NULL AND d.account_user_id IS NOT NULL
+           UNION
+           SELECT u.user_id FROM drivers d JOIN users u ON (d.email IS NOT NULL AND LOWER(u.email) = LOWER(d.email)) WHERE d.organization_id = ANY($2::bigint[]) AND d.is_active = TRUE AND d.removed_at IS NULL
            UNION
            SELECT o.legacy_owner_user_id FROM organizations o WHERE o.organization_id = ANY($2::bigint[]) AND o.legacy_owner_user_id IS NOT NULL
          )
