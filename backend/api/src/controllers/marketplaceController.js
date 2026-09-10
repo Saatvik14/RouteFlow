@@ -13,21 +13,35 @@ const assertIndependentDriver = (req) => {
   }
 };
 
-const expireStartedListings = () => runQuery(
-  `WITH expired_routes AS (
-     UPDATE routes
-     SET is_public = FALSE, marketplace_status = 'closed',
-         marketplace_closed_at = NOW(), updated_at = NOW()
-     WHERE marketplace_status = 'open'
-       AND marketplace_scope = 'public'
-       AND start_datetime <= NOW()
-     RETURNING route_id
-   )
-   UPDATE route_bids rb
-   SET status = 'expired', decided_at = NOW(), updated_at = NOW()
-   FROM expired_routes er
-   WHERE rb.route_id = er.route_id AND rb.status = 'pending'`
-);
+const expireStartedListings = async () => {
+  // 1. Expire past public bidding routes
+  await runQuery(
+    `WITH expired_routes AS (
+       UPDATE routes
+       SET is_public = FALSE, marketplace_status = 'closed',
+           marketplace_closed_at = NOW(), updated_at = NOW()
+       WHERE marketplace_status = 'open'
+         AND marketplace_scope = 'public'
+         AND start_datetime <= NOW()
+       RETURNING route_id
+     )
+     UPDATE route_bids rb
+     SET status = 'expired', decided_at = NOW(), updated_at = NOW()
+     FROM expired_routes er
+     WHERE rb.route_id = er.route_id AND rb.status = 'pending'`
+  );
+
+  // 2. Re-open any unassigned fleet pool routes that were prematurely closed by legacy cleanup
+  await runQuery(
+    `UPDATE routes
+     SET marketplace_status = 'open', is_public = TRUE, updated_at = NOW()
+     WHERE marketplace_scope = 'fleet'
+       AND driver_id IS NULL
+       AND status IN ('draft', 'optimized')
+       AND marketplace_status = 'closed'
+       AND (end_datetime IS NULL OR end_datetime >= NOW() - INTERVAL '2 days')`
+  ).catch(() => {});
+};
 
 const assertBusinessListingAccess = async (queryable, routeId, userId, { lock = false } = {}) => {
   const result = await queryable.query(
@@ -478,8 +492,7 @@ const listFleetPoolRoutes = async (req, res) => {
        AND r.marketplace_scope = 'fleet'
        AND r.status IN ('draft', 'optimized')
        AND r.driver_id IS NULL
-       AND (r.opt_in_deadline IS NULL OR r.opt_in_deadline > NOW())
-       AND (r.end_datetime IS NULL OR r.end_datetime >= NOW() - INTERVAL '1 day')
+       AND (r.end_datetime IS NULL OR r.end_datetime >= NOW() - INTERVAL '2 days')
      ORDER BY r.start_datetime ASC, r.created_at DESC
      LIMIT 250`,
     [req.user.user_id]
