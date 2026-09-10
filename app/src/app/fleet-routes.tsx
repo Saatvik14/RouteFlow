@@ -20,6 +20,7 @@ import { Sidebar } from '../components/sidebar';
 import { OperationsColors as C, OperationsRadius as R, OperationsSpacing as S } from '../constants/theme';
 import { DriverAssignment, enterpriseService } from '../services/api/enterprise';
 import { InAppNotification, notificationService } from '../services/api/notifications';
+import { registerForPushNotificationsAsync } from '../services/notifications/pushNotificationService';
 
 const sameDay = (left: Date, right: Date) => left.toISOString().slice(0, 10) === right.toISOString().slice(0, 10);
 const dateLabel = (value: string) => new Date(value).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -67,6 +68,7 @@ export default function DriverAssignmentsScreen() {
   useEffect(() => {
     void load();
     void loadNotifications();
+    registerForPushNotificationsAsync().catch(() => {});
     const timer = setInterval(() => {
       void loadNotifications();
     }, 15000);

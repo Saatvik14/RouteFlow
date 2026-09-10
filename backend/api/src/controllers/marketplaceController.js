@@ -18,7 +18,9 @@ const expireStartedListings = () => runQuery(
      UPDATE routes
      SET is_public = FALSE, marketplace_status = 'closed',
          marketplace_closed_at = NOW(), updated_at = NOW()
-     WHERE marketplace_status = 'open' AND start_datetime <= NOW()
+     WHERE marketplace_status = 'open'
+       AND marketplace_scope = 'public'
+       AND start_datetime <= NOW()
      RETURNING route_id
    )
    UPDATE route_bids rb
@@ -446,21 +448,38 @@ const listFleetPoolRoutes = async (req, res) => {
             counts.opt_in_count, counts.opt_out_count,
             mine.response AS my_response, mine.notes AS my_notes,
             mine.updated_at AS my_response_at
-     FROM organization_memberships om
-     JOIN organizations o ON o.organization_id = om.organization_id
-     JOIN routes r ON r.organization_id = om.organization_id
+     FROM organizations o
+     JOIN routes r ON r.organization_id = o.organization_id
      LEFT JOIN LATERAL (
        SELECT COUNT(*) FILTER (WHERE response = 'opt_in')::integer AS opt_in_count,
               COUNT(*) FILTER (WHERE response = 'opt_out')::integer AS opt_out_count
        FROM route_opt_ins WHERE route_id = r.route_id
      ) counts ON TRUE
      LEFT JOIN route_opt_ins mine ON mine.route_id = r.route_id AND mine.driver_user_id = $1
-     WHERE om.user_id = $1 AND om.status = 'active' AND om.role = 'driver'
-       AND r.marketplace_status = 'open' AND r.marketplace_scope = 'fleet'
+     WHERE (
+       EXISTS (
+         SELECT 1 FROM organization_memberships om
+         WHERE om.organization_id = o.organization_id
+           AND om.user_id = $1
+           AND om.status = 'active'
+       )
+       OR EXISTS (
+         SELECT 1 FROM drivers d
+         WHERE d.organization_id = o.organization_id
+           AND (
+             d.account_user_id = $1
+             OR (d.email IS NOT NULL AND LOWER(d.email) = (SELECT LOWER(email) FROM users WHERE user_id = $1))
+           )
+           AND d.is_active = TRUE
+           AND d.removed_at IS NULL
+       )
+     )
+       AND r.marketplace_status = 'open'
+       AND r.marketplace_scope = 'fleet'
        AND r.status IN ('draft', 'optimized')
        AND r.driver_id IS NULL
        AND (r.opt_in_deadline IS NULL OR r.opt_in_deadline > NOW())
-       AND r.start_datetime > NOW()
+       AND (r.end_datetime IS NULL OR r.end_datetime >= NOW() - INTERVAL '1 day')
      ORDER BY r.start_datetime ASC, r.created_at DESC
      LIMIT 250`,
     [req.user.user_id]
@@ -501,14 +520,29 @@ const respondToFleetRoute = async (req, res) => {
 
   const optIn = await withTransaction(async (client) => {
     const routeResult = await client.query(
-      `SELECT r.*, om.organization_id AS driver_org_id
+      `SELECT r.*, o.organization_id AS driver_org_id
        FROM routes r
-       JOIN organization_memberships om
-         ON om.organization_id = r.organization_id
-        AND om.user_id = $2
-        AND om.status = 'active'
-        AND om.role = 'driver'
-       WHERE r.route_id = $1 FOR UPDATE OF r`,
+       JOIN organizations o ON o.organization_id = r.organization_id
+       WHERE r.route_id = $1
+         AND (
+           EXISTS (
+             SELECT 1 FROM organization_memberships om
+             WHERE om.organization_id = o.organization_id
+               AND om.user_id = $2
+               AND om.status = 'active'
+           )
+           OR EXISTS (
+             SELECT 1 FROM drivers d
+             WHERE d.organization_id = o.organization_id
+               AND (
+                 d.account_user_id = $2
+                 OR (d.email IS NOT NULL AND LOWER(d.email) = (SELECT LOWER(email) FROM users WHERE user_id = $2))
+               )
+               AND d.is_active = TRUE
+               AND d.removed_at IS NULL
+           )
+         )
+       FOR UPDATE OF r`,
       [routeId, req.user.user_id]
     );
     const route = routeResult.rows[0];
@@ -518,8 +552,8 @@ const respondToFleetRoute = async (req, res) => {
     if (route.opt_in_deadline && new Date(route.opt_in_deadline).getTime() <= Date.now()) {
       throw new HttpError(409, 'DEADLINE_PASSED', 'The opt-in deadline for this route has passed.');
     }
-    if (new Date(route.start_datetime).getTime() <= Date.now()) {
-      throw new HttpError(409, 'ROUTE_ALREADY_STARTED', 'This route has already started.');
+    if (route.end_datetime && new Date(route.end_datetime).getTime() <= Date.now() - 86400000) {
+      throw new HttpError(409, 'ROUTE_ALREADY_ENDED', 'This route has already ended.');
     }
 
     const upsertResult = await client.query(

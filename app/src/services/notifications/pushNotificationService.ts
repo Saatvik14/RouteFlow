@@ -6,10 +6,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { notificationService } from '../api/notifications';
 
 const PUSH_TOKEN_STORAGE_KEY = 'expo_push_token';
-const EAS_PROJECT_ID =
-  Constants?.expoConfig?.extra?.eas?.projectId ??
-  Constants?.easConfig?.projectId ??
-  'da6e074b-2c2f-405b-9e3e-3468536d474a';
+const getProjectId = (): string => {
+  return (
+    Constants?.expoConfig?.extra?.eas?.projectId ||
+    (Constants as any)?.easConfig?.projectId ||
+    'da6e074b-2c2f-405b-9e3e-3468536d474a'
+  );
+};
 
 // Configure default notification presentation behavior for foreground alerts
 Notifications.setNotificationHandler({
@@ -65,24 +68,23 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
 
     if (finalStatus !== 'granted') {
-      console.log('[PushNotifications] Permission not granted for push notifications.');
+      console.log('[PushNotifications] Permission not granted for push notifications (status=' + finalStatus + ').');
       return null;
     }
 
-    // Try resolving token with EAS project ID, fallback to default if project ID isn't matched
+    const projectId = getProjectId();
     let pushToken: string | null = null;
+
     try {
-      const tokenResponse = await Notifications.getExpoPushTokenAsync({
-        projectId: EAS_PROJECT_ID,
-      });
+      const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
       pushToken = tokenResponse?.data ?? null;
-    } catch (tokenErr) {
-      console.warn('[PushNotifications] getExpoPushTokenAsync with projectId failed, trying default:', tokenErr);
+    } catch (tokenErr: any) {
+      console.warn('[PushNotifications] getExpoPushTokenAsync with projectId failed:', tokenErr?.message || tokenErr);
       try {
         const tokenResponse = await Notifications.getExpoPushTokenAsync();
         pushToken = tokenResponse?.data ?? null;
-      } catch (fallbackErr) {
-        console.error('[PushNotifications] Fallback token retrieval failed:', fallbackErr);
+      } catch (fallbackErr: any) {
+        console.error('[PushNotifications] Fallback token retrieval failed:', fallbackErr?.message || fallbackErr);
       }
     }
 
@@ -103,11 +105,13 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       if (regResponse?.success) {
         console.log('[PushNotifications] Push token registered on backend successfully.');
       }
+    } else {
+      console.warn('[PushNotifications] No push token generated.');
     }
 
     return pushToken;
-  } catch (error) {
-    console.error('[PushNotifications] Error registering for push notifications:', error);
+  } catch (error: any) {
+    console.error('[PushNotifications] Error registering for push notifications:', error?.message || error);
     return null;
   }
 }

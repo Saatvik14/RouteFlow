@@ -136,7 +136,12 @@ export default function MarketplaceScreen() {
     setTestPushLoading(true);
     setPushStatusMessage('');
     try {
-      await registerForPushNotificationsAsync();
+      if (Platform.OS !== 'web') {
+        const token = await registerForPushNotificationsAsync();
+        if (!token) {
+          setPushStatusMessage('Could not obtain push token from device. Ensure notification permissions are allowed in system settings.');
+        }
+      }
       const response = await notificationService.sendTestPush();
       if (response.success) {
         setPushStatusMessage(response.message || 'Test notification sent!');
@@ -184,22 +189,11 @@ export default function MarketplaceScreen() {
         if (mountedRef.current) {
           setBusinessFleetRoutes(response.data?.routes || []);
         }
-      } else if (isFleetDriver) {
+      } else {
         const response = await marketplaceService.getFleetPoolRoutes();
         apiError(response, 'Fleet pool routes could not be loaded.');
         if (mountedRef.current) {
           setFleetRoutes(response.data?.routes || []);
-        }
-      } else if (isIndependentDriver) {
-        const [availableResponse, bidsResponse] = await Promise.all([
-          marketplaceService.getAvailableRoutes(),
-          marketplaceService.getMyBids(),
-        ]);
-        apiError(availableResponse, 'Public routes could not be loaded.');
-        apiError(bidsResponse, 'Your bids could not be loaded.');
-        if (mountedRef.current) {
-          setPublicRoutes(availableResponse.data?.routes || []);
-          setMyBids(bidsResponse.data?.bids || []);
         }
       }
       if (mountedRef.current) {
