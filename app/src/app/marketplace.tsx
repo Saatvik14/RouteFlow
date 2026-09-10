@@ -418,14 +418,14 @@ export default function MarketplaceScreen() {
                 {syncError ? 'Sync delayed' : lastUpdatedAt ? `Live · ${formatTimeOnly(lastUpdatedAt.toISOString())}` : 'Live updates'}
               </Text>
             </View>
-            <ActionButton
+            {/* <ActionButton
               compact
               variant="quiet"
               icon="bell"
               label={testPushLoading ? 'Testing…' : 'Test Push'}
               loading={testPushLoading}
               onPress={handleTestPush}
-            />
+            /> */}
             <ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={manualRefresh} />
           </View>
         }
@@ -557,14 +557,14 @@ export default function MarketplaceScreen() {
                 {syncError ? 'Sync delayed' : lastUpdatedAt ? `Live · ${formatTimeOnly(lastUpdatedAt.toISOString())}` : 'Live updates'}
               </Text>
             </View>
-            <ActionButton
+            {/* <ActionButton
               compact
               variant="quiet"
               icon="bell"
               label={testPushLoading ? 'Testing…' : 'Test Push'}
               loading={testPushLoading}
               onPress={handleTestPush}
-            />
+            /> */}
             <ActionButton compact variant="secondary" icon="refresh-cw" label="Refresh" loading={refreshing} onPress={manualRefresh} />
           </View>
         }
