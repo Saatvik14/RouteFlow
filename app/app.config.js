@@ -14,8 +14,24 @@ module.exports = ({ config }) => {
     process.env.GOOGLE_MAPS_API_KEY ||
     '';
 
+  // Dynamically inject react-native-maps plugin with the API key
+  // so the key is written into AndroidManifest.xml at build time.
+  const existingPlugins = config.plugins || [];
+  const plugins = [...existingPlugins];
+
+  if (androidKey) {
+    plugins.push([
+      'react-native-maps',
+      {
+        androidGoogleMapsApiKey: androidKey,
+        ...(iosKey ? { iosGoogleMapsApiKey: iosKey } : {}),
+      },
+    ]);
+  }
+
   return {
     ...config,
+    plugins,
     ios: {
       ...config.ios,
       bundleIdentifier: config.ios?.bundleIdentifier || 'com.vvdevill.app',
